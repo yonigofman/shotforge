@@ -74,6 +74,16 @@ def _number(value: float | int) -> str:
 
 STAGES: tuple[Stage, ...] = (Stage.breakdown, Stage.blockout, Stage.frame, Stage.video)
 
+#: The shot card's regions. Each one redraws on its own, so an action never
+#: rebuilds the parts of the screen it did not touch.
+REGIONS = {
+    "head": "partials/_head.html",
+    "do": "partials/_do.html",
+    "see": "partials/_see.html",
+    "judge": "partials/_judge.html",
+    "gate": "partials/_gatebar.html",
+}
+
 #: How often the event stream looks for a change.
 EVENT_POLL_SECONDS = 2.0
 #: How long one event stream lives before it ends and the browser reconnects.
@@ -524,10 +534,36 @@ def create_app(
     def shot_card(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
         return render(request, "partials/_card.html", shot_card_context(request, scene_id, shot_id))
 
+    def region(
+        request: Request,
+        name: str,
+        scene_id: str,
+        shot_id: str,
+        *,
+        also: tuple[str, ...] = (),
+        context: dict[str, Any] | None = None,
+    ) -> HTMLResponse:
+        """Redraw one region of the shot card, and tell the others to follow.
+
+        Nothing here redraws the whole card: a prompt lands in `do`, a take in
+        `see`, a verdict in `judge`, and each region listens for its own event.
+        """
+        if name not in REGIONS:
+            raise HTTPException(404, f"no region {name!r}")
+        response = render(
+            request, REGIONS[name], context or shot_card_context(request, scene_id, shot_id)
+        )
+        if also:
+            response.headers["HX-Trigger"] = ", ".join(f"{other}-changed" for other in also)
+        return response
+
+    @routes.get("/shot/{scene_id}/{shot_id}/region/{name}", response_class=HTMLResponse)
+    def shot_region(request: Request, scene_id: str, shot_id: str, name: str) -> HTMLResponse:
+        return region(request, name, scene_id, shot_id)
+
     @routes.get("/shot/{scene_id}/{shot_id}/takes", response_class=HTMLResponse)
     def shot_takes(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
-        context = shot_card_context(request, scene_id, shot_id)
-        return render(request, "partials/_takes.html", context)
+        return region(request, "see", scene_id, shot_id)
 
     register_bible(routes, load, render)
     register_edit(routes, load, render)
@@ -617,7 +653,7 @@ def create_app(
             actions.build_prompt(project, state, scene_id, shot_id)
         except (ValueError, TransitionError, SkillError) as exc:
             raise HTTPException(400, str(exc)) from exc
-        return shot_card(request, scene_id, shot_id)
+        return region(request, "do", scene_id, shot_id)
 
     @routes.post("/shot/{scene_id}/{shot_id}/fix", response_class=HTMLResponse)
     def make_fix(
@@ -638,7 +674,7 @@ def create_app(
         report = actions.read_qa_report(source.qa_report(shot_paths))
         if report is not None:
             context.update(_qa_context(source, report))
-        return render(request, "partials/_card.html", context)
+        return region(request, "do", scene_id, shot_id, context=context)
 
     @routes.post("/shot/{scene_id}/{shot_id}/blockout", response_class=HTMLResponse)
     def render_blockout(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
@@ -653,7 +689,7 @@ def create_app(
             blender.render(scene_id, shot_id, project=project)
         except blender.BlockoutError as exc:
             raise HTTPException(400, str(exc)) from exc
-        return shot_card(request, scene_id, shot_id)
+        return region(request, "do", scene_id, shot_id, also=("gate",))
 
     @routes.post("/shot/{scene_id}/{shot_id}/begin", response_class=HTMLResponse)
     def begin_stage(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
@@ -754,7 +790,7 @@ def create_app(
         except FileNotFoundError as exc:
             raise HTTPException(404, str(exc)) from exc
         state.set_take_rejected(scene_id, shot_id, kind.value, number, not restore)
-        return shot_card(request, scene_id, shot_id)
+        return region(request, "see", scene_id, shot_id, also=("judge", "gate"))
 
     @routes.post("/shot/{scene_id}/{shot_id}/reopen", response_class=HTMLResponse)
     def reopen_stage(
@@ -807,7 +843,9 @@ def create_app(
                 },
             )
             if take is None:
-                response.headers["HX-Trigger-After-Swap"] = "card-changed"
+                # The verdict shows on the take and at the gate; neither needs
+                # the whole card redrawn.
+                response.headers["HX-Trigger-After-Swap"] = "see-changed, gate-changed"
             return response
 
         return await render_with_progress(request, generate)
@@ -835,8 +873,7 @@ def create_app(
                     inbox_mod.file_to_shot(project, source, scene_id, shot_id)
         except (ValueError, FileNotFoundError) as exc:
             raise HTTPException(400, str(exc)) from exc
-        context = shot_card_context(request, scene_id, shot_id)
-        return render(request, "partials/_takes.html", context)
+        return region(request, "see", scene_id, shot_id, also=("judge", "gate"))
 
     @routes.post("/inbox/file", response_class=HTMLResponse)
     def file_from_inbox(

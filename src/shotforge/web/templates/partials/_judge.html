@@ -1,0 +1,57 @@
+{% import "partials/_macros.html" as ui %}
+{% import "partials/_stream_loading.html" as stream %}
+{% set shot_url = project_prefix ~ "/shot/" ~ scene.id ~ "/" ~ shot.id %}
+{# Judge: what the checks say about what came back, and the beats they judge it against. #}
+<div id="judge" class="stack" hx-get="{{ shot_url }}/region/judge"
+     hx-trigger="judge-changed from:body" hx-swap="outerHTML">
+  <article class="card stack">
+    <div class="card-header">
+      <h3>Checks</h3>
+      <span class="spacer"></span>
+      {% set qa_url = shot_url ~ "/qa" %}
+      <form method="post" action="{{ qa_url }}" data-stream-target="qa" data-stream-task="Check"
+            hx-post="{{ qa_url }}" hx-target="#qa" hx-swap="innerHTML"
+            hx-disabled-elt="find button">
+        <input type="hidden" name="kind" value="{{ qa_kind | default('frame') }}" />
+        {{ ui.button("Run on latest take", type="submit", spinner=true, disabled=not qa_kind) }}
+      </form>
+    </div>
+    <div id="qa" tabindex="-1">{% include "partials/_findings.html" %}</div>
+    {{ stream.loading("Starting checks…") }}
+  </article>
+
+  <article class="card stack">
+    <div class="card-header"><h3>Beats</h3></div>
+    <table>
+      <tbody>
+        {% for beat in shot.beats %}
+        <tr>
+          <td class="mono faint nowrap">{{ beat.t[0] | n }}–{{ beat.t[1] | n }}s</td>
+          <td>
+            <span dir="auto">{% if beat.speaker %}<strong>{{ beat.speaker }}:</strong> {{ beat.line }}{% else %}{{ beat.action }}{% endif %}</span>
+            {% if beat.silence %}{{ ui.badge("silence") }}{% endif %}
+            {% if beat.line_overruns() %}
+            <br /><span class="fix">line needs about {{ beat.line_overruns() }}s more</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </article>
+
+  {% if previous %}
+  <article class="card stack">
+    <div class="card-header"><h3>Cut from {{ previous.id }}</h3></div>
+    <div class="pair">
+      {{ ui.media(shot_paths.root.parent / previous.id / 'last_frame.png', media_url, previous.id ~ ' last frame') }}
+      {{ ui.media(shot_paths.approved_frame, media_url, shot.id ~ ' first frame') }}
+    </div>
+    {% if cut_findings %}
+      {% with findings = cut_findings, fix_take = none, verdict = none, rule_offers = [] %}
+        {% include "partials/_findings.html" %}
+      {% endwith %}
+    {% endif %}
+  </article>
+  {% endif %}
+</div>

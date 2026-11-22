@@ -1,0 +1,85 @@
+{% import "partials/_macros.html" as ui %}
+{% import "partials/_stream_loading.html" as stream %}
+{% set prompt_action = fix_prompt.action if fix_prompt else action %}
+{% set prompt_text = fix_prompt.text if fix_prompt else prompt_text %}
+{% set prompt_path = fix_prompt.path if fix_prompt else prompt_path %}
+{% set shot_url = project_prefix ~ "/shot/" ~ scene.id ~ "/" ~ shot.id %}
+{# Do: the one thing this shot needs now, and everything it needs to do it. #}
+<section id="do" class="card raised approval stack" x-data="copyable"
+         hx-get="{{ shot_url }}/region/do" hx-trigger="do-changed from:body" hx-swap="outerHTML">
+  <div class="card-header">
+    <h2>{{ prompt_action.title }}</h2>
+    <span class="spacer"></span>
+    {% if prompt_action.tool != "—" %}{{ ui.badge(prompt_action.tool, "tool") }}{% endif %}
+  </div>
+  {% if action.detail and not fix_prompt %}<p class="muted" dir="auto">{{ action.detail }}</p>{% endif %}
+
+  {{ ui.reasons(action.warnings, 'warn', 'warning') }}
+  {{ ui.reasons(action.blocked_by, 'warn', 'waiting') }}
+
+  {% if shot.status.value == 'blockout' %}
+  {{ ui.media(blockout, media_url, "Blockout render for " ~ shot.id, bust=true) }}
+  <div class="row">
+    {{ ui.button("Render blockout", variant="" if action.ready else "primary", spinner=true,
+                 attrs=hx(post=shot_url ~ "/blockout", target="#do", swap="outerHTML",
+                          disabled_elt="this")) }}
+  </div>
+  {% endif %}
+
+  {% if prompt_action.skill %}
+  <div class="row">
+    <span class="faint">skill: <code>{{ prompt_action.skill }}</code></span>
+    <span class="spacer"></span>
+    {% if fix_prompt %}
+    {{ ui.button("Back to shot prompt",
+                 attrs=hx(get=shot_url ~ "/region/do", target="#do", swap="outerHTML")) }}
+    {% else %}
+    {{ ui.button("Regenerate prompt" if prompt_text else "Generate prompt", spinner=true,
+                 attrs=hx(post=shot_url ~ "/prompt", target="#do", swap="outerHTML")) }}
+    {% endif %}
+    {% if prompt_text %}{{ ui.copy_button('#prompt-text') }}{% endif %}
+  </div>
+  {% endif %}
+
+  {% if prompt_text %}{{ ui.prompt_block(prompt_text, rel(prompt_path)) }}{% endif %}
+
+  {% if prompt_action.attachments %}
+  <h3>Attach in this order</h3>
+  {{ ui.attachment_list(prompt_action.attachments, media_url, rel) }}
+  {% if fix_prompt and fix_prompt.selection_guide and fix_prompt.selection_guide.exists %}
+  {{ ui.media(fix_prompt.selection_guide.path, media_url, fix_prompt.selection_guide.label) }}
+  {% endif %}
+  {% endif %}
+
+  {% if shot.status.value == 'breakdown' or shot.camera.why or shot.technique_why %}
+  <div class="card-header">
+    <h3>Camera</h3>
+    {% if shot.status.value == 'breakdown' %}
+    <span class="spacer"></span>
+    {% set camera_url = shot_url ~ "/camera" %}
+    <form method="post" action="{{ camera_url }}" data-stream-target="camera-proposal"
+          hx-post="{{ camera_url }}" hx-target="#camera-proposal" hx-swap="innerHTML"
+          hx-disabled-elt="find button">
+      {{ ui.button("Propose camera", type="submit", spinner=true) }}
+    </form>
+    {% endif %}
+  </div>
+  {% if shot.camera.why %}
+  {% set camera = shot.camera %}
+  <p class="muted">
+    {% if camera.lens_mm is not none %}<span>Lens {{ camera.lens_mm }} mm</span>{% endif %}
+    {% if camera.height is not none %}<span> · Height {{ camera.height }}{% if camera.height is number %} m{% endif %}</span>{% endif %}
+    {% if camera.angle is not none %}<span> · Angle {{ camera.angle }}{% if camera.angle is number %}°{% endif %}</span>{% endif %}
+  </p>
+  <p dir="auto">{{ shot.camera.why }}</p>
+  {% endif %}
+  {% if shot.technique_why %}
+  <p><strong>{{ shot.technique | join(', ') | replace('_', ' ') }}</strong></p>
+  <p dir="auto">{{ shot.technique_why }}</p>
+  {% endif %}
+  {% if shot.status.value == 'breakdown' %}
+  <div id="camera-proposal" class="stack" tabindex="-1"></div>
+  {{ stream.loading("Starting the camera proposal…") }}
+  {% endif %}
+  {% endif %}
+</section>

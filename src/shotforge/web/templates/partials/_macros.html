@@ -56,6 +56,30 @@
 </div>
 {%- endmacro %}
 
+{#
+  The stages of a shot as a path you can walk back along. A stage that is
+  behind you is a button that reopens it; the rest are plain.
+#}
+{% macro stage_path(stages, stage_index, stage_label, reopen_attrs=none) -%}
+<nav class="stage-path" aria-label="Stages">
+  <ol>
+    {% for stage in stages %}
+    {% set done = stage_index >= loop.index0 * 2 + 1 %}
+    {% set current = stage_index == loop.index0 * 2 %}
+    <li class="{% if done %}done{% elif current %}current{% endif %}"
+        {% if current %}aria-current="step"{% endif %}>
+      {% if reopen_attrs and stage_index > loop.index0 * 2 %}
+      {{ post_button(stage_label[stage], attrs=reopen_attrs, fields={"stage": stage.value},
+                     title="Reopen " ~ stage_label[stage] ~ "; what the approvals wrote stays") }}
+      {% else %}
+      <span>{{ stage_label[stage] }}</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</nav>
+{%- endmacro %}
+
 {# --- media ---------------------------------------------------------- #}
 
 {% macro media(path, media_url, caption, kind='image', bust=false) -%}
