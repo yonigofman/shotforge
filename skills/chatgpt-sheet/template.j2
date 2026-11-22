@@ -1,0 +1,33 @@
+{{ kind | capitalize }}: {{ entity.get('names', {}).values() | join(' / ') or entity.id }}
+{% if asset == 'sheet' %}
+Generate one production design sheet for this {{ kind }}.
+{% if kind == 'character' %}
+Show matching full-body front, three-quarter, and side views plus a close face view.
+{% elif kind == 'location' %}
+Show a wide establishing view, a complementary angle and a material detail of the same set.
+{% else %}
+Show matching front, side and three-quarter views, with a detail inset for distinctive features.
+Show listed continuity states where they change the visible appearance.
+{% endif %}
+{% else %}
+Generate one clean reference image for Grok {{ entity.get('tag') or ('@' ~ entity.id.title()) }}.
+Use the attached design sheet to preserve the design exactly.
+{% if kind == 'character' %}
+Use one unobstructed three-quarter view with a clearly readable face and outfit on a neutral background.
+{% elif kind == 'location' %}
+Use one unobstructed wide view that shows the defining architecture, materials and lighting.
+{% else %}
+Use one unobstructed three-quarter view of the entire prop on a neutral background.
+{% endif %}
+Use a single view with no panels, insets or captions.
+{% endif %}
+
+{{ brief }}
+
+{% for rule in rules %}
+- {{ rule }}
+{% endfor %}
+No lettering, labels or watermarks.
+{% for rule in style.get('negative', []) %}
+- {{ rule }}
+{% endfor %}

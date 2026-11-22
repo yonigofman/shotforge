@@ -486,7 +486,7 @@ def log(
     for entry in entries:
         note = f"  — {entry.note}" if entry.note else ""
         typer.echo(
-            f"{entry.ts}  {entry.scene}/{entry.shot}  {entry.action}: "
+            f"{entry.ts}  {entry.subject}  {entry.action}: "
             f"{entry.from_status} → {entry.to_status}{note}"
         )
 

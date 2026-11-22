@@ -19,11 +19,12 @@ from shotforge.models import (
     Shot,
     Style,
 )
+from shotforge.models.common import ID_RE
 from shotforge.paths import ProjectPaths
-from shotforge.yamlio import ProjectFileError, dump, load
+from shotforge.yamlio import ProjectFileError, dump, load, parse
 
 KINDS = ("character", "location", "prop")
-_MODELS: dict[str, type] = {"character": Character, "location": Location, "prop": Prop}
+_MODELS = {"character": Character, "location": Location, "prop": Prop}
 
 LFS_PATTERNS = ("*.png", "*.jpg", "*.jpeg", "*.mp4", "*.mov", "*.wav", "*.blend")
 
@@ -157,12 +158,30 @@ class Project:
         return load(self.paths.style, Style)
 
     def entity(self, kind: str, entity_id: str):
-        if kind not in KINDS:
-            raise ProjectError(f"unknown bible kind {kind!r}")
-        path = self.paths.entity_file(kind, entity_id)
+        path = self.bible_entity_path(kind, entity_id)
         if not path.is_file():
             raise ProjectError(f"no {kind} {entity_id!r} in the bible ({path})")
         return load(path, _MODELS[kind])
+
+    def bible_entity_path(self, kind: str, entity_id: str) -> Path:
+        if kind not in KINDS:
+            raise ProjectError(f"unknown bible kind {kind!r}")
+        if not ID_RE.fullmatch(entity_id):
+            raise ProjectError(f"invalid bible id {entity_id!r}")
+        return self.paths.entity_file(kind, entity_id)
+
+    def parse_entity(
+        self, kind: str, text: str, entity_id: str | None = None
+    ) -> Character | Location | Prop:
+        if kind not in KINDS:
+            raise ProjectError(f"unknown bible kind {kind!r}")
+        path = self.paths.bible_kind(kind)
+        if entity_id is not None:
+            path = self.bible_entity_path(kind, entity_id)
+        entity = parse(text, path, _MODELS[kind])
+        if entity_id is not None and entity_id != entity.id:
+            raise ProjectFileError(path, "id cannot change because shots and assets refer to it")
+        return entity
 
     def entities(self, kind: str) -> dict[str, Character | Location | Prop]:
         return {eid: self.entity(kind, eid) for eid in self.paths.entity_ids(kind)}
@@ -180,7 +199,7 @@ class Project:
         return self.entities("prop")  # type: ignore[return-value]
 
     def save_entity(self, kind: str, entity, *, create_only: bool = False) -> Path:
-        path = self.paths.entity_file(kind, entity.id)
+        path = self.bible_entity_path(kind, entity.id)
         dump(path, entity, create_only=create_only)
         return path
 

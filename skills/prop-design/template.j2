@@ -1,0 +1,11 @@
+{% extends "design-brief.j2" %}
+{% block craft %}
+PROP DESIGN
+{% if entity.get('description') %}
+Production description: {{ entity.description }}
+{% endif %}
+{% if entity.get('states') %}
+Continuity states: {{ entity.states | join(', ') }}
+{% endif %}
+Keep a stable silhouette, proportions and materials across views and states. Isolate the prop.
+{% endblock %}

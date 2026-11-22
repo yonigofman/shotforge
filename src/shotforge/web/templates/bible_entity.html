@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% import "partials/_macros.html" as ui %}
+{% block content %}
+<div class="stack">
+  <a class="faint" href="/bible">← Bible</a>
+  <div class="row">
+    <h1 dir="auto">{{ entity.names.get('book') or entity.id }}</h1>
+    {{ ui.pip('pass' if designed else 'warn', 'Designed' if designed else 'In design') }}
+    <a class="button" href="{{ url }}/edit">Edit {{ kind }}</a>
+  </div>
+  <div class="row muted">
+    <span>{{ kind | capitalize }} · {{ entity.id }}</span>
+    {% if entity.tag %}<span class="mono">{{ entity.tag }}</span>{% endif %}
+  </div>
+
+  {% if error %}<div class="card bible-error" role="alert">{{ error }}</div>{% endif %}
+
+  <div class="split">
+    <div class="stack">
+      <section class="card stack">
+        <h2>Design brief</h2>
+        <h3>From the book</h3>
+        {% if entity.from_book %}
+        <ul dir="auto">{% for item in entity.from_book %}<li>{{ item }}</li>{% endfor %}</ul>
+        {% else %}<p class="muted">No source details recorded.</p>{% endif %}
+        <h3>Design choices</h3>
+        {% if entity.design_choices %}
+        <ul dir="auto">{% for item in entity.design_choices %}<li>{{ item }}</li>{% endfor %}</ul>
+        {% else %}<p class="muted">No design choices recorded.</p>{% endif %}
+      </section>
+
+      <section class="card stack" id="prompts">
+        <div class="row">
+          <h2>ChatGPT prompts</h2>
+          <form method="post" action="{{ url }}/prompts">
+            <button type="submit">{{ 'Regenerate prompts' if prompts else 'Generate prompts' }}</button>
+          </form>
+        </div>
+        {% if prompts %}
+        <p class="muted">Generate the sheet first. Attach it in ChatGPT when using the clean reference prompt.</p>
+        {% for asset, title in [('sheet', 'Design sheet prompt'), ('ref', 'Clean reference prompt')] %}
+        <details {% if loop.first %}open{% endif %}>
+          <summary>{{ title }}</summary>
+          <pre class="prompt" id="prompt-{{ asset }}">{{ prompts[asset] }}</pre>
+          <button type="button" data-design-copy="prompt-{{ asset }}">Copy {{ title | lower }}</button>
+        </details>
+        {% endfor %}
+        {% endif %}
+      </section>
+    </div>
+
+    <div class="stack">
+      {% for asset, title in [('sheet', 'Design sheet'), ('ref', 'Clean reference')] %}
+      {% set path = assets[asset] %}
+      <section class="card stack" id="{{ asset }}">
+        <h2>{{ title }}</h2>
+        {% if path.is_file() %}
+        <a href="{{ media_url(path) }}" class="frame">
+          <img src="{{ media_url(path) }}?v={{ path.stat().st_mtime_ns }}" alt="{{ title }} for {{ entity.id }}" />
+        </a>
+        {% endif %}
+        <form method="post" action="{{ url }}/{{ asset }}/file" enctype="multipart/form-data"
+          class="dropzone stack" data-design-drop>
+          <label for="upload-{{ asset }}">Drop {{ 'a replacement image' if path.is_file() else 'an image' }} here or choose a file</label>
+          <input id="upload-{{ asset }}" name="file" type="file" accept=".png,.jpg,.jpeg,.webp" required />
+          <button type="submit">File {{ title | lower }}</button>
+        </form>
+        {% if inbox_images %}
+        <form method="post" action="{{ url }}/{{ asset }}/file" class="row">
+          <label for="inbox-{{ asset }}">From inbox</label>
+          <select id="inbox-{{ asset }}" name="name" required>
+            <option value="">Choose an image</option>
+            {% for item in inbox_images %}<option value="{{ item.name }}">{{ item.name }}</option>{% endfor %}
+          </select>
+          <button type="submit">File from inbox</button>
+        </form>
+        {% endif %}
+      </section>
+      {% endfor %}
+
+      <section class="card approval" id="approval">
+        <h2>Design approval</h2>
+        {% if designed %}
+        <p class="muted">Sheet and reference approved.</p>
+        {% else %}
+        {% if not revision %}<p class="muted">File both images before approving.</p>{% endif %}
+        <form method="post" action="{{ url }}/approve" class="gate">
+          <input type="hidden" name="revision" value="{{ revision or '' }}" />
+          <input type="text" name="note" aria-label="Approval note" placeholder="Approval note (optional)" />
+          <button class="primary" type="submit" {% if not revision %}disabled{% endif %}>Approve design</button>
+        </form>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

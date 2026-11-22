@@ -24,25 +24,43 @@ class ProjectFileError(Exception):
 
 
 def read_yaml(path: Path) -> dict:
-    with path.open("r", encoding="utf-8") as fh:
-        data = yaml.safe_load(fh) or {}
-    if not isinstance(data, dict):
-        raise ProjectFileError(path, "expected a mapping at the top level")
-    return data
+    return _mapping(_read_text(path), path)
 
 
 def load(path: Path, model: type[T]) -> T:
     """Load one YAML file and validate it, reporting the field that is wrong."""
+    return parse(_read_text(path), path, model)
+
+
+def _read_text(path: Path) -> str:
     try:
-        return model.model_validate(read_yaml(path))
+        return path.read_text(encoding="utf-8")
+    except UnicodeError as exc:
+        raise ProjectFileError(path, str(exc)) from exc
+
+
+def parse(text: str, path: Path, model: type[T]) -> T:
+    """Validate YAML from disk or from the browser using the same schema."""
+    try:
+        return model.model_validate(_mapping(text, path))
     except ValidationError as exc:
         lines = []
         for err in exc.errors():
             loc = ".".join(str(p) for p in err["loc"]) or "(root)"
             lines.append(f"{loc}: {err['msg']}")
         raise ProjectFileError(path, "; ".join(lines)) from exc
-    except (yaml.YAMLError, UnicodeError) as exc:
+
+
+def _mapping(text: str, path: Path) -> dict:
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
         raise ProjectFileError(path, str(exc)) from exc
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        raise ProjectFileError(path, "expected a mapping at the top level")
+    return data
 
 
 def render_yaml(model: BaseModel) -> str:
@@ -56,10 +74,13 @@ def render_yaml(model: BaseModel) -> str:
 
 
 def dump(path: Path, model: BaseModel, *, create_only: bool = False) -> None:
+    write_text(path, render_yaml(model), create_only=create_only)
+
+
+def write_text(path: Path, text: str, *, create_only: bool = False) -> None:
     """Write a whole file at once, optionally refusing to replace an existing file."""
-    text = render_yaml(model)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with TemporaryDirectory(dir=path.parent) as directory:
+    with TemporaryDirectory(dir=path.parent, prefix=f".{path.name}-") as directory:
         temporary = Path(directory) / path.name
         temporary.write_text(text, encoding="utf-8")
         if create_only:

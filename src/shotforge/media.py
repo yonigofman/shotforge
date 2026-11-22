@@ -7,10 +7,35 @@ installed, and says so plainly when it is missing.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
 from shotforge.tools import ToolError, require_tool
+
+
+def write_design_png(source: Path, target: Path) -> None:
+    """Decode a downloaded still and store it as PNG, preserving original PNGs."""
+    codec = {".png": "png", ".jpg": "mjpeg", ".jpeg": "mjpeg", ".webp": "webp"}[
+        source.suffix.lower()
+    ]
+    command = [
+        str(require_tool("ffmpeg")), "-nostdin", "-v", "error", "-xerror",
+        "-f", "image2", "-pattern_type", "none", "-c:v", codec, "-i", str(source),
+        "-frames:v", "1", "-threads", "1",
+    ]
+    if codec == "png":
+        command += ["-f", "null", "-"]
+    else:
+        command += ["-update", "1", str(target)]
+    try:
+        result = subprocess.run(command, capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ToolError(f"ffmpeg could not process {source.name}: {exc}") from exc
+    if result.returncode or (codec != "png" and not target.is_file()):
+        raise ValueError(f"{source.name} is not a readable {source.suffix} image")
+    if codec == "png":
+        shutil.copyfile(source, target)
 
 
 def probe_duration(video: Path) -> float | None:
