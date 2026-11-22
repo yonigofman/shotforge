@@ -29,8 +29,11 @@ from shotforge import (
     breakdown,
     checks,
     cinematography,
+    compare,
     continuity,
     fixes,
+    now,
+    sets,
     tools,
     undo,
 )
@@ -44,6 +47,7 @@ from shotforge.skills import find_skill, latest_prompt, prompt_history
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
 from shotforge.takes import Take, TakeKind, approved_take_number, get_take, list_takes
+from shotforge.web import shell
 from shotforge.web.bible import materials_for_page, register_bible
 from shotforge.web.edit import register_edit
 from shotforge.web.lifecycle import shutting_down
@@ -204,6 +208,11 @@ def create_app(
         context.setdefault("project_prefix", prefix)
         context.setdefault("media_url", lambda path: f"{prefix}/media/{project.paths.rel(path)}")
         context.setdefault("rel", project.paths.rel)
+        context.setdefault(
+            "nav", shell.navigation(prefix, shell.current_scene(context, project))
+        )
+        context.setdefault("crumbs", shell.crumbs(request.url.path, prefix))
+        context.setdefault("inbox_count", len(inbox_mod.scan(project)))
         return templates.TemplateResponse(request, name, context, status_code=status_code)
 
     def inbox_context(project: Project, state: ProjectState) -> dict[str, Any]:
@@ -315,6 +324,7 @@ def create_app(
             {
                 **inbox_context(project, state),
                 "scenes": scenes,
+                "next": now.next_up(project, state),
                 "log": state.approvals(limit=8),
                 "page": "scenes",
             },
@@ -478,11 +488,17 @@ def create_app(
         except ProjectError as exc:
             raise HTTPException(404, str(exc)) from exc
         rows = []
+        earlier = None
         for shot in project.shots(scene_id):
             shot_paths = project.paths.shot(scene_id, shot.id)
+            # The cut into this shot, from whatever the last check left behind.
+            cut = continuity.shot_findings(project, scene, shot, earlier)
+            earlier = shot
             rows.append(
                 {
                     "shot": shot,
+                    "cut": checks.summarise(cut) if cut else None,
+                    "cut_why": " ".join(finding.message for finding in cut),
                     "label": actions.stage_label(shot),
                     "action": next_action(project, state, scene_id, shot.id),
                     "blockout": project.paths.blockout(scene_id, shot.id),
@@ -562,6 +578,39 @@ def create_app(
             response.headers["HX-Trigger"] = ", ".join(f"{other}-changed" for other in also)
         return response
 
+    @routes.get("/shot/{scene_id}/{shot_id}/compare", response_class=HTMLResponse)
+    def compare_view(
+        request: Request,
+        scene_id: str,
+        shot_id: str,
+        left: str | None = None,
+        right: str | None = None,
+    ) -> HTMLResponse:
+        """Two images at one scale, to be judged against each other."""
+        project, _ = load(request)
+        try:
+            project.shot(scene_id, shot_id)
+        except ProjectError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        found = compare.references(project, scene_id, shot_id)
+        if not found:
+            raise HTTPException(404, "nothing to compare yet for this shot")
+        return render(
+            request,
+            "compare.html",
+            {
+                "project": project,
+                "scene": project.scene(scene_id),
+                "shot": project.shot(scene_id, shot_id),
+                "references": found,
+                "groups": compare.grouped(found),
+                # Newest against the one before it: what you reach for most.
+                "left": compare.pick(found, left, len(found) - 2),
+                "right": compare.pick(found, right, len(found) - 1),
+                "page": "shot",
+            },
+        )
+
     @routes.get("/shot/{scene_id}/{shot_id}/region/{name}", response_class=HTMLResponse)
     def shot_region(request: Request, scene_id: str, shot_id: str, name: str) -> HTMLResponse:
         return region(request, name, scene_id, shot_id)
@@ -573,6 +622,28 @@ def create_app(
     register_bible(routes, load, render)
     register_edit(routes, load, render)
     register_settings(routes, load, render)
+
+    @routes.get("/sets", response_class=HTMLResponse)
+    def sets_page(request: Request) -> HTMLResponse:
+        project, _ = load(request)
+        return render(
+            request, "sets.html",
+            {"project": project, "page": "sets", "rows": sets.every(project)},
+        )
+
+    @routes.post("/set/{location_id}/build", response_class=HTMLResponse)
+    def build_set(request: Request, location_id: str, rebuild: bool = Form(False)):
+        """Build or rebuild a place by rendering the scenes shot in it."""
+        project, _ = load(request)
+        status = sets.status(project, location_id)
+        if not status.scenes:
+            raise HTTPException(400, f"No scene is shot in {location_id} yet.")
+        try:
+            for scene_id in status.scenes:
+                blender.render_scene(scene_id, project=project, rebuild=rebuild)
+        except blender.BlockoutError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return RedirectResponse(f"{project_prefix(request)}/sets", status_code=303)
 
     @routes.get("/log", response_class=HTMLResponse)
     def log_page(request: Request) -> HTMLResponse:

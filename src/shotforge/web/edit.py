@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import ValidationError
 from starlette.responses import FileResponse
 
-from shotforge import edit, tools
+from shotforge import edit, now, tools
 from shotforge.project import ProjectError
 from shotforge.web.projects import project_prefix
 from shotforge.yamlio import ProjectFileError
@@ -34,6 +34,7 @@ def register_edit(app: APIRouter, load, render) -> None:
             bridge = settings.bridges.get(item.shot.id, 0)
             rows.append({
                 "shot": item.shot, "start": cursor, "duration": duration,
+                "thumb": now.thumbnail(project, scene_id, item.shot.id),
                 "problem": item.problem, "field": field,
                 "bridge": form.get(field, bridge) if form is not None else bridge,
             })

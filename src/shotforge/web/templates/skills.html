@@ -2,12 +2,12 @@
 {% import "partials/_macros.html" as ui %}
 {% block content %}
 <div class="stack">
-  <h1>Skills</h1>
   <p class="muted">
     One per action in the pipeline. A fix that worked becomes a rule — on your
     say-so, and then every later scene starts from it.
   </p>
   {% for skill in skills %}
+  {% set rules = skill.rules() %}
   <article class="card raised stack">
     <div class="card-header">
       <h2>{{ skill.name }}</h2>
@@ -15,18 +15,25 @@
       {% if skill.stage %}<span class="badge">{{ skill.stage }}</span>{% endif %}
       {% if skill.tool %}<span class="badge tool">{{ skill.tool }}</span>{% endif %}
       <span class="spacer"></span>
-      <span class="faint mono">{{ skill.root.name }}</span>
+      <span class="faint mono">{{ rules | length }} rule{{ '' if rules | length == 1 else 's' }}</span>
     </div>
     <p class="muted">{{ skill.description }}</p>
-    {% set rules = skill.rules() %}
     {% if rules %}
     <h3>Rules</h3>
     <ul>{% for rule in rules %}<li>{{ rule }}</li>{% endfor %}</ul>
     {% endif %}
-    <form action="{{ project_prefix }}/skills/{{ skill.name }}/rules" method="post" class="row">
-      <input class="grow" type="text" name="rule" placeholder="Add a rule that worked" />
-      {{ ui.button("Add rule", type="submit") }}
-    </form>
+    {#
+      One input per skill on a page of a dozen is a wall of empty fields, so
+      it waits behind a summary until there is a rule to write.
+    #}
+    <details class="add-rule">
+      <summary>Add a rule</summary>
+      <form action="{{ project_prefix }}/skills/{{ skill.name }}/rules" method="post" class="row">
+        <input class="grow" type="text" name="rule" aria-label="A rule that worked"
+               placeholder="A rule that worked" />
+        {{ ui.button("Add rule", type="submit") }}
+      </form>
+    </details>
   </article>
   {% endfor %}
 </div>

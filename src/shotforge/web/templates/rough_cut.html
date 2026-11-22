@@ -1,89 +1,118 @@
 {% extends "base.html" %}
 {% import "partials/_macros.html" as ui %}
 {% block title %}Rough cut · {{ scene_id }} — Shotforge{% endblock %}
+
+{% block workbar %}
+<a class="button quiet" href="{{ project_prefix }}/scene/{{ scene_id }}">Storyboard</a>
+{% endblock %}
+
 {% block content %}
 <div class="stack">
-  <div class="row">
-    <h1>Rough cut</h1>
-    <span class="mono faint">{{ scene_id }}</span>
-    <span class="spacer"></span>
-    <a class="button quiet" href="{{ project_prefix }}/scene/{{ scene_id }}">Storyboard</a>
-  </div>
-
   {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
-  <div class="split">
-    <form method="post" action="{{ project_prefix }}/scene/{{ scene_id }}/cut" class="card stack"
-          onsubmit="this.querySelector('button').disabled = true; this.querySelector('[role=status]').hidden = false;">
-      <div class="card-header">
-        <h2>Timeline</h2>
-        <span class="spacer"></span>
-        {% if rows %}<span class="mono faint">{{ '%.2f' | format(total) }} s</span>{% endif %}
-      </div>
-      {% if rows %}
-      <ol class="edit-timeline">
-        {% for row in rows %}
-        <li class="stack">
-          <div class="row">
-            <span class="mono faint">{{ '%.2f' | format(row.start) }} s</span>
-            <strong><a href="{{ project_prefix }}/shot/{{ scene_id }}/{{ row.shot.id }}">{{ row.shot.id }}</a></strong>
-            <span class="spacer"></span>
-            <span class="mono faint">{{ '%.2f' | format(row.duration) }} s</span>
-          </div>
-          {% if row.problem %}<small class="edit-problem">{{ row.problem }}</small>{% endif %}
-          {% if not loop.last %}
-          <label class="row muted">
-            Bridge to {{ rows[loop.index].shot.id }}
-            <input type="number" name="{{ row.field }}" value="{{ row.bridge }}"
-                   min="0" max="5" step="any" required />
-            seconds
-          </label>
-          {% endif %}
-        </li>
-        {% endfor %}
-        <li class="stack">
-          <div class="row">
-            <span class="mono faint">{{ '%.2f' | format(card_start) }} s</span>
-            <strong>End card</strong>
-            <span class="spacer"></span>
-            <span class="mono faint">{{ '%.2f' | format(card_duration) }} s</span>
-          </div>
-          <label class="row muted">Title
-            <input type="text" name="end_title" maxlength="120" value="{{ end_title }}" required />
-          </label>
-          <label class="row muted">Hold for
-            <input type="number" name="end_seconds" min="0.01" max="30" step="any"
-                   value="{{ end_seconds }}" required />
-            seconds
-          </label>
-        </li>
-      </ol>
-      {% if rows | length > 1 %}
-      <small class="muted">A bridge fades the outgoing clip’s tail under the next shot. Use a tail with ambience only.</small>
-      {% endif %}
-      {% else %}
-      <p class="muted">The scene has no shots to assemble.</p>
-      {% endif %}
-      <div class="row">
-        {{ ui.button("Assemble", variant="primary", type="submit", disabled=not ready) }}
-        <span role="status" hidden>Assembling the rough cut…</span>
-      </div>
-    </form>
 
-    <section class="card stack">
-      <h2>Preview</h2>
-      {% if assembled %}
-      <figure class="frame edit-preview">
-        <video controls preload="metadata" src="{{ project_prefix }}/scene/{{ scene_id }}/cut/rough_cut.mp4"></video>
-      </figure>
-      <div class="row">
-        <a class="button primary" href="{{ project_prefix }}/scene/{{ scene_id }}/cut/rough_cut.zip">Export EDL and reels</a>
-        <a class="button" href="{{ project_prefix }}/scene/{{ scene_id }}/cut/rough_cut.edl">Download EDL</a>
-        <a class="button" href="{{ project_prefix }}/scene/{{ scene_id }}/cut/rough_cut.mp4" download>Download video</a>
-      </div>
-      {% else %}
-      <p class="muted">Assemble the approved shots to preview the cut and export the EDL.</p>
-      {% endif %}
-    </section>
-  </div>
+  <form method="post" action="{{ project_prefix }}/scene/{{ scene_id }}/cut" class="card stack"
+        onsubmit="this.querySelector('button').disabled = true; this.querySelector('[role=status]').hidden = false;">
+    <div class="card-header">
+      <h3>Timeline</h3>
+      <span class="spacer"></span>
+      {% if rows %}<span class="mono faint">{{ '%.2f' | format(total) }} s</span>{% endif %}
+    </div>
+
+    {% if not rows %}
+    {{ ui.empty_state("The scene has no shots to assemble",
+                      "Break a chapter down, or add a shot to this scene.") }}
+    {% else %}
+    {#
+      The cut, at the length it will run: every clip is as wide as it is
+      long, so a scene that drags looks like one.
+    #}
+    <ol class="cut-strip">
+      {% for row in rows %}
+      <li class="clip {% if row.problem %}blocked{% endif %}" style="flex: {{ row.duration }} 1 0">
+        <a href="{{ project_prefix }}/shot/{{ scene_id }}/{{ row.shot.id }}"
+           title="{{ row.shot.id }} — {{ '%.2f' | format(row.duration) }}s{% if row.problem %} · {{ row.problem }}{% endif %}">
+          <span class="clip-art">
+            {% if row.thumb %}<img src="{{ media_url(row.thumb) }}" alt="" loading="lazy" />{% endif %}
+          </span>
+          <span class="clip-foot">
+            <span class="clip-id">{{ row.shot.id }}</span>
+            <span class="mono faint">{{ '%.2f' | format(row.duration) }}s</span>
+          </span>
+        </a>
+      </li>
+      {% endfor %}
+      <li class="clip end-card" style="flex: {{ card_duration }} 1 0">
+        <span class="clip-inner">
+          <span class="clip-art"></span>
+          <span class="clip-foot">
+            <span class="clip-id">End</span>
+            <span class="mono faint">{{ '%.2f' | format(card_duration) }}s</span>
+          </span>
+        </span>
+      </li>
+    </ol>
+
+    {% set blocked = rows | selectattr('problem') | list %}
+    {% if blocked %}
+    <ul class="reasons">
+      {% for row in blocked %}<li>{{ row.problem }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if rows | length > 1 %}
+    <div class="cut-controls">
+      <h3>Bridges</h3>
+      {% for row in rows %}{% if not loop.last %}
+      <label class="field-inline">
+        <span class="mono">{{ row.shot.id }} → {{ rows[loop.index].shot.id }}</span>
+        <input type="number" name="{{ row.field }}" value="{{ row.bridge }}"
+               min="0" max="5" step="any" required />
+        <span class="faint">s</span>
+      </label>
+      {% endif %}{% endfor %}
+      <p class="faint">
+        A bridge fades the outgoing clip’s tail under the next shot. Use a tail with
+        ambience only.
+      </p>
+    </div>
+    {% endif %}
+
+    <div class="cut-controls">
+      <h3>End card</h3>
+      <label class="field-inline">
+        <span>Title</span>
+        <input type="text" name="end_title" maxlength="120" value="{{ end_title }}" required />
+      </label>
+      <label class="field-inline">
+        <span>Hold for</span>
+        <input type="number" name="end_seconds" min="0.01" max="30" step="any"
+               value="{{ end_seconds }}" required />
+        <span class="faint">s</span>
+      </label>
+    </div>
+    {% endif %}
+
+    <div class="row">
+      {{ ui.button("Assemble", variant="primary", type="submit", disabled=not ready) }}
+      <span role="status" hidden>Assembling the rough cut…</span>
+    </div>
+  </form>
+
+  <section class="card stack">
+    <div class="card-header"><h3>Preview</h3></div>
+    {% if assembled %}
+    <figure class="frame edit-preview">
+      <video controls preload="metadata" src="{{ project_prefix }}/scene/{{ scene_id }}/cut/rough_cut.mp4"></video>
+    </figure>
+    <div class="row">
+      <a class="button primary" href="{{ project_prefix }}/scene/{{ scene_id }}/cut/rough_cut.zip">Export EDL and reels</a>
+      <a class="button" href="{{ project_prefix }}/scene/{{ scene_id }}/cut/rough_cut.edl">Download EDL</a>
+      <a class="button" href="{{ project_prefix }}/scene/{{ scene_id }}/cut/rough_cut.mp4" download>Download video</a>
+    </div>
+    {% else %}
+    {{ ui.empty_state("No cut assembled yet",
+                      "Assemble the approved shots to preview the cut and export the EDL.") }}
+    {% endif %}
+  </section>
 </div>
 {% endblock %}

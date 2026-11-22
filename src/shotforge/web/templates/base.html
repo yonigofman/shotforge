@@ -12,40 +12,41 @@
     />
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/theme.css" />
+    <script>
+      // Before the first paint, so a collapsed rail never flashes open.
+      try {
+        if (localStorage.getItem("shotforge.rail") === "shut")
+          document.documentElement.dataset.rail = "shut";
+      } catch {}
+    </script>
     <script defer src="/static/app.js"></script>
     <script defer src="/static/streaming.js"></script>
     <script src="/static/vendor/htmx.min.js"></script>
     <script defer src="/static/vendor/alpine.min.js"></script>
   </head>
   <body>
-    <header class="topbar">
-      <a class="brand" href="/projects">
-        <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M3 20 L9 4 h12 l-3 7 h-5 l-1 3 h5 l-2 6 z"
-            fill="var(--color-accent)"
-          />
-        </svg>
-        Shotforge
-      </a>
-      {% if project %}<span class="faint">{{ project.name }}</span>{% endif %}
-      <nav aria-label="Cockpit">
-        <a href="/projects" {% if page == 'projects' %}aria-current="page"{% endif %}>Projects</a>
-        {% if project %}
-        <a href="{{ project_prefix }}/" {% if page == 'scenes' %}aria-current="page"{% endif %}>Scenes</a>
-        <a href="{{ project_prefix }}/breakdown" {% if page == 'breakdown' %}aria-current="page"{% endif %}>Breakdown</a>
-        <a href="{{ project_prefix }}/bible" {% if page == 'bible' %}aria-current="page"{% endif %}>Bible</a>
-        <a href="{{ project_prefix }}/skills" {% if page == 'skills' %}aria-current="page"{% endif %}>Skills</a>
-        <a href="{{ project_prefix }}/log" {% if page == 'log' %}aria-current="page"{% endif %}>Log</a>
-        <a href="{{ project_prefix }}/settings" {% if page == 'settings' %}aria-current="page"{% endif %}>Settings</a>
-        {% endif %}
-      </nav>
-      <span class="spacer"></span>
-      {% if project %}
-      <span class="faint">{{ project.config.aspect_ratio }} · {{ project.config.fps }} fps</span>
-      {% endif %}
-    </header>
-    <main>{% block content %}{% endblock %}</main>
+    <a class="skip" href="#page">Skip to the page</a>
+    <div class="shell {% if not project %}no-rail{% endif %}">
+      {% if project %}{% include "partials/_rail.html" %}{% endif %}
+      <div class="column">
+        <header class="workbar">
+          {% if not project %}
+          <a class="brand" href="/projects">
+            <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 20 L9 4 h12 l-3 7 h-5 l-1 3 h5 l-2 6 z" fill="var(--color-accent)" />
+            </svg>
+            <span>Shotforge</span>
+          </a>
+          <span class="crumb-sep" aria-hidden="true">/</span>
+          {% endif %}
+          {% include "partials/_crumbs.html" %}
+          <span class="spacer"></span>
+          {% block workbar %}{% endblock %}
+        </header>
+        <main id="page">{% block content %}{% endblock %}</main>
+      </div>
+    </div>
+    {% include "partials/_keys.html" %}
     <div class="toasts"></div>
     {% if project %}
     <script>
@@ -53,8 +54,10 @@
       const stream = new EventSource("{{ project_prefix }}/events");
       stream.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        const badge = document.querySelector("[data-inbox-count]");
-        if (badge) badge.textContent = data.inbox;
+        document.querySelectorAll("[data-inbox-count]").forEach((badge) => {
+          badge.textContent = data.inbox;
+          badge.toggleAttribute("hidden", !data.inbox);
+        });
         if (window.htmx) htmx.trigger(document.body, "inbox-changed");
       };
     </script>

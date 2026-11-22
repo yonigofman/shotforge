@@ -137,7 +137,7 @@ def test_invalid_reviews_are_retried_and_missing_frames_skip_a_cut(
     assert first.failed
     assert "invalid findings" in first.message
     assert "sh02 → sh03: Skipped" in second.message
-    assert "sh02/last_frame.png" in second.message
+    assert "sh02 has no last frame" in second.message
     assert not project.paths.cache.exists()
 
     first, second = continuity.scene_findings(project, scene, run=True)

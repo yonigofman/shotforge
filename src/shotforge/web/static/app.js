@@ -2,6 +2,28 @@
 // Everything that changes the project goes through the server.
 
 document.addEventListener("alpine:init", () => {
+  Alpine.data("compare", () => ({
+    // Where the wipe sits, and whether the two images are wiped or paired.
+    at: 50,
+    mode: "wipe",
+    init() {
+      this.onKey = (event) => {
+        if (event.target.matches("input, textarea, select")) return;
+        const step = event.shiftKey ? 1 : 5;
+        if (event.key === "ArrowLeft") this.at = Math.max(0, this.at - step);
+        else if (event.key === "ArrowRight") this.at = Math.min(100, this.at + step);
+        else if (event.key === " ") this.at = 50;
+        else if (event.key === "s") this.mode = this.mode === "wipe" ? "pair" : "wipe";
+        else return;
+        event.preventDefault();
+      };
+      document.addEventListener("keydown", this.onKey);
+    },
+    destroy() {
+      document.removeEventListener("keydown", this.onKey);
+    },
+  }));
+
   Alpine.data("copyable", () => ({
     copied: false,
     async copy(selector) {
@@ -46,9 +68,48 @@ function toast(message, level = "") {
   setTimeout(() => node.remove(), 4000);
 }
 
+function setRail(shut) {
+  document.documentElement.dataset.rail = shut ? "shut" : "open";
+  try {
+    localStorage.setItem("shotforge.rail", shut ? "shut" : "open");
+  } catch {}
+  const toggle = document.querySelector("[data-rail-toggle]");
+  if (toggle) {
+    const label = shut ? "Show the rail" : "Collapse the rail";
+    toggle.setAttribute("aria-label", label);
+    toggle.title = `${label}  [`;
+  }
+}
+
+// "g" then a letter jumps to a rail destination; the rail itself carries the
+// letters, so the map is never a second list to keep in step.
+let chord = 0;
+
 document.addEventListener("keydown", (event) => {
   if (event.ctrlKey || event.metaKey || event.altKey || event.target.isContentEditable ||
       event.target.matches("input, textarea, select")) return;
+  if (event.key === "?") {
+    document.getElementById("keys")?.showModal();
+    return;
+  }
+  if (event.key === "[") {
+    setRail(document.documentElement.dataset.rail !== "shut");
+    return;
+  }
+  if (chord && Date.now() - chord < 1200) {
+    chord = 0;
+    const item = document.querySelector(`.rail-item[data-nav="${CSS.escape(event.key)}"]`);
+    if (item) {
+      event.preventDefault();
+      window.location.href = item.href;
+      return;
+    }
+  }
+  if (event.key === "g") {
+    chord = Date.now();
+    return;
+  }
+  chord = 0;
   if (event.key === "c") {
     const button = document.querySelector("[data-copy-prompt]");
     if (button) button.click();
@@ -127,11 +188,33 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-keys]")) {
+    document.getElementById("keys")?.showModal();
+    return;
+  }
+  if (event.target.closest("[data-rail-toggle]")) {
+    setRail(document.documentElement.dataset.rail !== "shut");
+    return;
+  }
   const chooser = event.target.closest("[data-choose-files]");
   if (chooser) chooser.form.querySelector('input[type="file"]').click();
   const button = event.target.closest("[data-copy-image]");
   if (button) copyImage(button.dataset.copyImage);
 });
+
+// A clipped file input still has to say what was chosen.
+document.addEventListener("change", (event) => {
+  const input = event.target.closest("input.file-clip");
+  if (!input) return;
+  const name = input.form?.querySelector("[data-file-name]");
+  if (name) name.textContent = input.files?.[0]?.name || "No file chosen";
+});
+
+// Image errors do not bubble, so this listens on the way down.
+document.addEventListener("error", (event) => {
+  const frame = event.target instanceof HTMLImageElement && event.target.closest(".frame");
+  if (frame) frame.classList.add("frame-broken");
+}, true);
 
 async function uploadFiles(form, files, pasted = false) {
   if (form.getAttribute("aria-busy") === "true") return;

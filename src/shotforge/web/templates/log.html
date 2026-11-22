@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% import "partials/_macros.html" as ui %}
 {% block content %}
 <div class="stack">
-  <h1>Approval log</h1>
   <p class="muted">Every gate that closed, with its note — so you can see why what was decided, was.</p>
   <article class="card">
     {% if not entries %}
-    <p class="faint">Nothing yet.</p>
+    {{ ui.empty_state("No gate has closed yet",
+                      "Approve a stage and it lands here with its note.") }}
     {% else %}
     <table>
       <thead>

@@ -104,6 +104,7 @@
   --space-2: 8px;
   --space-2_5: 10px;
   --space-3: 12px;
+  --space-3_5: 14px;
   --space-4: 16px;
   --space-5: 20px;
   --space-6: 24px;
@@ -125,7 +126,7 @@
   --size-control-md: 30px;
   --size-control-lg: 36px;
   --size-row-height: 34px;
-  --size-topbar-height: 44px;
+  --size-topbar-height: 52px;
   --duration-instant: 80ms;
   --duration-fast: 140ms;
   --duration-base: 220ms;

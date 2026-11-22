@@ -353,22 +353,29 @@ def blockout(
     scene: str,
     shot_id: str | None = typer.Argument(None, metavar="SHOT", help="Omit to render every shot."),
     changed: bool = typer.Option(False, "--changed", help="Skip current renders in a scene."),
+    rebuild: bool = typer.Option(
+        False, "--rebuild",
+        help="Take the location's new geometry into a set you have dressed.",
+    ),
     project_dir: Path | None = ProjectOption,
 ) -> None:
-    """Render one shot or an entire scene in Blender."""
+    """Render one shot or an entire scene in its location's Blender set."""
     project, _ = _open(project_dir)
     if changed and shot_id is not None:
         raise typer.BadParameter("omit SHOT to use --changed")
     try:
         paths = (
-            [blender.render(scene, shot_id, project=project)]
+            [blender.render(scene, shot_id, project=project, rebuild=rebuild)]
             if shot_id is not None
-            else blender.render_scene(scene, project=project, changed=changed)
+            else blender.render_scene(
+                scene, project=project, changed=changed, rebuild=rebuild
+            )
         )
     except blender.BlockoutError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(f"Scene → {project.paths.rel(project.paths.blend_file(scene))}")
+    location = project.scene(scene).location
+    typer.echo(f"Set → {project.paths.rel(project.paths.set_file(location))}")
     if not paths:
         typer.echo("All blockout renders are current.")
     for path in paths:

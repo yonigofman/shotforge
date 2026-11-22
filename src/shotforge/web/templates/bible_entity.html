@@ -62,7 +62,12 @@
         <form method="post" action="{{ url }}/{{ asset }}/file" enctype="multipart/form-data"
           class="dropzone stack" data-file-upload="design" tabindex="0" aria-label="Upload {{ title | lower }}">
           <label for="upload-{{ asset }}">Drop an image here, focus here and paste, or choose a file.</label>
-          <input id="upload-{{ asset }}" name="file" type="file" accept=".png,.jpg,.jpeg,.webp" required />
+          <div class="row">
+            <input class="file-clip" id="upload-{{ asset }}" name="file" type="file"
+                   accept=".png,.jpg,.jpeg,.webp" required />
+            {{ ui.button("Choose file", variant="quiet", attrs={"data-choose-files": "true"}) }}
+            <span class="faint" data-file-name>No file chosen</span>
+          </div>
           {{ ui.button("File " ~ title | lower, type="submit") }}
         </form>
         {% if inbox_images %}

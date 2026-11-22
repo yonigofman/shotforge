@@ -44,6 +44,11 @@
 <span class="pip {{ level }}">{{ text or level }}</span>
 {%- endmacro %}
 
+{# The same signal with no room for a word: the label goes to the tooltip. #}
+{% macro dot(level, label) -%}
+<span class="pip dot {{ level }}" title="{{ label }}"><span class="sr-only">{{ label }}</span></span>
+{%- endmacro %}
+
 {% macro badge(text, tone="") -%}
 <span class="badge {{ tone }}">{{ text }}</span>
 {%- endmacro %}
@@ -53,6 +58,13 @@
   {% for step in range(4) %}
   <span class="step {% if stage_index // 2 > step %}done{% elif stage_index // 2 == step %}current{% endif %}"></span>
   {% endfor %}
+</div>
+{%- endmacro %}
+
+{# How far a scene has got, as one bar rather than a count to read. #}
+{% macro meter(done, total) -%}
+<div class="meter" role="img" aria-label="{{ done }} of {{ total }} shots done">
+  <span style="width: {{ (100 * done / total) | round(1) if total else 0 }}%"></span>
 </div>
 {%- endmacro %}
 
@@ -102,8 +114,15 @@
 
 {# --- blocks --------------------------------------------------------- #}
 
+{#
+  Nothing here yet, said once and the same way everywhere: what is missing,
+  then what puts something here.
+#}
 {% macro empty_state(message, hint=none) -%}
-<p class="faint">{{ message }}{% if hint %} {{ hint }}{% endif %}</p>
+<div class="empty">
+  <strong>{{ message }}</strong>
+  {% if hint %}<p>{{ hint }}</p>{% endif %}
+</div>
 {%- endmacro %}
 
 {% macro prompt_block(text, saved_as=none, id="prompt-text") -%}
@@ -173,4 +192,32 @@
   <div class="take-meta">{{ caller('meta') }}</div>
   <div class="take-actions">{{ caller('actions') }}</div>
 </div>
+{%- endmacro %}
+
+{#
+  Icons. One line weight, one size, drawn on the same 24-unit grid, so the
+  rail reads as one set rather than a pile of pictures.
+#}
+{% set ICONS = {
+  "home": ["m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"],
+  "lines": ["M8 6h13", "M8 12h13", "M8 18h13", "M3.5 6h.01", "M3.5 12h.01", "M3.5 18h.01"],
+  "film": ["M3 3h18v18H3z", "M7.5 3v18", "M16.5 3v18", "M3 12h18", "M3 7.5h4.5", "M3 16.5h4.5", "M16.5 7.5H21", "M16.5 16.5H21"],
+  "clapper": ["M20.2 6 3 11l-.9-2.4A2 2 0 0 1 3.4 6.1L16.9 2.1a2 2 0 0 1 2.5 1.3z", "m6.2 5.3 3.1 3.9", "m12.4 3.4 3.1 4", "M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"],
+  "book": ["M4 19.5A2.5 2.5 0 0 1 6.5 17H20", "M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"],
+  "sparkle": ["m12 3 1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z"],
+  "clock": ["M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z", "M12 7.5V12l3 1.8"],
+  "sliders": ["M4 7h8", "M16 7h4", "M4 17h4", "M12 17h8", "M14 4.5v5", "M8 14.5v5"],
+  "inbox": ["M22 12h-5.5l-1.5 3h-6l-1.5-3H2", "M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"],
+  "layers": ["M12.8 2.2a2 2 0 0 0-1.6 0L2.6 6.1a1 1 0 0 0 0 1.8l8.6 3.9a2 2 0 0 0 1.6 0l8.6-3.9a1 1 0 0 0 0-1.8z", "m22 17.6-9.2 4.2a2 2 0 0 1-1.6 0L2 17.6", "m22 12.6-9.2 4.2a2 2 0 0 1-1.6 0L2 12.6"],
+  "chevron": ["m9 6 6 6-6 6"],
+  "panel": ["M3 4h18v16H3z", "M9.5 4v16"],
+  "box": ["M21 8 12 3 3 8v8l9 5 9-5z", "m3 8 9 5 9-5", "M12 13v8"],
+  "keyboard": ["M3 6h18v12H3z", "M7 10h.01", "M11 10h.01", "M15 10h.01", "M8 14h8"],
+} %}
+
+{% macro icon(name) -%}
+<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  {%- for d in ICONS.get(name, []) %}<path d="{{ d }}" />{% endfor -%}
+</svg>
 {%- endmacro %}

@@ -1,0 +1,59 @@
+{% import "partials/_macros.html" as ui %}
+{#
+  The rail. It holds the whole cockpit at one width, in three groups, and
+  shrinks to icons when the work wants the screen. Its state lives in
+  localStorage and is set on <html> before paint, so it never flashes open.
+#}
+<aside class="rail" aria-label="Cockpit">
+  <div class="rail-head">
+    <a class="brand" href="/projects" title="Shotforge">
+      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 20 L9 4 h12 l-3 7 h-5 l-1 3 h5 l-2 6 z" fill="var(--color-accent)" />
+      </svg>
+      <span>Shotforge</span>
+    </a>
+    <button type="button" class="rail-toggle" data-rail-toggle
+            aria-label="Collapse the rail" title="Collapse the rail  [">
+      {{ ui.icon("panel") }}
+    </button>
+  </div>
+
+  {% if project %}
+  <a class="switcher" href="/projects" title="Switch project — {{ project.name }}">
+    <span class="switcher-id" aria-hidden="true">{{ project.name[:1] | upper }}</span>
+    <span class="switcher-text">
+      <span class="switcher-name" dir="auto">{{ project.name }}</span>
+      <span class="switcher-meta">{{ project.config.aspect_ratio }} · {{ project.config.fps }} fps</span>
+    </span>
+    {{ ui.icon("chevron") }}
+  </a>
+  {% endif %}
+
+  <nav class="rail-nav">
+    {% for group in nav %}
+    <div class="rail-group">
+      <p class="rail-label">{{ group.label }}</p>
+      {% for item in group.items %}
+      <a class="rail-item" href="{{ item.href }}" data-nav="{{ item.key_hint }}"
+         title="{{ item.label }}{% if item.key_hint %}  g {{ item.key_hint }}{% endif %}"
+         {% if page == item.key %}aria-current="page"{% endif %}>
+        {{ ui.icon(item.icon) }}<span class="rail-text">{{ item.label }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </nav>
+
+  {% if project %}
+  <div class="rail-foot">
+    <a class="rail-item" href="{{ project_prefix }}/#inbox" title="Inbox — files waiting in _inbox/">
+      {{ ui.icon("inbox") }}<span class="rail-text">Inbox</span>
+      <span class="count" data-inbox-count {% if not inbox_count %}hidden{% endif %}>{{ inbox_count }}</span>
+    </a>
+    <button type="button" class="rail-item" data-keys title="Keyboard  ?">
+      {{ ui.icon("keyboard") }}<span class="rail-text">Keyboard</span>
+      <kbd class="rail-kbd">?</kbd>
+    </button>
+  </div>
+  {% endif %}
+</aside>

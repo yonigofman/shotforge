@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% import "partials/_macros.html" as ui %}
+{% block title %}Compare · {{ scene.id }}/{{ shot.id }} — Shotforge{% endblock %}
+{% block content %}
+{% set shot_url = project_prefix ~ "/shot/" ~ scene.id ~ "/" ~ shot.id %}
+<div class="stack" x-data="compare">
+  <div class="row">
+    <span class="faint mono">{{ scene.id }} / {{ shot.id }}</span>
+    <span class="spacer"></span>
+    <span class="faint">
+      <kbd>←</kbd> <kbd>→</kbd> wipe · <kbd>s</kbd> side by side · <kbd>space</kbd> centre
+    </span>
+    {{ ui.link("Back to the shot", shot_url) }}
+  </div>
+
+  <form class="row" method="get" action="{{ shot_url }}/compare">
+    <label class="row tight">
+      <span class="faint">Left</span>
+      <select name="left" onchange="this.form.requestSubmit()">
+        {% for group, items in groups.items() %}
+        <optgroup label="{{ group }}">
+          {% for reference in items %}
+          <option value="{{ reference.key }}" {% if left and reference.key == left.key %}selected{% endif %}>
+            {{ reference.label }}
+          </option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="row tight">
+      <span class="faint">Right</span>
+      <select name="right" onchange="this.form.requestSubmit()">
+        {% for group, items in groups.items() %}
+        <optgroup label="{{ group }}">
+          {% for reference in items %}
+          <option value="{{ reference.key }}" {% if right and reference.key == right.key %}selected{% endif %}>
+            {{ reference.label }}
+          </option>
+          {% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </label>
+    <span class="spacer"></span>
+    {{ ui.button("Side by side", variant="quiet", attrs={"@click": "mode = mode === 'wipe' ? 'pair' : 'wipe'",
+                 ":aria-pressed": "mode === 'pair'"}) }}
+  </form>
+
+  {% if left and right %}
+  <div class="compare" :class="mode">
+    <figure class="compare-pane left">
+      <img src="{{ media_url(left.path) }}" alt="{{ left.label }}" />
+      <figcaption>{{ left.label }}</figcaption>
+    </figure>
+    <figure class="compare-pane right" :style="mode === 'wipe' ? `clip-path: inset(0 0 0 ${at}%)` : ''">
+      <img src="{{ media_url(right.path) }}" alt="{{ right.label }}" />
+      <figcaption>{{ right.label }}</figcaption>
+    </figure>
+    <div class="compare-handle" x-show="mode === 'wipe'" :style="`left: ${at}%`" aria-hidden="true"></div>
+    <input class="compare-slider" type="range" min="0" max="100" x-model.number="at"
+           x-show="mode === 'wipe'" aria-label="Wipe between the two images" />
+  </div>
+  {% else %}
+  {{ ui.empty_state("Nothing to compare yet.", "File a take, or render the blockout.") }}
+  {% endif %}
+</div>
+{% endblock %}

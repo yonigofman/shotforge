@@ -14,6 +14,7 @@ from shotforge.models import ShotStatus
 from shotforge.models.common import ASPECT_RE
 from shotforge.project import Project, ProjectError, slugify
 from shotforge.registry import ProjectEntry, ProjectRegistry
+from shotforge.web import shell
 from shotforge.yamlio import ProjectFileError
 
 PROJECT_ERRORS = (OSError, ValueError, RuntimeError, ProjectError, ProjectFileError, Timeout)
@@ -63,6 +64,7 @@ def register_projects(
         return templates.TemplateResponse(
             request, "projects.html", {
                 "page": "projects",
+                "nav": [], "crumbs": shell.crumbs("/projects"),
                 "rows": rows, "registry_error": registry_error, "error": error,
                 "create_form": create_form or {}, "open_path": open_path, "cwd": Path.cwd(),
             },

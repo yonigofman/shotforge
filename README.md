@@ -200,6 +200,17 @@ shotforge inbox file grok_result.mp4                 # becomes video/v1.mp4
 shotforge approve s01_pub sh07                       # → video/shot.mp4 + last_frame.png
 ```
 
+### Holding a take against something
+
+A frame is never judged on its own. **Compare** puts two images at one scale
+with a wipe between them: a take against the frame it has to cut from,
+against the character's sheet, against the blockout it was composed on, or
+against the take before it.
+
+It is on every frame take and on the cut, or directly at
+`/shot/<scene>/<shot>/compare`. `←` and `→` move the wipe (with shift for
+single steps), `space` centres it, and `s` switches to side by side.
+
 ### Asking again, differently
 
 A prompt is rendered from the spec, so regenerating it gives you the same

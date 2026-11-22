@@ -2,7 +2,6 @@
 {% import "partials/_macros.html" as ui %}
 {% block content %}
 <div class="stack">
-  <h1>Bible</h1>
   <article class="card raised stack">
     <div class="card-header"><h3>Style</h3></div>
     <p>{{ style.art_style }}</p>
@@ -19,13 +18,15 @@
   <section class="stack">
     <div class="row">
       <h2>{{ group.kind | capitalize }}s</h2>
-      <a class="button" href="{{ project_prefix }}/bible/new/{{ group.kind }}">New {{ group.kind }}</a>
+      <span class="faint">{{ group.entities | length }}</span>
+      <span class="spacer"></span>
+      <a class="button quiet" href="{{ project_prefix }}/bible/new/{{ group.kind }}">New {{ group.kind }}</a>
     </div>
     <div class="takes bible-cards">
       {% for item in group.entities %}
-      <article class="card stack">
+      <article class="card stack entity">
         <div class="row">
-          <h3><a href="{{ project_prefix }}/bible/{{ group.kind }}/{{ item.id }}">{{ item.id }}</a></h3>
+          <h3><a class="stretched" href="{{ project_prefix }}/bible/{{ group.kind }}/{{ item.id }}">{{ item.id }}</a></h3>
           {{ ui.pip('pass' if item.designed else 'warn', 'Designed' if item.designed else 'In design') }}
         </div>
         {% if item.entity.names %}
@@ -41,10 +42,10 @@
           {% endfor %}
         </div>
         {% endif %}
-        <a class="button" href="{{ project_prefix }}/bible/{{ group.kind }}/{{ item.id }}">Open {{ group.kind }}</a>
       </article>
       {% else %}
-      <p class="muted">No {{ group.kind }}s yet.</p>
+      {{ ui.empty_state("No " ~ group.kind ~ "s yet",
+                        "Add one, or let the breakdown name the ones a scene needs.") }}
       {% endfor %}
     </div>
   </section>

@@ -12,8 +12,50 @@ import bmesh
 import bpy
 from mathutils import Vector
 
+SET = "Shotforge Set"
+DRESSING = "Dressing"
 
-def _mesh(scene, name, center, dimensions, material, *, sphere=False, rotation=0):
+
+def _set_name(variant):
+    """A place can hold more than one state of itself; each gets a collection."""
+    return SET if variant in (None, "base") else f"{SET} {variant}"
+SCENE_PREFIX = "Shotforge Scene "
+CAMERA_PREFIX = "Shotforge Cameras "
+
+
+def _owned(name):
+    """Collections Shotforge builds, and is therefore free to throw away."""
+    return name == SET or name.startswith((SET + " ", SCENE_PREFIX, CAMERA_PREFIX))
+
+
+def _collection(scene, name):
+    """A fresh collection of ours under the scene."""
+    collection = bpy.data.collections.new(name)
+    scene.collection.children.link(collection)
+    return collection
+
+
+def _carry_over(scene, path):
+    """Bring the director's own work out of the saved set and into this job.
+
+    The add-on backend shares a process with whatever file is open in Blender,
+    so the set is never opened — its collections are appended instead. Only
+    the ones Shotforge did not build come across; ours are rebuilt from the
+    spec every run, so the room is the same room however often it is made.
+
+    Anything the director keeps outside a collection is not carried over,
+    which is why a first build leaves an empty Dressing collection to use.
+    """
+    with bpy.data.libraries.load(path, link=False) as (source, target):
+        target.collections = [name for name in source.collections if not _owned(name)]
+    kept = [item for item in target.collections if item is not None]
+    for collection in kept:
+        scene.collection.children.link(collection)
+    return any(collection.all_objects for collection in kept)
+
+
+def _mesh(scene, name, center, dimensions, material, *, sphere=False, rotation=0,
+          parent=None):
     mesh = bpy.data.meshes.new(name)
     bm = bmesh.new()
     if sphere:
@@ -31,7 +73,7 @@ def _mesh(scene, name, center, dimensions, material, *, sphere=False, rotation=0
             polygon.use_smooth = True
     mesh.materials.append(material)
     obj = bpy.data.objects.new(name, mesh)
-    scene.collection.objects.link(obj)
+    (parent or scene.collection).objects.link(obj)
     obj.location = center
     obj.rotation_euler.z = rotation
     return obj
@@ -93,20 +135,20 @@ def _textured_material(base, assignment, images):
     return material
 
 
-def _room(scene, geometry, wall_material, floor_material):
+def _room(scene, geometry, wall_material, floor_material, parent):
     width, depth, height = geometry["room"]
     window = geometry.get("window")
-    _mesh(scene, "Floor", (0, 0, -0.08), (width, depth, 0.16), floor_material)
+    _mesh(scene, "Floor", (0, 0, -0.08), (width, depth, 0.16), floor_material, parent=parent)
     for name, span, fixed, along_x in (
         ("back", width, -depth / 2, True),
         ("front", width, depth / 2, True),
         ("left", depth, -width / 2, False),
         ("right", depth, width / 2, False),
     ):
-        _wall(scene, name, span, fixed, along_x, height, window, wall_material)
+        _wall(scene, name, span, fixed, along_x, height, window, wall_material, parent)
 
 
-def _wall(scene, name, span, fixed, along_x, height, window, wall_material):
+def _wall(scene, name, span, fixed, along_x, height, window, wall_material, parent):
     def panel(label, start, end, bottom, top, material, thickness=0.16, inset=0):
         if end <= start or top <= bottom:
             return
@@ -115,7 +157,7 @@ def _wall(scene, name, span, fixed, along_x, height, window, wall_material):
         footprint = (end - start, thickness) if along_x else (thickness, end - start)
         _mesh(
             scene, f"{name.title()} {label}", (*center, (bottom + top) / 2),
-            (*footprint, top - bottom), material,
+            (*footprint, top - bottom), material, parent=parent,
         )
 
     if not window or window["wall"] != name:
@@ -143,20 +185,22 @@ def _wall(scene, name, span, fixed, along_x, height, window, wall_material):
     )
 
 
-def _table(scene, table, material):
+def _table(scene, table, material, parent):
     x, y = table["center"]
     width, depth, height = table["size"]
     slab = min(0.09, height * 0.12)
-    _mesh(scene, "Hero tabletop", (x, y, height - slab / 2), (width, depth, slab), material)
+    _mesh(scene, "Hero tabletop", (x, y, height - slab / 2), (width, depth, slab), material,
+          parent=parent)
     for dx in (-0.40 * width, 0.40 * width):
         for dy in (-0.35 * depth, 0.35 * depth):
             _mesh(
                 scene, "Hero table leg", (x + dx, y + dy, (height - slab) / 2),
                 (min(0.10, width / 8), min(0.10, depth / 8), height - slab), material,
+                parent=parent,
             )
 
 
-def _mannequin(scene, figure, top, stool_material, material, garment, index):
+def _mannequin(scene, figure, top, stool_material, material, garment, index, parent):
     name = figure["char"]
     x, y = figure["position"]
     heading = figure["heading"]
@@ -167,7 +211,7 @@ def _mannequin(scene, figure, top, stool_material, material, garment, index):
         surface = garment if clothed else material if body else stool_material
         obj = _mesh(
             scene, f"{name} {label}", center, dimensions, surface,
-            sphere=body, rotation=heading,
+            sphere=body, rotation=heading, parent=parent,
         )
         if body:
             obj.pass_index = index
@@ -187,13 +231,13 @@ def _mannequin(scene, figure, top, stool_material, material, garment, index):
         part("shin", dx, 0.30, seat / 2, (0.14, 0.16, seat * 0.92))
 
 
-def _camera(scene, spec):
+def _camera(scene, spec, parent=None):
     data = bpy.data.cameras.new(spec["name"])
     data.lens = spec["lens_mm"]
     data.sensor_fit = "HORIZONTAL"
     data.shift_x = spec["shift_x"]
     camera = bpy.data.objects.new(spec["name"], data)
-    scene.collection.objects.link(camera)
+    (parent or scene.collection).objects.link(camera)
     camera.location = spec["location"]
     direction = Vector(spec["target"]) - camera.location
     camera.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
@@ -221,14 +265,14 @@ def _check_axis(scene, cameras, axis):
                 )
 
 
-def _lighting(scene):
+def _lighting(scene, parent):
     world = bpy.data.worlds.new("Blockout world")
     scene.world = world
     light = bpy.data.lights.new("Key", "SUN")
     light.energy = 1.8
     light.angle = 0
     obj = bpy.data.objects.new("Key", light)
-    scene.collection.objects.link(obj)
+    parent.objects.link(obj)
     obj.rotation_euler = Vector((0.25, -0.42, -1)).to_track_quat("-Z", "Y").to_euler()
 
 
@@ -307,6 +351,7 @@ def render_job(job_path):
     groups = (
         bpy.data.scenes, bpy.data.objects, bpy.data.meshes, bpy.data.materials,
         bpy.data.worlds, bpy.data.lights, bpy.data.cameras, bpy.data.images,
+        bpy.data.collections,
     )
     originals = [set(group) for group in groups]
     renamed = {}
@@ -325,18 +370,31 @@ def render_job(job_path):
         scene.render.image_settings.file_format = "PNG"
         scene.render.image_settings.color_mode = "RGB"
 
+        # What the director keeps in the set comes across untouched; what
+        # Shotforge builds is made again from the spec, so the room is the
+        # same room in every scene shot here.
+        dressing = _carry_over(scene, job["set_blend"]) if job.get("set_blend") else False
+        set_parts = _collection(scene, _set_name(spec["set"].get("variant")))
+        if not job.get("set_blend"):
+            _collection(scene, DRESSING)
+        staging = _collection(scene, SCENE_PREFIX + spec["scene"])
+        lenses = _collection(scene, CAMERA_PREFIX + spec["scene"])
+
         cameras = {}
         for shot, camera_spec in spec["cameras"].items():
             name = camera_spec["name"]
             if (original := bpy.data.objects.get(name)) is not None:
                 renamed[original] = name
                 original.name = f"Shotforge temporary {uuid4()}"
-            cameras[shot] = _camera(scene, camera_spec)
+            cameras[shot] = _camera(scene, camera_spec, lenses)
         _check_axis(scene, cameras, spec["axis"])
 
-        geometry = spec["geometry"]
+        set_spec = spec["set"]
+        geometry = set_spec["geometry"]
         images = {}
-        materials = spec.get("materials", {})
+        # The place's surfaces dress the room; a garment travels with its
+        # character, so it comes from the scene.
+        materials = {**set_spec.get("materials", {}), **spec.get("materials", {})}
         wall = _textured_material(
             _material("Plaster blockout", 0.46), materials.get("wall"), images,
         )
@@ -345,8 +403,8 @@ def render_job(job_path):
         )
         furniture = _material("Furniture blockout", 0.23)
         table = _textured_material(furniture, materials.get("table"), images)
-        _room(scene, geometry, wall, floor)
-        _table(scene, geometry["hero_table"], table)
+        _room(scene, geometry, wall, floor, set_parts)
+        _table(scene, geometry["hero_table"], table, set_parts)
         greys = (0.54, 0.68, 0.41)
         characters = dict.fromkeys(
             [figure["char"] for figure in spec["mannequins"]]
@@ -359,9 +417,9 @@ def render_job(job_path):
             garment = _textured_material(material, materials.get(f"{char}.garment"), images)
             _mannequin(
                 scene, figure, geometry["hero_table"]["size"][2], furniture, material, garment,
-                indices[char],
+                indices[char], staging,
             )
-        _lighting(scene)
+        _lighting(scene, set_parts)
 
         for shot, path in job["renders"].items():
             scene.camera = cameras[shot]
@@ -370,8 +428,13 @@ def render_job(job_path):
         first = next(iter(cameras))
         scene.camera = cameras[first]
         scene.render.filepath = f'//renders/{spec["scene"]}/{first}/blockout.png'
-        # Write only the generated scene and its dependencies from the current session.
+        # Write only the generated scene and its dependencies from the current
+        # session: the set, this scene's staging, and whatever came across.
         bpy.data.libraries.write(job["blend"], {scene})
+        if job.get("report"):
+            Path(job["report"]).write_text(
+                json.dumps({"dressing": dressing}), encoding="utf-8"
+            )
     finally:
         bpy.data.batch_remove(ids=set().union(
             *(set(group) - old for group, old in zip(groups, originals, strict=True))

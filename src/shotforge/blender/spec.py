@@ -48,21 +48,47 @@ class _CameraLayout:
     axis: BlockoutAxis
 
 
-def _describe_set(project: Project, scene: Scene) -> SetDescription:
-    location = project.location(scene.location)
+def _describe(project: Project, location_id: str, scene: Scene | None) -> SetDescription:
+    """Ask the skill what the place is, and who is sitting in it.
+
+    A set has to be describable without a scene — a location's geometry is
+    the same whoever is standing in the room — so the scene is optional and
+    only its seating is read.
+    """
+    location = project.location(location_id)
     try:
         skill = find_skill("blender-blockout", project.paths.skills)
         description = render_prompt(
             skill,
             {
                 "location": as_plain(location),
-                "scene": as_plain(scene),
+                "scene": as_plain(scene) if scene is not None else {"seating": []},
                 "default_set": as_plain(BlockoutSet()),
             },
         )
         return SetDescription.model_validate_json(description)
     except (SkillError, TemplateError, ValidationError) as exc:
         raise BlockoutError(f"blender-blockout skill: {exc}") from exc
+
+
+def _describe_set(project: Project, scene: Scene) -> SetDescription:
+    return _describe(project, scene.location, scene)
+
+
+def set_spec(project: Project, location_id: str) -> dict:
+    """The place, on its own: what every scene shot there is shot in.
+
+    One definition, used by the renderer and by anything that wants to know
+    whether a saved set is still the set the bible describes.
+    """
+    description = _describe(project, location_id, None)
+    materials = _materials(project, location_id, set())
+    return {
+        "location": location_id,
+        "variant": "base",
+        "geometry": as_plain(description.set),
+        "materials": {key: value for key, value in materials.items() if "." not in key},
+    }
 
 
 def _window_position(set_: BlockoutSet) -> Point | None:
@@ -265,25 +291,38 @@ def _materials(project: Project, location: str, characters: set[str]) -> dict:
     return materials
 
 
-def build_spec(project: Project, scene: Scene, shots: list[Shot]) -> dict:
-    layout = _camera_layout(project, scene)
-    cameras = {shot.id: _camera(shot, layout) for shot in shots}
-    if len({camera.name for camera in cameras.values()}) != len(cameras):
-        raise BlockoutError(f"{scene.id}: camera.blender_cam names must be unique in the scene")
-
+def _resolution(project: Project) -> tuple[int, int]:
     width, height = project.config.aspect_tuple
     if not width or not height:
         raise BlockoutError("project aspect_ratio must use two positive numbers")
     divisor = math.gcd(width, height)
     width, height = width // divisor, height // divisor
     scale = 960 // max(width, height)
+    return max(4, width * scale), max(4, height * scale)
 
+
+def build_spec(project: Project, scene: Scene, shots: list[Shot]) -> dict:
+    """The whole job: the set the scene is shot in, and the scene over it.
+
+    The two halves are kept apart because they are reused on different
+    scales. The set is the place, and every scene shot there wants the same
+    one; the overlay is this scene's people and this shot's camera, and is
+    rebuilt whenever they move.
+    """
+    layout = _camera_layout(project, scene)
+    cameras = {shot.id: _camera(shot, layout) for shot in shots}
+    if len({camera.name for camera in cameras.values()}) != len(cameras):
+        raise BlockoutError(f"{scene.id}: camera.blender_cam names must be unique in the scene")
+
+    # A character's garment travels with the character, so it belongs to the
+    # scene; the room's own surfaces belong to the place.
+    materials = _materials(project, scene.location, set(layout.seats))
     return {
+        "set": set_spec(project, scene.location),
         "scene": scene.id,
-        "geometry": as_plain(layout.set),
         "mannequins": [asdict(figure) for figure in layout.mannequins],
         "cameras": {shot: asdict(camera) for shot, camera in cameras.items()},
         "axis": as_plain(layout.axis),
-        "resolution": (max(4, width * scale), max(4, height * scale)),
-        "materials": _materials(project, scene.location, set(layout.seats)),
+        "resolution": _resolution(project),
+        "materials": {key: value for key, value in materials.items() if "." in key},
     }

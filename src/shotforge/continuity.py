@@ -67,6 +67,26 @@ def shot_findings(
     return _label_cut(earlier, shot, review.findings)
 
 
+FRAME_WORDS = {
+    "earlier_approved_frame": "approved frame",
+    "earlier_last_frame": "last frame",
+    "later_approved_frame": "approved frame",
+}
+
+
+def _missing_frames(frames: dict[str, Path], earlier: Shot, later: Shot) -> str:
+    """Name the frames that are not there yet. A path tells the director
+    nothing they can act on; the shot and the word for the frame does."""
+    per_shot: dict[str, list[str]] = {}
+    for role, path in frames.items():
+        if path.is_file():
+            continue
+        shot = earlier.id if role.startswith("earlier") else later.id
+        per_shot.setdefault(shot, []).append(FRAME_WORDS[role])
+    parts = [f"{shot} has no {' or '.join(words)}" for shot, words in per_shot.items()]
+    return f"Nothing to compare yet: {', and '.join(parts)}." if parts else ""
+
+
 def _label_cut(earlier: Shot, later: Shot, findings: list[Finding]) -> list[Finding]:
     return [replace(f, message=f"{earlier.id} → {later.id}: {f.message}") for f in findings]
 
@@ -83,10 +103,9 @@ def _review_cut(
         "later_approved_frame": after.approved_frame,
     }
     try:
-        missing = [project.paths.rel(path) for path in frames.values() if not path.is_file()]
+        missing = _missing_frames(frames, earlier, later)
         if missing:
-            message = f"Skipped. Missing {', '.join(missing)}."
-            return _CutReview(status=Finding(REVIEW, WARN, message))
+            return _CutReview(status=Finding(REVIEW, WARN, f"Skipped. {missing}"))
 
         skill = find_skill(SKILL_NAME, project.paths.skills)
         inputs = {

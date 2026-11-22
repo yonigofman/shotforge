@@ -3,7 +3,6 @@
 {% block title %}Projects — Shotforge{% endblock %}
 {% block content %}
 <div class="stack">
-  <h1>Projects</h1>
   {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
   {% if registry_error %}<div class="form-error" role="alert">{{ registry_error }}</div>{% endif %}
   <div class="project-columns">
@@ -12,12 +11,12 @@
       {% if rows %}
       <ul class="project-list">
         {% for row in rows %}
-        <li class="row">
+        <li class="row {% if row.status %}gone{% endif %}">
           <div class="project-entry">
             <strong>{{ row.name }}</strong>
             <span class="mono faint">{{ row.entry.path }}</span>
             {% if row.status %}
-            <span class="muted">{{ row.status }}</span>
+            <span class="muted">{{ ui.pip('warn') }} {{ row.status }}</span>
             {% else %}
             <span class="muted">{{ row.done }} / {{ row.total }} shots done</span>
             {% endif %}

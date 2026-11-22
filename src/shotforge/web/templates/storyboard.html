@@ -1,16 +1,26 @@
 {% extends "base.html" %}
 {% import "partials/_macros.html" as ui %}
 {% import "partials/_stream_loading.html" as stream %}
+{% block workbar %}
+<a class="button" href="{{ project_prefix }}/scene/{{ scene.id }}/cut">Rough cut</a>
+{% endblock %}
+
 {% block content %}
 <div class="stack">
-  <div class="row">
-    <h1>{{ scene.id }}</h1>
-    <span class="badge">{{ scene.location }}</span>
-    {% if scene.time %}<span class="faint">{{ scene.time }}</span>{% endif %}
-    <span class="spacer"></span>
-    <a class="button" href="{{ project_prefix }}/scene/{{ scene.id }}/cut">Rough cut</a>
-  </div>
-  {% if scene.axis_180 %}<p class="muted" dir="auto">180°: {{ scene.axis_180 }}</p>{% endif %}
+  <header class="scene-head">
+    <div class="row">
+      {% if scene.location %}<span class="badge">{{ scene.location }}</span>{% endif %}
+      {% if scene.time %}<span class="faint">{{ scene.time }}</span>{% endif %}
+      <span class="faint mono">{{ rows | length }} shot{{ '' if rows | length == 1 else 's' }}</span>
+      {% if scene.summary %}
+      <span class="spacer"></span>
+      <p class="muted scene-summary" dir="auto">{{ scene.summary }}</p>
+      {% endif %}
+    </div>
+    {% if scene.axis_180 %}
+    <p class="faint axis" dir="auto"><span class="axis-mark" aria-hidden="true"></span>180° — {{ scene.axis_180 }}</p>
+    {% endif %}
+  </header>
 
   <section class="card">
     <div class="card-header">
@@ -29,8 +39,19 @@
     {{ stream.loading("Starting the continuity check…") }}
   </section>
 
-  <div class="strip">
+  {#
+    The board reads left to right like the cut will run, with the join
+    between two shots drawn where it happens.
+  #}
+  <ol class="board">
     {% for row in rows %}
+    {% if not loop.first %}
+    <li class="board-cut">
+      <span class="cut-line" aria-hidden="true"></span>
+      {{ ui.dot(row.cut or 'none', 'Cut from ' ~ rows[loop.index0 - 1].shot.id ~ ' — ' ~ (row.cut_why or 'not checked yet')) }}
+    </li>
+    {% endif %}
+    <li class="board-shot">
     <article class="card raised stack gap-3">
       <div class="row">
         <strong><a href="{{ project_prefix }}/shot/{{ scene.id }}/{{ row.shot.id }}">{{ row.shot.id }}</a></strong>
@@ -46,7 +67,8 @@
       {{ ui.media(row.video, media_url, 'approved video', 'video') }}
       {% endif %}
     </article>
+    </li>
     {% endfor %}
-  </div>
+  </ol>
 </div>
 {% endblock %}
