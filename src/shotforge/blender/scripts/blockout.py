@@ -112,21 +112,24 @@ def _table(scene, table, material):
             )
 
 
-def _mannequin(scene, figure, top, stool_material, material):
+def _mannequin(scene, figure, top, stool_material, material, index):
     name = figure["char"]
     x, y = figure["position"]
     heading = figure["heading"]
     cosine, sine = math.cos(heading), math.sin(heading)
 
-    def part(label, dx, dy, z, dimensions, *, sphere=True, shade=material):
+    def part(label, dx, dy, z, dimensions, *, body=True):
         center = (x + dx * cosine - dy * sine, y + dx * sine + dy * cosine, z)
-        _mesh(
-            scene, f"{name} {label}", center, dimensions, shade, sphere=sphere, rotation=heading
+        obj = _mesh(
+            scene, f"{name} {label}", center, dimensions, material if body else stool_material,
+            sphere=body, rotation=heading,
         )
+        if body:
+            obj.pass_index = index
 
     seat = max(0.12, top - 0.32)
-    part("stool base", 0, 0, seat / 2, (0.22, 0.23, seat), sphere=False, shade=stool_material)
-    part("stool seat", 0, 0, seat, (0.40, 0.39, 0.07), sphere=False, shade=stool_material)
+    part("stool base", 0, 0, seat / 2, (0.22, 0.23, seat), body=False)
+    part("stool seat", 0, 0, seat, (0.40, 0.39, 0.07), body=False)
     part("torso", 0, 0, seat + 0.34, (0.41, 0.27, 0.60))
     part("neck", 0, 0, seat + 0.66, (0.13, 0.13, 0.21))
     part("head", 0, 0, seat + 0.81, (0.24, 0.24, 0.30))
@@ -184,6 +187,72 @@ def _lighting(scene):
     obj.rotation_euler = Vector((0.25, -0.42, -1)).to_track_quat("-Z", "Y").to_euler()
 
 
+def _render_shot(scene, path, masks, indices):
+    scene.render.filepath = path
+    if not masks:
+        bpy.ops.render.render(scene=scene.name, write_still=True)
+        return
+
+    view_layer = scene.view_layers[0]
+    view_layer.use_pass_object_index = True
+    # Blender 5 moved the compositor tree and changed File Output's path API.
+    uses_node_group = hasattr(scene, "compositing_node_group")
+    if uses_node_group:
+        tree = bpy.data.node_groups.new("Shotforge masks", "CompositorNodeTree")
+        scene.compositing_node_group = tree
+        tree.interface.new_socket(name="Image", in_out="OUTPUT", socket_type="NodeSocketColor")
+        composite = tree.nodes.new("NodeGroupOutput")
+    else:
+        scene.use_nodes = True
+        tree = scene.node_tree
+        tree.nodes.clear()
+        composite = tree.nodes.new("CompositorNodeComposite")
+
+    try:
+        layers = tree.nodes.new("CompositorNodeRLayers")
+        layers.scene = scene
+        layers.layer = view_layer.name
+        tree.links.new(layers.outputs["Image"], composite.inputs["Image"])
+        index_pass = layers.outputs["Object Index" if uses_node_group else "IndexOB"]
+        for char, output in masks.items():
+            directory = Path(output).with_suffix("")
+            directory.mkdir(parents=True)
+            mask = tree.nodes.new("CompositorNodeIDMask")
+            tree.links.new(index_pass, mask.inputs[0])
+            save = tree.nodes.new("CompositorNodeOutputFile")
+            if uses_node_group:
+                mask.inputs["Index"].default_value = indices[char]
+                save.format.media_type = "IMAGE"
+                save.directory = str(directory)
+                save.file_name = "mask"
+                save.save_as_render = False
+                save.file_output_items.new("FLOAT", "Mask")
+            else:
+                mask.index = indices[char]
+                save.base_path = str(directory)
+                save.file_slots[0].save_as_render = False
+            save.format.file_format = "PNG"
+            save.format.color_mode = "BW"
+            save.format.color_depth = "8"
+            tree.links.new(mask.outputs[0], save.inputs[0])
+
+        # Beauty and masks share the exact same camera, visibility and resolution.
+        bpy.ops.render.render(scene=scene.name, write_still=True)
+        for output in map(Path, masks.values()):
+            files = list(output.with_suffix("").glob("*.png"))
+            if len(files) != 1:
+                raise RuntimeError(f"Blender did not write {output.name}")
+            files[0].replace(output)
+    finally:
+        view_layer.use_pass_object_index = False
+        if uses_node_group:
+            scene.compositing_node_group = None
+            bpy.data.node_groups.remove(tree)
+        else:
+            tree.nodes.clear()
+            scene.use_nodes = False
+
+
 def render_job(job_path):
     job = json.loads(Path(job_path).read_text(encoding="utf-8"))
     spec = job["spec"]
@@ -227,15 +296,22 @@ def render_job(job_path):
         _room(scene, geometry, wall, floor)
         _table(scene, geometry["hero_table"], table)
         greys = (0.54, 0.68, 0.41)
+        characters = dict.fromkeys(
+            [figure["char"] for figure in spec["mannequins"]]
+            + [char for masks in job["masks"].values() for char in masks]
+        )
+        indices = {char: index for index, char in enumerate(characters, start=1)}
         for index, figure in enumerate(spec["mannequins"]):
             material = _material(f'{figure["char"]} grey', greys[index % len(greys)])
-            _mannequin(scene, figure, geometry["hero_table"]["size"][2], table, material)
+            _mannequin(
+                scene, figure, geometry["hero_table"]["size"][2], table, material,
+                indices[figure["char"]],
+            )
         _lighting(scene)
 
         for shot, path in job["renders"].items():
             scene.camera = cameras[shot]
-            scene.render.filepath = path
-            bpy.ops.render.render(scene=scene.name, write_still=True)
+            _render_shot(scene, path, job["masks"][shot], indices)
 
         first = next(iter(cameras))
         scene.camera = cameras[first]

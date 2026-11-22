@@ -25,7 +25,7 @@ being written by hand.
 | Cockpit: Scenes, Storyboard, Shot card, Takes, Bible, Skills, Log | done |
 | Engine layer (`Engine.run_skill`) with a Claude Code implementation | done |
 | Blender blockout with named shot cameras and a 180° axis check | done |
-| Masks and automatic face crops | not yet (Phase 2) |
+| Per-character masks and automatic face crops | done |
 | Vision QA (identity, eyeline, AI look) | not yet (Phase 3) |
 | Breakdown, design and cinematography skills | not yet (Phase 4) |
 | Rough cut and assembly | not yet (Phase 5) |
@@ -84,6 +84,10 @@ why something was decided.
 
 The frame stage runs in two passes: pass 1 locks the composition from the Blender
 blockout, pass 2 fixes identity against the face crops. Approving ends the stage.
+On frame approval, Shotforge uses each character's mask to crop the head from
+`first.png` and saves it under `02_design/characters/<id>/face_crops/`. The
+shot card shows skipped crops. Pass 2 attaches each character's most recent
+approved crop immediately before the current shot's mask.
 
 A full shot, in the terminal:
 
@@ -109,8 +113,10 @@ Run `shotforge blockout s01_pub` from the project to render every shot, or
 pass a shot ID to render just that shot. The shot card offers **Render
 blockout** during the Blockout stage. Shotforge saves the set, figures and
 all shot cameras in `03_blender/<scene>.blend` and the selected PNGs under
-`03_blender/renders/<scene>/<shot>/blockout.png`. Review and approve each
-render at its Blockout gate. Each render rebuilds the scene file from YAML.
+`03_blender/renders/<scene>/<shot>/blockout.png`. Binary character masks named
+`mask_<character>.png` are saved beside the blockout at the same resolution.
+Review and approve each render at its Blockout gate. Each render rebuilds the
+scene file from YAML.
 
 If the Blender MCP add-on is listening locally, Shotforge renders through
 it. Otherwise it starts Blender in background mode using `tool_paths.blender`
