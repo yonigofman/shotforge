@@ -133,7 +133,6 @@ def create_app(project_root: Path) -> FastAPI:
         context.setdefault("stage_label", STAGE_LABEL)
         context.setdefault("media_url", lambda path: media_url(project, path))
         context.setdefault("rel", project.paths.rel)
-        context.setdefault("vendored", (HERE / "static" / "vendor" / "htmx.min.js").is_file())
         return templates.TemplateResponse(request, name, context, status_code=status_code)
 
     def inbox_context(project: Project, state: ProjectState) -> dict[str, Any]:

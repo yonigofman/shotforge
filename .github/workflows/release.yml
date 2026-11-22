@@ -1,0 +1,55 @@
+name: Release to PyPI
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+      - name: Verify tag matches the package version
+        run: |
+          uv run --no-project python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          assert os.environ["GITHUB_REF_NAME"] == f"v{version}", "tag and package version differ"
+          PY
+      - name: Verify the public release has a license
+        run: test -s LICENSE
+      - run: uv build
+      - run: uvx --from twine twine check --strict dist/*
+      - name: Smoke-test a wheel built from the source distribution
+        run: |
+          uvx --from "$(ls dist/*.whl)" shotforge demo /tmp/shotforge-example
+          uvx --from "$(ls dist/*.whl)" shotforge validate -C /tmp/shotforge-example
+          uvx --from "$(ls dist/*.whl)" shotforge skills chatgpt-first-frame
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

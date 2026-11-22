@@ -13,13 +13,8 @@
     <link rel="stylesheet" href="/static/tokens.css" />
     <link rel="stylesheet" href="/static/theme.css" />
     <script defer src="/static/app.js"></script>
-    {% if vendored %}
     <script src="/static/vendor/htmx.min.js"></script>
     <script defer src="/static/vendor/alpine.min.js"></script>
-    {% else %}
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.4/htmx.min.js"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/alpinejs/3.14.9/cdn.min.js"></script>
-    {% endif %}
   </head>
   <body>
     <header class="topbar">

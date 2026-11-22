@@ -23,6 +23,7 @@ from shotforge import (
 )
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
+from shotforge.demo import copy_demo
 from shotforge.models import Stage
 from shotforge.pipeline import TransitionError, next_action, reopen
 from shotforge.project import Project, ProjectError, slugify
@@ -76,6 +77,19 @@ def new(
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(f"Created {project.name} in {project.paths.root}")
     typer.echo("Next: put your chapter in 00_source/ch01.md, then run `shotforge breakdown ch01`.")
+
+
+@app.command()
+def demo(
+    path: Path = typer.Argument(Path("last_light"), help="New folder for the public example."),
+) -> None:
+    """Copy Last Light, a two-shot project with rendered stills and video takes."""
+    try:
+        project = copy_demo(path)
+    except (ProjectError, OSError) as exc:
+        raise typer.BadParameter(str(exc), param_hint="path") from exc
+    typer.echo(f"Created {project.name} in {project.paths.root}")
+    typer.echo(f'Open it with: shotforge serve -C "{project.paths.root}"')
 
 
 @app.command()

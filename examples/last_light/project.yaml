@@ -1,0 +1,6 @@
+name: Last Light
+language: en
+aspect_ratio: '16:9'
+fps: 24
+media: git
+vision_qa: false

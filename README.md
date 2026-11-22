@@ -36,40 +36,60 @@ being written by hand.
 
 ## Install
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). ffmpeg is required;
-Blender is required for blockout rendering. Claude Code is optional.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and
+[FFmpeg](https://ffmpeg.org/download.html), then run:
 
-```bash
-uv venv && uv pip install -e ".[dev]"
-```
-
-```bash
+```sh
+uv tool install shotforge
 shotforge doctor
 ```
 
-`doctor` looks for each tool on `PATH` and in the standard install locations for
-your system, and tells you what is missing. To point it somewhere else, set
-`tool_paths` in `project.yaml`.
+If the first PyPI release is still pending, use
+`uv tool install git+https://github.com/yonigofman/shotforge.git`.
+Python 3.11 or later is required. Blender is needed for rendering new blockouts,
+and Claude Code is used for optional model-assisted steps. The demo already
+includes its renders.
 
-## Quick start
+## Try the public demo
 
-```bash
+[![Last Light runs through the approval gates in the Shotforge cockpit](https://raw.githubusercontent.com/yonigofman/shotforge/main/docs/demo/walkthrough.gif)](https://github.com/yonigofman/shotforge/blob/main/docs/demo/walkthrough.mp4)
+
+[Open the shot-card still](https://github.com/yonigofman/shotforge/blob/main/docs/demo/shot-card.png) ·
+[Browse the Last Light project](https://github.com/yonigofman/shotforge/tree/main/examples/last_light)
+
+Run these commands from a folder where you can create a new `last_light` directory:
+
+```sh
+shotforge demo
+shotforge serve -C last_light
+```
+
+Open [the first shot](http://127.0.0.1:8765/shot/s01_last_light/sh01) in your
+browser. Keep `last_light/downloads` open in your file manager. The supplied
+takes let you do the whole walkthrough without signing in to a generator.
+
+1. Choose **Approve the blockout**, then **Start Frames**.
+2. On **Pass 1**, use **choose a file** in the **Takes** panel to upload
+   `sh01-pass1.png` from `last_light/downloads`.
+3. Choose **Go to pass 2 (identity)**. Upload `sh01-pass2.png` the same way.
+   Choose **Approve v2**. The approved still is
+   saved at `last_light/04_scenes/s01_last_light/shots/sh01/frames/first.png`.
+4. To go through video approval, choose **Start Video**, upload `sh01-video.mp4`,
+   and choose **Approve the video**. The approved clip appears under
+   `video/shot.mp4` in that shot's folder.
+
+## Start your own project
+
+```sh
 shotforge new "My film"
-```
-
-```bash
 cd my_film
-```
-
-Put your chapter in `00_source/ch01.md` and fill in `01_bible/style.yaml`. Then
-start the cockpit.
-
-```bash
 shotforge serve
 ```
 
-The cockpit opens on `http://127.0.0.1:8765`. The terminal also supports the shot
-pipeline and project validation.
+Open [the cockpit](http://127.0.0.1:8765), put your chapter in
+`00_source/ch01.md`, and fill in `01_bible/style.yaml`. Use `shotforge doctor`
+to check available tools and `tool_paths` in `project.yaml` to override their
+locations.
 
 ## Design an entity
 
@@ -242,6 +262,26 @@ attach to a prompt:
 Takes are never deleted. Approving one copies it to the fixed name the later
 stages refer to, which is what stops two frames from overwriting each other.
 
+### Store project media
+
+Keep the numbered takes and approved files at their usual relative paths
+regardless of where the project lives. Set the strategy when creating the
+project with the `--media` option, for example `shotforge new "My film" --media git`.
+The setting records your choice in `project.yaml`.
+
+- **Git LFS (`lfs`)** is the default for versioned film projects. Install
+  [Git LFS](https://git-lfs.com/), run `git lfs install` in your clone, and commit
+  the generated `.gitattributes`. Collaborators can run `git lfs pull` after
+  cloning to fetch the media.
+- **Plain Git (`git`)** suits small fixtures like Last Light. Commit media directly
+  and check repository size before adding large clips or Blender files.
+- **External or synced folder (`external`)** keeps large files outside Git.
+  Place the whole project in a backed-up or synced folder and ensure its files
+  are available locally before working. If you version the YAML separately,
+  ignore the media in that checkout and back it up with the same directory
+  structure. Coordinate edits to the same project so that concurrent syncs
+  do not conflict over shot specs or approval logs.
+
 ## Skills
 
 Every prompt comes from a skill: a folder in the
@@ -340,9 +380,9 @@ image or beside one.
 
 ## Offline
 
-HTMX and Alpine load from a CDN. To run with no network, drop
-`htmx.min.js` and `alpine.min.js` into `src/shotforge/web/static/vendor/` and the
-cockpit uses those instead.
+The cockpit includes HTMX and Alpine. The demo runs offline once Shotforge
+and FFmpeg are installed. Model-assisted steps in your own projects can
+require access to external tools.
 
 ## Development
 
@@ -352,10 +392,18 @@ uv pip install -e ".[dev]" && pytest -q && ruff check .
 
 CI runs the suite on Ubuntu, macOS and Windows, on Python 3.11 and 3.13.
 
-## Still open
+## Release
 
-From the design doc, and deliberately not decided here:
+Shotforge uses the same name on GitHub and PyPI. GitHub is the project's
+homepage. The public demo is Last Light, an original project with rendered
+media. The Ulybka Vavilony example is excluded from Python distributions.
 
-- the licence (MIT or Apache-2.0), and whether the example scene can be public
-- how media is stored: Git LFS, a synced folder, or outside Git
-- whether Higgsfield, Kling or ComfyUI is the second video adapter
+To prepare a release, build with `uv build`, install the wheel in a clean
+environment, and follow the README demo. Register `shotforge` as a
+[pending trusted publisher](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
+on PyPI using owner `yonigofman`, repository `shotforge`, workflow
+`release.yml`, and environment `pypi`. Configure the GitHub `pypi`
+environment to allow release tags. A `v<version>` tag matching
+`pyproject.toml` triggers the build, wheel smoke test, and OIDC publish.
+Once the workflow succeeds, verify `uv tool install shotforge` outside the
+checkout.
