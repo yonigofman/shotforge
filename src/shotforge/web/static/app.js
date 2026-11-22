@@ -202,6 +202,12 @@ document.addEventListener("change", (event) => {
   if (name) name.textContent = input.files?.[0]?.name || "No file chosen";
 });
 
+// Image errors do not bubble, so this listens on the way down.
+document.addEventListener("error", (event) => {
+  const frame = event.target instanceof HTMLImageElement && event.target.closest(".frame");
+  if (frame) frame.classList.add("frame-broken");
+}, true);
+
 async function uploadFiles(form, files, pasted = false) {
   if (form.getAttribute("aria-busy") === "true") return;
   const input = form.querySelector('input[type="file"]');

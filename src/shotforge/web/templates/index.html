@@ -20,7 +20,7 @@
         </a>
         <div class="next-body">
           <p class="eyebrow">Next · {{ next.reason }}</p>
-          <h1>{{ next.title }}</h1>
+          <h2 class="next-title">{{ next.title }}</h2>
           <p class="muted">{{ next.detail }}</p>
           <div class="row tight">
             {{ ui.badge(next.stage) }}
@@ -35,7 +35,7 @@
       </article>
       {% elif scenes %}
       <article class="card raised">
-        <h1>Every shot is done.</h1>
+        <h2>Every shot is done.</h2>
         <p class="muted">Cut the scenes together, or take a shot back to make it better.</p>
       </article>
       {% endif %}

@@ -3,7 +3,6 @@
 {% block content %}
 <div class="stack">
   <a class="faint" href="{{ project_prefix }}{{ '/bible/' ~ kind ~ '/' ~ entity_id if entity_id else '/bible' }}">← {{ entity_id or 'Bible' }}</a>
-  <h1>{{ 'Edit' if entity_id else 'New' }} {{ kind }}</h1>
   <form method="post" class="card raised stack bible-editor">
     {% if error %}<div class="bible-error" role="alert">{{ error }}</div>{% endif %}
     <label for="entity-source">Bible YAML</label>

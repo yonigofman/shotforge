@@ -63,6 +63,22 @@ h3 {
   color: var(--color-ink-muted);
 }
 
+/* Paragraphs carry their own rhythm only where nothing else sets one; in a
+   stack or a row the gap does the spacing, and two of them fight. */
+p {
+  margin: 0 0 var(--space-3);
+}
+
+p:last-child {
+  margin-bottom: 0;
+}
+
+.stack > p,
+.row > p,
+.card-header p {
+  margin: 0;
+}
+
 code,
 pre,
 .mono {
@@ -436,9 +452,14 @@ html[data-rail="shut"] .rail-group {
   color: var(--color-ink);
 }
 
-.crumbs [aria-current="page"] {
+.crumbs h1 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  font-weight: var(--type-title-weight);
+  letter-spacing: var(--type-title-tracking);
   color: var(--color-ink);
-  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1263,9 +1284,11 @@ details.history summary {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
 }
 
+/* Thumbnails stay thumbnails: a sheet blown up to half the page is not a
+   glance, it is a detour. */
 .bible-media {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(120px, 160px));
   align-items: start;
   gap: var(--space-2);
 }
@@ -1717,9 +1740,13 @@ tr:last-child td {
   min-width: 0;
 }
 
-.next-body h1 {
+.next-title {
+  font-family: var(--font-display);
+  font-stretch: 75%;
   font-size: var(--type-title-lg-size);
   line-height: var(--type-title-lg-line);
+  font-weight: 600;
+  letter-spacing: var(--type-title-lg-tracking);
 }
 
 .next-body p {
@@ -1792,4 +1819,35 @@ tr:last-child td {
 
 .chip-stage {
   color: var(--color-ink-subtle);
+}
+
+/* A whole card that leads somewhere: the name carries the link, the card
+   carries the hit area. */
+.entity {
+  position: relative;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.entity:hover {
+  border-color: var(--color-line-strong);
+}
+
+.stretched::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.frame-broken img {
+  display: none;
+}
+
+.frame-broken::before {
+  content: "will not open";
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  color: var(--color-ink-disabled);
+  font-size: var(--type-ui-size);
 }

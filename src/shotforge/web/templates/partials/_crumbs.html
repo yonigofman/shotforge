@@ -1,10 +1,11 @@
 {#
-  Where you are. Read off the URL, so every screen says it the same way.
+  Where you are, and the page's title in one line. The last step is the
+  <h1>: a page that repeated it under the bar was saying it twice.
 #}
 <nav class="crumbs" aria-label="Breadcrumb">
   {% for crumb in crumbs %}
   {%- if crumb.href %}<a href="{{ crumb.href }}">{{ crumb.label }}</a>
-  {%- else %}<span aria-current="page">{{ crumb.label }}</span>{% endif -%}
+  {%- else %}<h1 dir="auto">{{ crumb.label }}</h1>{% endif -%}
   {%- if not loop.last %}<span class="crumb-sep" aria-hidden="true">/</span>{% endif -%}
   {% endfor %}
 </nav>
