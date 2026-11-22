@@ -91,6 +91,17 @@ def test_uploading_something_else_is_refused(client, project, state):
     assert not list(project.paths.inbox.glob("notes.txt"))
 
 
+def test_uploading_a_video_runs_qa_and_shows_its_report(client, project, mp4):
+    clip = mp4(seconds=10)
+    response = client.post(
+        "/shot/s01_pub/sh01/upload",
+        files={"files": ("drop.mp4", clip.read_bytes(), "video/mp4")},
+    )
+    assert response.status_code == 200
+    assert (project.paths.shot("s01_pub", "sh01").qa / "video_v1.json").is_file()
+    assert "10.0s against 10.0s in the spec" in response.text
+
+
 def test_filing_from_the_inbox_needs_an_active_shot(client, project, png):
     (project.paths.inbox / "a.png").write_bytes(png("a.png").read_bytes())
     response = client.post("/inbox/file", data={"name": "a.png"})

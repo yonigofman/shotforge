@@ -22,9 +22,13 @@ class ClaudeCodeEngine(Engine):
 
     name = "claude-code"
 
-    def __init__(self, executable: Path | None = None, timeout_s: int = DEFAULT_TIMEOUT_S):
+    def __init__(
+        self, executable: Path | None = None, timeout_s: int = DEFAULT_TIMEOUT_S,
+        *, tools: tuple[str, ...] | None = None,
+    ):
         self._executable = executable
         self.timeout_s = timeout_s
+        self.tools = tools
 
     # -- plumbing ----------------------------------------------------------
     def executable(self) -> Path:
@@ -87,6 +91,9 @@ class ClaudeCodeEngine(Engine):
             "--output-format",
             "json",
         ]
+        if self.tools is not None:
+            tool_list = ",".join(self.tools)
+            command += ["--tools", tool_list, "--allowedTools", tool_list]
         try:
             completed = subprocess.run(
                 command,

@@ -50,6 +50,15 @@
     {% for take in video_takes %}
     <div class="take {% if approved_video == take.number %}approved{% endif %}">
       {{ ui.media(take.path, media_url, 'v' ~ take.number ~ (' · approved' if approved_video == take.number else ''), 'video') }}
+      {% set report = video_reports.get(take.number) %}
+      {% if report %}
+      <details>
+        <summary>QA · {{ ui.pip(report.verdict) }}</summary>
+        {% with findings = report.findings, verdict = report.verdict, subject = 'video v' ~ take.number %}
+          {% include "partials/_findings.html" %}
+        {% endwith %}
+      </details>
+      {% endif %}
       {% if shot.status.stage.value == 'video' and not shot.status.is_approved %}
       <form
         hx-post="/shot/{{ scene.id }}/{{ shot.id }}/approve"

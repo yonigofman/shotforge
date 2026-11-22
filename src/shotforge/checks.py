@@ -1,13 +1,9 @@
-"""The checks that need no model: schema-level and code-level QA.
-
-Each one came from something that actually went wrong in scene 1. Vision
-checks (identity, eyeline, AI look) arrive with the QA phase; these are the
-ones a plain function can settle, and they run before anything reaches you.
-"""
+"""Shot spec, continuity and media QA."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
 
 from shotforge.media import frame_size, probe_duration
@@ -196,11 +192,13 @@ def check_frame_file(project: Project, image: Path) -> list[Finding]:
     return findings
 
 
-def check_video_file(project: Project, scene_id: str, shot: Shot, video: Path) -> list[Finding]:
-    """Code-level video checks: the length against the spec."""
+def check_video_file(
+    project: Project, scene_id: str, shot: Shot, video: Path, *, vision: bool = True
+) -> list[Finding]:
+    """Check the clip's duration, camera motion, speech and eyeline."""
     findings: list[Finding] = []
     duration = probe_duration(video)
-    if duration is None:
+    if duration is None or not isfinite(duration) or duration <= 0:
         return [Finding("video readable", WARN, f"could not read the duration of {video.name}")]
     delta = duration - shot.duration_s
     if abs(delta) > 1.0:
@@ -216,6 +214,28 @@ def check_video_file(project: Project, scene_id: str, shot: Shot, video: Path) -
         findings.append(
             Finding("duration", PASS, f"{duration:.1f}s against {shot.duration_s}s in the spec")
         )
+
+    install_qa = 'install the video QA extra with pip install "shotforge[qa]"'
+    try:
+        from shotforge.qa.motion import check_motion
+    except (ImportError, OSError):
+        findings.append(
+            Finding("camera motion", WARN, "OpenCV and NumPy are needed", fix=install_qa)
+        )
+    else:
+        findings.append(check_motion(video, shot))
+
+    try:
+        from shotforge.qa.speech import check_speech
+    except (ImportError, OSError):
+        findings.append(Finding("speech", WARN, "NumPy is needed", fix=install_qa))
+    else:
+        findings.extend(check_speech(video, shot, duration))
+
+    if vision:
+        from shotforge.qa.eyeline import check_eyeline
+
+        findings.append(check_eyeline(project, shot, video, duration))
     return findings
 
 

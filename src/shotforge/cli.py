@@ -268,13 +268,14 @@ def qa(
     shot_id: str,
     kind: str = typer.Option("frame", help="frame | video"),
     take: int | None = typer.Option(None, "--take", help="Take number (default: the latest)."),
+    vision: bool = typer.Option(True, "--vision/--no-vision", help="Review the video eyeline."),
     project_dir: Path | None = ProjectOption,
 ) -> None:
-    """Run the code-level checks on a take and write its report."""
+    """Run the checks on a take and write its report."""
     project, _ = _open(project_dir)
     take_kind = TakeKind(kind)
     number = take or _last_take(project, scene, shot_id, take_kind)
-    findings = actions.run_qa(project, scene, shot_id, take_kind, number)
+    findings = actions.run_qa(project, scene, shot_id, take_kind, number, vision=vision)
     for finding in findings:
         typer.echo(f"{LEVEL_MARK[finding.level]} {finding.check}: {finding.message}")
         if finding.fix and finding.level != "pass":
@@ -334,6 +335,10 @@ def inbox_file(
     except (ValueError, FileNotFoundError) as exc:
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(f"{name} → {project.paths.rel(take.path)}")
+    if take.kind is TakeKind.video:
+        report_path = take.qa_report(project.paths.shot(*target))
+        if report := actions.read_qa(report_path):
+            typer.echo(f"QA {report['verdict']} · {project.paths.rel(report_path)}")
 
 
 @app.command()

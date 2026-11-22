@@ -5,9 +5,11 @@ One place, so the web screens and the terminal cannot drift apart.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
-from datetime import UTC
+from datetime import UTC, datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from shotforge import checks
 from shotforge.media import extract_last_frame
@@ -51,9 +53,10 @@ def build_prompt(
 
 
 def run_qa(
-    project: Project, scene_id: str, shot_id: str, kind: TakeKind, number: int
+    project: Project, scene_id: str, shot_id: str, kind: TakeKind, number: int,
+    *, vision: bool = True,
 ) -> list[checks.Finding]:
-    """The checks that need no model, on one take, plus the spec checks."""
+    """Check one take and write its report alongside the shot spec."""
     shot = project.shot(scene_id, shot_id)
     shot_paths = project.paths.shot(scene_id, shot_id)
     take = get_take(shot_paths, kind, number)
@@ -61,15 +64,26 @@ def run_qa(
     if kind is TakeKind.frame:
         findings += checks.check_frame_file(project, take.path)
     else:
-        findings += checks.check_video_file(project, scene_id, shot, take.path)
-    _write_report(shot_paths.qa / f"{kind.value}_v{number}.json", findings)
+        findings += checks.check_video_file(project, scene_id, shot, take.path, vision=vision)
+    _write_report(take.qa_report(shot_paths), findings)
     return findings
 
 
-def _write_report(path: Path, findings: list[checks.Finding]) -> None:
-    import json
-    from datetime import datetime
+def read_qa(path: Path) -> dict | None:
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if (
+        isinstance(report, dict)
+        and report.get("verdict") in (checks.PASS, checks.WARN, checks.FAIL)
+        and isinstance(report.get("findings"), list)
+    ):
+        return report
+    return None
 
+
+def _write_report(path: Path, findings: list[checks.Finding]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "ran_at": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -79,7 +93,10 @@ def _write_report(path: Path, findings: list[checks.Finding]) -> None:
             for f in findings
         ],
     }
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    with TemporaryDirectory(prefix=".qa-", dir=path.parent) as directory:
+        draft = Path(directory) / path.name
+        draft.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        draft.replace(path)
 
 
 def approve_frame(

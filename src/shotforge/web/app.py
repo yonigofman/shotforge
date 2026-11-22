@@ -10,12 +10,14 @@ import asyncio
 import json
 import os
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 from starlette.responses import FileResponse
 
 from shotforge import actions, blender, checks, tools
@@ -27,7 +29,7 @@ from shotforge.project import Project, ProjectError
 from shotforge.skills import find_skill, latest_prompt
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
-from shotforge.takes import TakeKind, add_take, approved_take_number, list_takes
+from shotforge.takes import TakeKind, approved_take_number, list_takes
 from shotforge.yamlio import ProjectFileError
 
 HERE = Path(__file__).resolve().parent
@@ -99,6 +101,10 @@ def create_app(project_root: Path) -> FastAPI:
             "prompt_path": prompt_path,
             "frame_takes": frame_takes,
             "video_takes": video_takes,
+            "video_reports": {
+                take.number: actions.read_qa(take.qa_report(shot_paths))
+                for take in video_takes
+            },
             "approved_frame": approved_take_number(shot_paths, TakeKind.frame),
             "approved_video": approved_take_number(shot_paths, TakeKind.video),
             "findings": checks.check_spec(project, scene_id, shot),
@@ -355,13 +361,15 @@ def create_app(project_root: Path) -> FastAPI:
         staging.mkdir(parents=True, exist_ok=True)
         for upload_file in files:
             name = Path(upload_file.filename or "upload.bin").name
-            temporary = staging / name
-            temporary.write_bytes(await upload_file.read())
-            kind = inbox_mod.classify(temporary)
+            kind = inbox_mod.classify(Path(name))
             if kind is None:
-                temporary.unlink(missing_ok=True)
                 raise HTTPException(400, f"{name} is not an image or a video Shotforge files")
-            add_take(shot_paths, kind, temporary, move=True)
+            with TemporaryDirectory(prefix=".upload-", dir=staging) as directory:
+                temporary = Path(directory) / name
+                temporary.write_bytes(await upload_file.read())
+                await run_in_threadpool(
+                    inbox_mod.file_to_shot, project, temporary, scene_id, shot_id, kind
+                )
         context = shot_card_context(request, scene_id, shot_id)
         return render(request, "partials/_takes.html", context)
 
