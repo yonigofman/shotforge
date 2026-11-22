@@ -454,6 +454,10 @@ crops, the Blender blockout, the location reference, and the cut from the
 previous shot. Missing references or an unavailable Claude session can show up
 as warnings. [Frame QA skill](skills/frame-qa/SKILL.md)
 
+If Claude Code reports an expired OAuth session, run `claude auth login` as the
+user running Shotforge and complete sign-in. Then click **Run on latest take**
+to refresh the report for the existing frame.
+
 Set `vision_qa: false` in `project.yaml` to keep frame and video QA local by default.
 To override that setting for one run, pass `--vision` or `--no-vision` to
 `shotforge qa` or `shotforge inbox file`. Rerunning QA replaces that take's
