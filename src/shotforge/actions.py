@@ -18,10 +18,17 @@ from shotforge.media import extract_last_frame
 from shotforge.models import Shot, ShotStatus
 from shotforge.pipeline import Action, TransitionError, approve, begin_next_stage, next_action
 from shotforge.project import Project
-from shotforge.skills import find_skill, render_prompt, save_prompt, shot_context
+from shotforge.skills import (
+    find_skill,
+    latest_prompt,
+    read_prompt_note,
+    render_prompt,
+    save_prompt,
+    shot_context,
+)
 from shotforge.skills.registry import Skill
 from shotforge.state import ProjectState
-from shotforge.takes import TakeKind, approve_take, get_take, list_takes
+from shotforge.takes import Take, TakeKind, approve_take, get_take, list_takes
 from shotforge.tools import ToolError
 
 
@@ -34,9 +41,18 @@ class PromptResult:
 
 
 def build_prompt(
-    project: Project, state: ProjectState, scene_id: str, shot_id: str
+    project: Project,
+    state: ProjectState,
+    scene_id: str,
+    shot_id: str,
+    note: str | None = None,
 ) -> PromptResult:
-    """Render the prompt for whatever this shot needs now, and keep a copy."""
+    """Render the prompt for whatever this shot needs now, and keep a copy.
+
+    ``note`` is what you want changed this time round — "warmer, less rain on
+    the glass". It goes into the prompt and is kept beside the version, so the
+    take it produces can say where it came from.
+    """
     action = next_action(project, state, scene_id, shot_id)
     if not action.skill:
         raise ValueError(f"{shot_id} is at a step with no prompt ({action.title})")
@@ -47,11 +63,29 @@ def build_prompt(
         scene_id,
         shot_id,
         attachments=action.attachments,
-        extra={"frame_pass": frame_pass, "tool": action.tool},
+        extra={"frame_pass": frame_pass, "tool": action.tool, "note": (note or "").strip()},
     )
     text = render_prompt(skill, context)
-    path = save_prompt(project, scene_id, shot_id, skill, text)
+    path = save_prompt(project, scene_id, shot_id, skill, text, note=(note or "").strip())
     return PromptResult(skill=skill, text=text, path=path, action=action)
+
+
+def note_take_origin(
+    project: Project, state: ProjectState, scene_id: str, shot_id: str, take: Take
+) -> dict[str, str]:
+    """Remember which prompt a take answered, and what was asked of it.
+
+    Filed the moment the take arrives, while the prompt that produced it is
+    still the latest one — a later regeneration must not rewrite its past.
+    """
+    action = next_action(project, state, scene_id, shot_id)
+    origin: dict[str, str] = {}
+    if action.skill:
+        prompt = latest_prompt(project, scene_id, shot_id, action.skill)
+        if prompt is not None:
+            origin = {"prompt": prompt.stem, "note": read_prompt_note(prompt).get("note", "")}
+    state.set_take_origin(scene_id, shot_id, take.kind.value, take.number, origin)
+    return origin
 
 
 def run_qa(

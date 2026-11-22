@@ -1,0 +1,28 @@
+{% import "partials/_macros.html" as ui %}
+{% set shot_url = project_prefix ~ "/shot/" ~ scene.id ~ "/" ~ shot.id %}
+{# The gate, pinned: the one action that moves the shot, always in reach. #}
+<div id="gatebar" hx-get="{{ shot_url }}/region/gate" hx-trigger="gate-changed from:body"
+     hx-swap="outerHTML">
+  {% if action.kind != 'finished' %}
+  <div class="gatebar">
+    <div class="row">
+      <span class="faint">{{ label }}</span>
+      {% if action.blocked_by %}
+      {{ ui.pip('warn', 'waiting') }}<span class="faint">{{ action.blocked_by | first }}</span>
+      {% elif shot.status.stage.value == 'frame' and frame_takes
+              and frame_verdicts.get(frame_takes[-1].number) == 'fail' %}
+      {{ ui.pip('fail', 'QA fail') }}
+      {% endif %}
+      <span class="spacer"></span>
+      {% if shot.status.stage.value == 'frame' and shot_state.frame_pass == 1 and frame_takes %}
+      {{ ui.button("Go to pass 2 (identity)", variant="quiet", attrs=card_swap(shot_url ~ "/pass2")) }}
+      {% endif %}
+      {% if action.kind == 'begin' %}
+      {{ ui.button(action.title, variant="primary", attrs=card_swap(shot_url ~ "/begin")) }}
+      {% elif action.gate %}
+      {{ ui.gate(action.gate, attrs=card_swap(shot_url ~ "/approve"), ready=action.ready) }}
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>

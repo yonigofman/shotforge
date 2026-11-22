@@ -1,0 +1,5 @@
+{% set shot_url = project_prefix ~ "/shot/" ~ scene.id ~ "/" ~ shot.id %}
+{# See: what the tools gave back. #}
+<div id="see" hx-get="{{ shot_url }}/region/see" hx-trigger="see-changed from:body" hx-swap="outerHTML">
+  {% include "partials/_takes.html" %}
+</div>

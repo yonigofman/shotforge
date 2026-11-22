@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/_macros.html" as ui %}
 {% block content %}
 <div class="stack">
   <a class="faint" href="{{ project_prefix }}{{ '/bible/' ~ kind ~ '/' ~ entity_id if entity_id else '/bible' }}">← {{ entity_id or 'Bible' }}</a>
@@ -13,7 +14,7 @@
     </p>
     <textarea id="entity-source" name="source" rows="18" spellcheck="false" required>
 {{ source }}</textarea>
-    <div class="row"><button class="primary" type="submit">Save {{ kind }}</button></div>
+    <div class="row">{{ ui.button("Save " ~ kind, variant="primary", type="submit") }}</div>
   </form>
 </div>
 {% endblock %}

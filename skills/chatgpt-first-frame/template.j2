@@ -85,6 +85,11 @@ DO NOT
 - no camera movement, no motion blur, no depth-of-field haze beyond the lens
 - no AI skin: no plastic smoothness, no embossed pores, no HDR glow, no tilt-shift
 
+{% if note %}
+THIS TIME
+{{ note }}
+
+{% endif %}
 ATTACH IN THIS ORDER
 {% for attachment in attachments %}
 {{ attachment.order }}. {{ attachment.label }} — {{ attachment.path }}{{ "  (MISSING)" if not attachment.exists else "" }}

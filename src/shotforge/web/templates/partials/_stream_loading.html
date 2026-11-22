@@ -1,3 +1,4 @@
+{% import "partials/_macros.html" as ui %}
 {% macro skeleton() %}
 <div class="stream-skeleton stack" aria-hidden="true">
   <i></i><i></i><i></i>
@@ -10,7 +11,7 @@
     <div class="row">
       <p class="muted" data-stream-status role="status">{{ message }}</p>
       <span class="spacer"></span>
-      <button type="button" class="quiet" data-stream-cancel>Cancel</button>
+      {{ ui.button("Cancel", variant="quiet", attrs={"data-stream-cancel": "true"}) }}
     </div>
     <div class="stack" data-proposal-scenes>
       <div class="card">{{ skeleton() }}</div>

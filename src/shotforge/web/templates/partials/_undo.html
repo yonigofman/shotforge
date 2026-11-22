@@ -36,22 +36,10 @@
     nothing generated is ever deleted.
   </p>
 
-  <form
-    class="gate"
-    hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/undo"
-    hx-target="#shot-card"
-    hx-swap="outerHTML"
-  >
-    <input type="text" name="note" placeholder="Why, for the log (optional)" style="flex:1" />
-    <button class="primary" type="submit">Undo the approval</button>
-    <button
-      class="quiet"
-      type="button"
-      hx-get="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/card"
-      hx-target="#shot-card"
-      hx-swap="outerHTML"
-    >
-      Keep it
-    </button>
-  </form>
+  {% set shot_url = project_prefix ~ "/shot/" ~ scene.id ~ "/" ~ shot.id %}
+  {% call ui.gate("Undo the approval", attrs=card_swap(shot_url ~ "/undo"), kbd=none,
+                  note_placeholder="Why, for the log (optional)") %}
+    {{ ui.button("Keep it", variant="quiet",
+                 attrs=hx(get=shot_url ~ "/card", target="#shot-card", swap="outerHTML")) }}
+  {% endcall %}
 </article>

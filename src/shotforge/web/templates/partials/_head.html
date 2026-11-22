@@ -1,0 +1,29 @@
+{% import "partials/_macros.html" as ui %}
+{% set shot_url = project_prefix ~ "/shot/" ~ scene.id ~ "/" ~ shot.id %}
+<div id="shot-head" class="stack tight"
+     hx-get="{{ shot_url }}/region/head" hx-trigger="head-changed from:body" hx-swap="outerHTML">
+  <div class="row">
+    <h1>{{ scene.id }} / {{ shot.id }}</h1>
+    {{ ui.badge(label) }}
+    {% if shot.size %}{{ ui.badge(shot.size) }}{% endif %}
+    <span class="faint mono">{{ shot.duration_s | n }}s</span>
+    <span class="spacer"></span>
+    {% if not active %}
+    {{ ui.button("Make active", variant="quiet", attrs=card_swap(shot_url ~ "/active"),
+                 title="The inbox files downloads to this shot") }}
+    {% else %}
+    {{ ui.pip("active", "active — inbox files here") }}
+    {% endif %}
+    {{ ui.link("Storyboard", project_prefix ~ "/scene/" ~ scene.id) }}
+  </div>
+  <div class="row tight">
+    {{ ui.stage_path(stages, stage_index, stage_label,
+                     card_swap(shot_url ~ "/reopen") if undoable else none) }}
+    <span class="spacer"></span>
+    {% if undoable %}
+    {{ ui.button("Undo approval", variant="quiet",
+                 attrs=hx(get=shot_url ~ "/undo", target="#undo-panel", swap="outerHTML"),
+                 title="Take the last approval back and remove what it wrote") }}
+    {% endif %}
+  </div>
+</div>

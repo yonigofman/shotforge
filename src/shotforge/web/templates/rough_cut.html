@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/_macros.html" as ui %}
 {% block title %}Rough cut · {{ scene_id }} — Shotforge{% endblock %}
 {% block content %}
 <div class="stack">
@@ -63,7 +64,7 @@
       <p class="muted">The scene has no shots to assemble.</p>
       {% endif %}
       <div class="row">
-        <button type="submit" class="primary" {% if not ready %}disabled{% endif %}>Assemble</button>
+        {{ ui.button("Assemble", variant="primary", type="submit", disabled=not ready) }}
         <span role="status" hidden>Assembling the rough cut…</span>
       </div>
     </form>

@@ -55,12 +55,12 @@ h2 {
 h3 {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: var(--type-caption-size);
-  line-height: var(--type-caption-line);
-  font-weight: var(--type-caption-weight);
-  letter-spacing: var(--type-caption-tracking);
+  font-size: var(--type-label-size);
+  line-height: var(--type-label-line);
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--color-ink-subtle);
+  color: var(--color-ink-muted);
 }
 
 code,
@@ -123,7 +123,7 @@ pre,
   box-shadow: inset 0 -2px 0 var(--color-accent);
 }
 
-.topbar .spacer {
+.spacer {
   flex: 1;
 }
 
@@ -266,13 +266,54 @@ main {
   resize: vertical;
 }
 
+/* --- utilities ---------------------------------------------------------
+   The few layout needs that recur. A template should reach for one of these
+   rather than carry a style attribute of its own. */
+
+.grow {
+  flex: 1;
+}
+
+.inline {
+  display: inline;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.right {
+  text-align: right;
+}
+
+.tight {
+  gap: var(--space-2);
+}
+
+.gap-3 {
+  gap: var(--space-3);
+}
+
+/* Two panes of equal width that stay side by side: a cut, a comparison. */
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
 /* --- surfaces ---------------------------------------------------------- */
 
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
-  padding: var(--space-4);
+  padding: var(--space-5);
+}
+
+/* Inside a card things sit closer together than cards sit apart. */
+.card.stack {
+  gap: var(--space-3);
 }
 
 .card.raised {
@@ -282,13 +323,14 @@ main {
 
 .card-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  min-height: var(--size-control-md);
 }
 
-.card-header .spacer {
-  flex: 1;
+/* A card that is not a stack still needs air under its header. */
+.card:not(.stack) > .card-header {
+  margin-bottom: var(--space-4);
 }
 
 /* ApprovalCard: the gate. The accent lives on the primary action only. */
@@ -378,6 +420,113 @@ main {
 .progress .step.done { background: var(--color-success); }
 .progress .step.current { background: var(--color-accent); }
 
+/* --- the stage path --------------------------------------------------- */
+
+.stage-path ol {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stage-path li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--type-ui-size);
+  color: var(--color-ink-subtle);
+}
+
+.stage-path li + li::before {
+  content: "›";
+  color: var(--color-line-strong);
+  padding-right: var(--space-1);
+}
+
+.stage-path li > span {
+  padding: 0 var(--space-1_5);
+}
+
+/* A path is read, not pressed: its steps lose the button's box and keep
+   only the affordance of a link. */
+.stage-path button {
+  height: auto;
+  padding: 0 var(--space-1_5);
+  border-color: transparent;
+  background: transparent;
+  font-size: var(--type-ui-size);
+  font-weight: 400;
+  color: var(--color-ink-muted);
+}
+
+.stage-path button:hover {
+  background: transparent;
+  color: var(--color-ink);
+  text-decoration: underline;
+}
+
+.stage-path li.done {
+  color: var(--color-ink-muted);
+}
+
+.stage-path li.current > span {
+  color: var(--color-ink);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+
+/* --- the gate, pinned -------------------------------------------------- */
+
+/* The one action that moves the shot stays in reach however long the card
+   runs: it sticks to the bottom of the viewport until you reach the end. */
+.gatebar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-sticky);
+  padding: var(--space-3) var(--space-6);
+  background: var(--color-surface-overlay);
+  border-top: 1px solid var(--color-line-strong);
+  box-shadow: var(--shadow-lg);
+}
+
+.gatebar > .row {
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+/* Room for the bar, so it never covers the end of the card. */
+#shot-card {
+  padding-bottom: var(--space-12);
+}
+
+/* On a phone the bar keeps the stage and the action; the reason for a wait
+   is already on the card above it. */
+@media (max-width: 640px) {
+  .gatebar .faint {
+    display: none;
+  }
+
+  .gatebar .gate input[type="text"] {
+    min-width: 0;
+  }
+}
+
+.gatebar .gate {
+  margin: 0;
+  padding: 0;
+  border: none;
+  gap: var(--space-2);
+}
+
+.gatebar .gate input[type="text"] {
+  min-width: 14rem;
+  height: var(--size-control-lg);
+}
+
 /* --- controls ---------------------------------------------------------- */
 
 button,
@@ -432,7 +581,7 @@ button.primary:active {
 
 button.quiet {
   background: transparent;
-  border-color: transparent;
+  border-color: var(--color-line);
   color: var(--color-ink-muted);
 }
 
@@ -443,14 +592,16 @@ button.quiet:hover {
 
 button[disabled] {
   color: var(--color-ink-disabled);
-  background: var(--color-surface-raised);
+  background: var(--color-surface);
   border-color: var(--color-line);
   cursor: not-allowed;
 }
 
+/* A primary that cannot be pressed still reads as the primary, dimmed —
+   not as some other button that happens to be grey. */
 button.primary[disabled] {
-  background: var(--color-surface-raised);
-  border-color: var(--color-line-strong);
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-line);
   color: var(--color-ink-disabled);
 }
 
@@ -541,6 +692,15 @@ kbd {
 
 /* --- media: neutral ground only ---------------------------------------- */
 
+figure.frame {
+  margin: 0;
+}
+
+.frame-empty {
+  padding: var(--space-6);
+  text-align: center;
+}
+
 .frame {
   background: var(--color-surface-neutral);
   border: 1px solid var(--color-line);
@@ -570,7 +730,7 @@ kbd {
 
 .takes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: var(--space-4);
   /* A 4:3 take must stay visibly 4:3, so cards size to their image. */
   align-items: start;
@@ -585,11 +745,57 @@ kbd {
   filter: grayscale(1);
 }
 
-.takes .take.approved {
-  outline: 2px solid var(--color-success);
-  outline-offset: 2px;
-  border-radius: var(--radius-md);
+/* Where a take came from: the prompt it answered, and what was asked. */
+.lineage {
+  margin: var(--space-1) 0 0;
+  font-size: var(--type-mono-sm-size);
+  line-height: var(--type-mono-sm-line);
 }
+
+details.history summary {
+  cursor: pointer;
+  font-size: var(--type-ui-size);
+  color: var(--color-ink-muted);
+}
+
+.take {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* The image is the top of the tile, so it drops its own frame. */
+.take .frame {
+  border: none;
+  border-radius: 0;
+}
+
+.take-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+}
+
+.take-meta:empty {
+  display: none;
+}
+
+.take-actions {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--color-line);
+  margin-top: auto;
+}
+
+.take.approved {
+  border-color: var(--color-success);
+}
+
 
 .bible-cards {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
@@ -615,7 +821,7 @@ kbd {
   display: block;
   border: 1px dashed var(--color-line-strong);
   border-radius: var(--radius-md);
-  padding: var(--space-5);
+  padding: var(--space-3);
   text-align: center;
   color: var(--color-ink-muted);
   font-size: var(--type-ui-size);
@@ -623,6 +829,15 @@ kbd {
   transition:
     border-color var(--duration-fast) var(--ease-out),
     background var(--duration-fast) var(--ease-out);
+}
+
+/* Nothing filed yet: then it is the thing on the screen. */
+.dropzone.empty {
+  padding: var(--space-8) var(--space-5);
+}
+
+.dropzone .row {
+  justify-content: center;
 }
 
 .dropzone.over {
@@ -663,7 +878,9 @@ td {
   height: var(--size-row-height);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-line);
-  vertical-align: top;
+  /* Baseline, so a timecode lines up with the first line of what it labels
+     and a one-line row does not float above its neighbours. */
+  vertical-align: baseline;
 }
 
 tbody tr:hover {

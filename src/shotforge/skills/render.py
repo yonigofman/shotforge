@@ -7,7 +7,9 @@ skills (breakdown, cinematography, QA) go through the engine instead.
 
 from __future__ import annotations
 
+import json
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +73,7 @@ def shot_context(
         "characters": {cid: as_plain(c) for cid, c in characters.items()},
         "tags": {cid: (c.tag or f"@{cid.title()}") for cid, c in characters.items()},
         "location": as_plain(location) if location else None,
+        "note": "",
         "attachments": [
             {
                 "order": a.order,
@@ -106,7 +109,34 @@ def next_prompt_version(folder: Path, skill_name: str) -> int:
     return max(versions) + 1 if versions else 1
 
 
-def save_prompt(project: Project, scene_id: str, shot_id: str, skill: Skill, text: str) -> Path:
+def prompt_note_path(prompt: Path) -> Path:
+    """Where a prompt version's note lives: beside it, not inside it.
+
+    The ``.txt`` is pasted into ChatGPT whole, so nothing may be added to it
+    that is not meant for the tool.
+    """
+    return prompt.with_suffix(".json")
+
+
+def read_prompt_note(prompt: Path) -> dict[str, Any]:
+    path = prompt_note_path(prompt)
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_prompt(
+    project: Project,
+    scene_id: str,
+    shot_id: str,
+    skill: Skill,
+    text: str,
+    note: str | None = None,
+) -> Path:
     """Keep every prompt that was generated, numbered, next to the shot."""
     folder = project.paths.shot(scene_id, shot_id).prompts
     folder.mkdir(parents=True, exist_ok=True)
@@ -119,13 +149,44 @@ def save_prompt(project: Project, scene_id: str, shot_id: str, skill: Skill, tex
         except FileExistsError:
             version += 1
         else:
+            prompt_note_path(path).write_text(
+                json.dumps(
+                    {
+                        "skill": skill.name,
+                        "version": version,
+                        "note": note or "",
+                        "written": datetime.now(UTC).isoformat(timespec="seconds"),
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
             return path
 
 
-def latest_prompt(project: Project, scene_id: str, shot_id: str, skill_name: str) -> Path | None:
+def prompt_versions(
+    project: Project, scene_id: str, shot_id: str, skill_name: str
+) -> list[tuple[int, Path]]:
+    """Every version of this skill's prompt for this shot, oldest first."""
     folder = project.paths.shot(scene_id, shot_id).prompts
     if not folder.is_dir():
-        return None
+        return []
     pattern = re.compile(rf"^{re.escape(skill_name)}_v(\d+)$")
-    matches = [(int(m.group(1)), p) for p in folder.glob("*.txt") if (m := pattern.match(p.stem))]
-    return max(matches)[1] if matches else None
+    found = [(int(m.group(1)), p) for p in folder.glob("*.txt") if (m := pattern.match(p.stem))]
+    return sorted(found)
+
+
+def prompt_history(
+    project: Project, scene_id: str, shot_id: str, skill_name: str
+) -> list[dict[str, Any]]:
+    """The versions with the note each one was asked for, newest first."""
+    history = []
+    for version, path in prompt_versions(project, scene_id, shot_id, skill_name):
+        history.append({"version": version, "path": path, **read_prompt_note(path)})
+    return list(reversed(history))
+
+
+def latest_prompt(project: Project, scene_id: str, shot_id: str, skill_name: str) -> Path | None:
+    versions = prompt_versions(project, scene_id, shot_id, skill_name)
+    return versions[-1][1] if versions else None

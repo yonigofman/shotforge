@@ -40,7 +40,7 @@ from shotforge.models import Scene, Shot, ShotStatus, Stage, as_plain
 from shotforge.pipeline import ORDER, STAGE_LABEL, TransitionError, next_action, reopen
 from shotforge.project import Project, ProjectError
 from shotforge.registry import ProjectRegistry
-from shotforge.skills import find_skill, latest_prompt
+from shotforge.skills import find_skill, latest_prompt, prompt_history
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
 from shotforge.takes import Take, TakeKind, approved_take_number, get_take, list_takes
@@ -56,6 +56,16 @@ from shotforge.yamlio import ProjectFileError
 HERE = Path(__file__).resolve().parent
 
 
+def _hx(**parts: object) -> dict[str, object]:
+    """``hx(post=url, target="#takes")`` → the hx- attributes for a component."""
+    return {f"hx-{name.replace('_', '-')}": value for name, value in parts.items()}
+
+
+def _card_swap(url: str, method: str = "post") -> dict[str, object]:
+    """The commonest one: act, then redraw the shot card."""
+    return {f"hx-{method}": url, "hx-target": "#shot-card", "hx-swap": "outerHTML"}
+
+
 def _number(value: float | int) -> str:
     """15 rather than 15.0 — the same spelling as in the prompts."""
     number = float(value)
@@ -63,6 +73,16 @@ def _number(value: float | int) -> str:
 
 
 STAGES: tuple[Stage, ...] = (Stage.breakdown, Stage.blockout, Stage.frame, Stage.video)
+
+#: The shot card's regions. Each one redraws on its own, so an action never
+#: rebuilds the parts of the screen it did not touch.
+REGIONS = {
+    "head": "partials/_head.html",
+    "do": "partials/_do.html",
+    "see": "partials/_see.html",
+    "judge": "partials/_judge.html",
+    "gate": "partials/_gatebar.html",
+}
 
 #: How often the event stream looks for a change.
 EVENT_POLL_SECONDS = 2.0
@@ -140,6 +160,8 @@ def create_app(
     routes = APIRouter()
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     templates.env.filters["n"] = _number
+    templates.env.globals["hx"] = _hx
+    templates.env.globals["card_swap"] = _card_swap
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     register_projects(app, registry, templates, project_root)
     drafts: OrderedDict[str, BreakdownDraft] = OrderedDict()
@@ -255,6 +277,11 @@ def create_app(
             "approved_video": approved_take_number(shot_paths, TakeKind.video),
             "rejected_frames": state.rejected_takes(scene_id, shot_id, TakeKind.frame.value),
             "rejected_videos": state.rejected_takes(scene_id, shot_id, TakeKind.video.value),
+            "frame_origins": state.take_origins(scene_id, shot_id, TakeKind.frame.value),
+            "video_origins": state.take_origins(scene_id, shot_id, TakeKind.video.value),
+            "prompt_history": (
+                prompt_history(project, scene_id, shot_id, action.skill) if action.skill else []
+            ),
             "undoable": undo.can_undo(shot.status),
             "rule_offers": fixes.rule_offers(project, state, scene_id, shot),
             "cut_findings": continuity.shot_findings(project, scene, shot, previous),
@@ -512,10 +539,36 @@ def create_app(
     def shot_card(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
         return render(request, "partials/_card.html", shot_card_context(request, scene_id, shot_id))
 
+    def region(
+        request: Request,
+        name: str,
+        scene_id: str,
+        shot_id: str,
+        *,
+        also: tuple[str, ...] = (),
+        context: dict[str, Any] | None = None,
+    ) -> HTMLResponse:
+        """Redraw one region of the shot card, and tell the others to follow.
+
+        Nothing here redraws the whole card: a prompt lands in `do`, a take in
+        `see`, a verdict in `judge`, and each region listens for its own event.
+        """
+        if name not in REGIONS:
+            raise HTTPException(404, f"no region {name!r}")
+        response = render(
+            request, REGIONS[name], context or shot_card_context(request, scene_id, shot_id)
+        )
+        if also:
+            response.headers["HX-Trigger"] = ", ".join(f"{other}-changed" for other in also)
+        return response
+
+    @routes.get("/shot/{scene_id}/{shot_id}/region/{name}", response_class=HTMLResponse)
+    def shot_region(request: Request, scene_id: str, shot_id: str, name: str) -> HTMLResponse:
+        return region(request, name, scene_id, shot_id)
+
     @routes.get("/shot/{scene_id}/{shot_id}/takes", response_class=HTMLResponse)
     def shot_takes(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
-        context = shot_card_context(request, scene_id, shot_id)
-        return render(request, "partials/_takes.html", context)
+        return region(request, "see", scene_id, shot_id)
 
     register_bible(routes, load, render)
     register_edit(routes, load, render)
@@ -599,13 +652,15 @@ def create_app(
         return shot_card(request, scene_id, shot_id)
 
     @routes.post("/shot/{scene_id}/{shot_id}/prompt", response_class=HTMLResponse)
-    def make_prompt(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
+    def make_prompt(
+        request: Request, scene_id: str, shot_id: str, note: str | None = Form(None)
+    ) -> HTMLResponse:
         project, state = load(request)
         try:
-            actions.build_prompt(project, state, scene_id, shot_id)
+            actions.build_prompt(project, state, scene_id, shot_id, note=note)
         except (ValueError, TransitionError, SkillError) as exc:
             raise HTTPException(400, str(exc)) from exc
-        return shot_card(request, scene_id, shot_id)
+        return region(request, "do", scene_id, shot_id)
 
     @routes.post("/shot/{scene_id}/{shot_id}/fix", response_class=HTMLResponse)
     def make_fix(
@@ -626,7 +681,7 @@ def create_app(
         report = actions.read_qa_report(source.qa_report(shot_paths))
         if report is not None:
             context.update(_qa_context(source, report))
-        return render(request, "partials/_card.html", context)
+        return region(request, "do", scene_id, shot_id, context=context)
 
     @routes.post("/shot/{scene_id}/{shot_id}/blockout", response_class=HTMLResponse)
     def render_blockout(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
@@ -641,7 +696,7 @@ def create_app(
             blender.render(scene_id, shot_id, project=project)
         except blender.BlockoutError as exc:
             raise HTTPException(400, str(exc)) from exc
-        return shot_card(request, scene_id, shot_id)
+        return region(request, "do", scene_id, shot_id, also=("gate",))
 
     @routes.post("/shot/{scene_id}/{shot_id}/begin", response_class=HTMLResponse)
     def begin_stage(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
@@ -742,7 +797,7 @@ def create_app(
         except FileNotFoundError as exc:
             raise HTTPException(404, str(exc)) from exc
         state.set_take_rejected(scene_id, shot_id, kind.value, number, not restore)
-        return shot_card(request, scene_id, shot_id)
+        return region(request, "see", scene_id, shot_id, also=("judge", "gate"))
 
     @routes.post("/shot/{scene_id}/{shot_id}/reopen", response_class=HTMLResponse)
     def reopen_stage(
@@ -795,7 +850,9 @@ def create_app(
                 },
             )
             if take is None:
-                response.headers["HX-Trigger-After-Swap"] = "card-changed"
+                # The verdict shows on the take and at the gate; neither needs
+                # the whole card redrawn.
+                response.headers["HX-Trigger-After-Swap"] = "see-changed, gate-changed"
             return response
 
         return await render_with_progress(request, generate)
@@ -811,7 +868,7 @@ def create_app(
     def upload(
         request: Request, scene_id: str, shot_id: str, files: list[UploadFile]
     ) -> HTMLResponse:
-        project, _ = load(request)
+        project, state = load(request)
         shot_paths = project.paths.shot(scene_id, shot_id)
         if not shot_paths.spec.is_file():
             raise HTTPException(404, f"no shot {shot_id} in {scene_id}")
@@ -820,11 +877,11 @@ def create_app(
                 with inbox_mod.stage_upload(
                     project, upload_file.filename or "upload.bin", upload_file.file
                 ) as source:
-                    inbox_mod.file_to_shot(project, source, scene_id, shot_id)
+                    take = inbox_mod.file_to_shot(project, source, scene_id, shot_id)
+                    actions.note_take_origin(project, state, scene_id, shot_id, take)
         except (ValueError, FileNotFoundError) as exc:
             raise HTTPException(400, str(exc)) from exc
-        context = shot_card_context(request, scene_id, shot_id)
-        return render(request, "partials/_takes.html", context)
+        return region(request, "see", scene_id, shot_id, also=("judge", "gate"))
 
     @routes.post("/inbox/file", response_class=HTMLResponse)
     def file_from_inbox(
@@ -845,7 +902,8 @@ def create_app(
                 target = (scene, shot) if scene and shot else state.active
                 if target is None:
                     raise ValueError("no active shot — open a shot card first")
-                inbox_mod.file_to_shot(project, source, *target)
+                take = inbox_mod.file_to_shot(project, source, *target)
+                actions.note_take_origin(project, state, *target, take)
         except (ValueError, OSError) as exc:
             raise HTTPException(400, str(exc)) from exc
         return inbox_partial(request)

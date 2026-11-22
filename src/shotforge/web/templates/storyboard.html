@@ -20,7 +20,7 @@
       <form method="post" action="{{ continuity_url }}" data-stream-target="continuity-findings"
             data-stream-task="Continuity check" hx-post="{{ continuity_url }}"
             hx-target="#continuity-findings" hx-disabled-elt="find button">
-        <button type="submit">Run continuity check <span class="spinner">…</span></button>
+        {{ ui.button("Run continuity check", type="submit", spinner=true) }}
       </form>
     </div>
     <div id="continuity-findings" tabindex="-1">
@@ -31,7 +31,7 @@
 
   <div class="strip">
     {% for row in rows %}
-    <article class="card raised stack" style="gap:var(--space-3)">
+    <article class="card raised stack gap-3">
       <div class="row">
         <strong><a href="{{ project_prefix }}/shot/{{ scene.id }}/{{ row.shot.id }}">{{ row.shot.id }}</a></strong>
         <span class="spacer"></span>

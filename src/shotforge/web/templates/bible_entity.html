@@ -33,7 +33,7 @@
         <div class="row">
           <h2>ChatGPT prompts</h2>
           <form method="post" action="{{ url }}/prompts">
-            <button type="submit">{{ 'Regenerate prompts' if prompts else 'Generate prompts' }}</button>
+            {{ ui.button("Regenerate prompts" if prompts else "Generate prompts", type="submit") }}
           </form>
         </div>
         {% if prompts %}
@@ -42,7 +42,7 @@
         <details {% if loop.first %}open{% endif %}>
           <summary>{{ title }}</summary>
           <pre class="prompt" id="prompt-{{ asset }}">{{ prompts[asset] }}</pre>
-          <button type="button" data-design-copy="prompt-{{ asset }}">Copy {{ title | lower }}</button>
+          {{ ui.button("Copy " ~ title | lower, attrs={"data-design-copy": "prompt-" ~ asset}) }}
         </details>
         {% endfor %}
         {% endif %}
@@ -63,7 +63,7 @@
           class="dropzone stack" data-file-upload="design" tabindex="0" aria-label="Upload {{ title | lower }}">
           <label for="upload-{{ asset }}">Drop an image here, focus here and paste, or choose a file.</label>
           <input id="upload-{{ asset }}" name="file" type="file" accept=".png,.jpg,.jpeg,.webp" required />
-          <button type="submit">File {{ title | lower }}</button>
+          {{ ui.button("File " ~ title | lower, type="submit") }}
         </form>
         {% if inbox_images %}
         <form method="post" action="{{ url }}/{{ asset }}/file" class="row">
@@ -72,7 +72,7 @@
             <option value="">Choose an image</option>
             {% for item in inbox_images %}<option value="{{ item.name }}">{{ item.name }}</option>{% endfor %}
           </select>
-          <button type="submit">File from inbox</button>
+          {{ ui.button("File from inbox", type="submit") }}
         </form>
         {% endif %}
       </section>
@@ -87,7 +87,7 @@
         <form method="post" action="{{ url }}/approve" class="gate">
           <input type="hidden" name="revision" value="{{ revision or '' }}" />
           <input type="text" name="note" aria-label="Approval note" placeholder="Approval note (optional)" />
-          <button class="primary" type="submit" {% if not revision %}disabled{% endif %}>Approve design</button>
+          {{ ui.button("Approve design", variant="primary", type="submit", disabled=not revision) }}
         </form>
         {% endif %}
       </section>
