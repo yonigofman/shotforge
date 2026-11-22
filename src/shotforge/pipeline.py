@@ -76,6 +76,7 @@ class Action:
     gate: str | None = None
     attachments: list[Attachment] = field(default_factory=list)
     blocked_by: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def ready(self) -> bool:
@@ -194,6 +195,49 @@ def _attachment(order: int, label: str, path: Path) -> Attachment:
     return Attachment(order=order, label=label, path=path, exists=path.is_file())
 
 
+def _face_crop_refs(
+    project: Project, current: tuple[str, str], chars: list[str]
+) -> dict[str, Path]:
+    if not chars:
+        return {}
+    paths = project.paths
+    found: dict[str, Path] = {}
+    seen = {current}
+    possible_sources = {
+        (scene, shot) for scene in project.scene_ids() for shot in project.shot_ids(scene)
+    }
+    approvals = ProjectState(paths).approvals()
+    for entry in approvals:
+        source = (entry.scene, entry.shot)
+        if entry.to_status != ShotStatus.frame_approved or source in seen:
+            continue
+        seen.add(source)
+        if source not in possible_sources:
+            continue
+        skipped = entry.detail.get("face_crop_skips", {})
+        candidates = {
+            char: paths.face_crop(*source, char)
+            for char in chars
+            if char not in found and char not in skipped
+        }
+        candidates = {char: path for char, path in candidates.items() if path.is_file()}
+        if candidates and ORDER.index(project.shot(*source).status) >= ORDER.index(
+            ShotStatus.frame_approved
+        ):
+            found.update(candidates)
+            if all(char in found for char in chars):
+                return found
+
+    # Keep manually seeded references usable. A shot-named file still needs an approval.
+    shot_names = {f"{scene}_{shot}.png" for scene, shot in possible_sources | seen}
+    for char in chars:
+        if char not in found:
+            folder = paths.face_crops(char)
+            legacy = [p for p in folder.glob("*.png") if p.is_file() and p.name not in shot_names]
+            found[char] = max(legacy, default=folder / "latest.png")
+    return found
+
+
 def frame_attachments(
     project: Project, scene_id: str, shot_id: str, frame_pass: int
 ) -> list[Attachment]:
@@ -220,13 +264,10 @@ def frame_attachments(
         latest = takes[-1].path if takes else approved_path(shot_paths, TakeKind.frame)
         items.append(_attachment(order, "Frame from pass 1", latest))
         order += 1
+        crops = _face_crop_refs(project, (scene_id, shot_id), shot.characters)
         for framed in shot.in_frame:
-            crops = paths.face_crops(framed.char)
-            found = sorted(crops.glob("*.png")) if crops.is_dir() else []
             items.append(
-                _attachment(
-                    order, f"{framed.char} face crop", found[-1] if found else crops / "latest.png"
-                )
+                _attachment(order, f"{framed.char} face crop", crops[framed.char])
             )
             order += 1
             items.append(
@@ -237,13 +278,10 @@ def frame_attachments(
             order += 1
     previous = project.previous_shot(scene_id, shot_id)
     if previous is not None:
-        items.append(
-            _attachment(
-                order,
-                f"last frame of {previous.id}",
-                paths.shot(scene_id, previous.id).last_frame,
-            )
-        )
+        last_frame = paths.shot(scene_id, previous.id).last_frame
+        # The identity pass can use an earlier approved frame before its video exists.
+        if frame_pass == 1 or last_frame.is_file():
+            items.append(_attachment(order, f"last frame of {previous.id}", last_frame))
     return items
 
 
@@ -275,11 +313,20 @@ def next_action(project: Project, state: ProjectState, scene_id: str, shot_id: s
             if target is ShotStatus.done
             else f"Start {STAGE_LABEL[target.stage]}"
         )
+        warnings = []
+        if status is ShotStatus.frame_approved:
+            entries = state.approvals(scene_id, shot_id, limit=1)
+            if entries and entries[0].to_status == ShotStatus.frame_approved:
+                skips = entries[0].detail.get("face_crop_skips", {})
+                warnings = [
+                    f"{char}: face crop skipped ({reason})" for char, reason in skips.items()
+                ]
         return Action(
             kind="begin",
             title=title,
             tool="Shotforge",
             detail=f"{STAGE_LABEL[status.stage]} is approved.",
+            warnings=warnings,
         )
 
     if status is ShotStatus.breakdown:

@@ -10,9 +10,10 @@ from datetime import UTC
 from pathlib import Path
 
 from shotforge import checks
+from shotforge.crops import extract_face_crops
 from shotforge.media import extract_last_frame
 from shotforge.models import Shot, ShotStatus
-from shotforge.pipeline import Action, approve, begin_next_stage, next_action
+from shotforge.pipeline import Action, TransitionError, approve, begin_next_stage, next_action
 from shotforge.project import Project
 from shotforge.skills import find_skill, render_prompt, save_prompt, shot_context
 from shotforge.skills.registry import Skill
@@ -90,18 +91,27 @@ def approve_frame(
     number: int,
     note: str | None = None,
 ) -> Shot:
-    """Approve a frame take: copy it to ``first.png``, then close the stage."""
+    """Approve a frame take and extract the face references for later shots."""
+    shot = project.shot(scene_id, shot_id)
+    if shot.status is not ShotStatus.frame:
+        raise TransitionError(
+            f"{shot_id} is at {shot.status.value}, not waiting for a frame approval"
+        )
     shot_paths = project.paths.shot(scene_id, shot_id)
     approved = approve_take(shot_paths, TakeKind.frame, number)
-    shot = approve(
+    skipped = extract_face_crops(project.paths, scene_id, shot)
+    return approve(
         project,
         state,
         scene_id,
         shot_id,
         note=note,
-        detail={"take": number, "approved": project.paths.rel(approved)},
+        detail={
+            "take": number,
+            "approved": project.paths.rel(approved),
+            "face_crop_skips": skipped,
+        },
     )
-    return shot
 
 
 def approve_video(

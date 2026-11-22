@@ -161,6 +161,8 @@ def shot(
     typer.echo(f"\n{action.title}  [{action.tool}]")
     if action.detail:
         typer.echo(action.detail)
+    for warning in action.warnings:
+        typer.echo(f"  - {warning}")
     if action.skill:
         typer.echo(f"skill: {action.skill}")
     if action.attachments:
@@ -262,6 +264,8 @@ def approve(
             number = take or _last_take(project, scene, shot_id, TakeKind.frame)
             shot = actions.approve_frame(project, state, scene, shot_id, number, note)
             typer.echo(f"frame take v{number} approved → frames/first.png")
+            for warning in next_action(project, state, scene, shot_id).warnings:
+                typer.echo(warning)
         elif stage is Stage.video:
             number = take or _last_take(project, scene, shot_id, TakeKind.video)
             shot, last_frame = actions.approve_video(project, state, scene, shot_id, number, note)

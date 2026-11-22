@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import struct
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -30,8 +31,12 @@ def mcp_jobs(monkeypatch):
         payload = json.loads(job.read_text(encoding="utf-8"))
         jobs.append(payload)
         (job.parent / "s01_pub.blend").write_bytes(b"blend")
-        for shot in payload["renders"]:
-            (job.parent / f"{shot}.png").write_bytes(PNG)
+        for path in payload["renders"].values():
+            Path(path).write_bytes(PNG)
+        for masks in payload["masks"].values():
+            for path in map(Path, masks.values()):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(PNG)
 
     monkeypatch.setattr(blender.mcp, "render", render)
     return jobs
@@ -52,6 +57,9 @@ def test_cli_renders_the_scene_in_one_mcp_job(example_project, mcp_jobs):
     }
     assert project.paths.blend_file(SCENE).is_file()
     assert all(project.paths.blockout(SCENE, shot).is_file() for shot in job["renders"])
+    for shot in project.shots(SCENE):
+        assert set(job["masks"][shot.id]) == set(shot.characters)
+        assert all(project.paths.mask(SCENE, shot.id, char).is_file() for char in shot.characters)
 
 
 def test_render_discovers_the_project(example_project, mcp_jobs, monkeypatch):
@@ -76,6 +84,7 @@ def test_shot_card_renders_one_png_and_makes_approval_ready(example_project, mcp
     assert "not rendered yet" not in response.text
     assert "Blockout render for sh07" in response.text
     assert set(mcp_jobs[0]["renders"]) == {"sh07"}
+    assert set(mcp_jobs[0]["masks"]) == {"sh07"}
     assert len(mcp_jobs[0]["spec"]["cameras"]) == 3
     state = ProjectState(project.paths)
     assert next_action(project, state, SCENE, "sh07").ready
@@ -93,12 +102,13 @@ def test_a_partial_mcp_result_falls_back_without_replacing_previous_renders(
 
     def partial(_script, job, *_args):
         attempts.append(job.parent)
+        (job.parent / "s01_pub.blend").write_bytes(b"blend")
         (job.parent / "sh07.png").write_bytes(PNG)
         assert path.read_bytes() == b"previous blockout"
 
     monkeypatch.setattr(blender.mcp, "render", partial)
     monkeypatch.setattr(blender.headless, "render", partial)
-    with pytest.raises(blender.BlockoutError, match="did not produce s01_pub.blend"):
+    with pytest.raises(blender.BlockoutError, match="did not produce mask_dima.png"):
         blender.render(SCENE, "sh07", project=project)
     assert len(set(attempts)) == 2
     assert path.read_bytes() == b"previous blockout"
@@ -121,6 +131,12 @@ def test_background_blender_renders_the_example_and_checks_every_camera(
         header = path.read_bytes()[:24]
         assert header[:8] == PNG
         assert struct.unpack(">II", header[16:24]) == (960, 540)
+    for shot in project.shots(SCENE):
+        for char in shot.characters:
+            header = project.paths.mask(SCENE, shot.id, char).read_bytes()[:26]
+            assert header[:8] == PNG
+            assert struct.unpack(">IIBB", header[16:26]) == (960, 540, 8, 0)
+    assert not project.paths.mask(SCENE, "sh08", "zhmurik").exists()
 
     blend = project.paths.blend_file(SCENE)
     original = blend.read_bytes()
