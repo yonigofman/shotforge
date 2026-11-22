@@ -2,6 +2,28 @@
 // Everything that changes the project goes through the server.
 
 document.addEventListener("alpine:init", () => {
+  Alpine.data("compare", () => ({
+    // Where the wipe sits, and whether the two images are wiped or paired.
+    at: 50,
+    mode: "wipe",
+    init() {
+      this.onKey = (event) => {
+        if (event.target.matches("input, textarea, select")) return;
+        const step = event.shiftKey ? 1 : 5;
+        if (event.key === "ArrowLeft") this.at = Math.max(0, this.at - step);
+        else if (event.key === "ArrowRight") this.at = Math.min(100, this.at + step);
+        else if (event.key === " ") this.at = 50;
+        else if (event.key === "s") this.mode = this.mode === "wipe" ? "pair" : "wipe";
+        else return;
+        event.preventDefault();
+      };
+      document.addEventListener("keydown", this.onKey);
+    },
+    destroy() {
+      document.removeEventListener("keydown", this.onKey);
+    },
+  }));
+
   Alpine.data("copyable", () => ({
     copied: false,
     async copy(selector) {

@@ -1136,3 +1136,89 @@ tr:last-child td {
     animation: none;
   }
 }
+
+/* --- compare: two images judged against each other ---------------------- */
+
+/* Both panes occupy the same cell, so the images sit at one scale and the
+   right one is wiped over the left. In `pair` they stand side by side. */
+.compare {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--color-surface-neutral);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.compare.pair {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1px;
+}
+
+.compare-pane {
+  grid-area: 1 / 1;
+  margin: 0;
+  min-width: 0;
+}
+
+.compare.pair .compare-pane.right {
+  grid-area: 1 / 2;
+}
+
+.compare-pane img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--color-surface-neutral);
+}
+
+.compare-pane figcaption {
+  position: absolute;
+  bottom: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--color-canvas);
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-sm-size);
+  color: var(--color-ink-muted);
+}
+
+.compare-pane.left figcaption {
+  left: var(--space-2);
+}
+
+.compare-pane.right figcaption {
+  right: var(--space-2);
+}
+
+.compare.pair .compare-pane.right figcaption {
+  right: auto;
+  left: var(--space-2);
+}
+
+.compare-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--color-accent);
+  pointer-events: none;
+}
+
+/* The slider is the whole surface: grab anywhere and wipe. */
+.compare-slider {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: ew-resize;
+}
+
+.compare-slider:focus-visible {
+  opacity: 1;
+}

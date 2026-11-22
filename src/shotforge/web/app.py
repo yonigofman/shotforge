@@ -29,6 +29,7 @@ from shotforge import (
     breakdown,
     checks,
     cinematography,
+    compare,
     continuity,
     fixes,
     tools,
@@ -561,6 +562,39 @@ def create_app(
         if also:
             response.headers["HX-Trigger"] = ", ".join(f"{other}-changed" for other in also)
         return response
+
+    @routes.get("/shot/{scene_id}/{shot_id}/compare", response_class=HTMLResponse)
+    def compare_view(
+        request: Request,
+        scene_id: str,
+        shot_id: str,
+        left: str | None = None,
+        right: str | None = None,
+    ) -> HTMLResponse:
+        """Two images at one scale, to be judged against each other."""
+        project, _ = load(request)
+        try:
+            project.shot(scene_id, shot_id)
+        except ProjectError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        found = compare.references(project, scene_id, shot_id)
+        if not found:
+            raise HTTPException(404, "nothing to compare yet for this shot")
+        return render(
+            request,
+            "compare.html",
+            {
+                "project": project,
+                "scene": project.scene(scene_id),
+                "shot": project.shot(scene_id, shot_id),
+                "references": found,
+                "groups": compare.grouped(found),
+                # Newest against the one before it: what you reach for most.
+                "left": compare.pick(found, left, len(found) - 2),
+                "right": compare.pick(found, right, len(found) - 1),
+                "page": "shot",
+            },
+        )
 
     @routes.get("/shot/{scene_id}/{shot_id}/region/{name}", response_class=HTMLResponse)
     def shot_region(request: Request, scene_id: str, shot_id: str, name: str) -> HTMLResponse:

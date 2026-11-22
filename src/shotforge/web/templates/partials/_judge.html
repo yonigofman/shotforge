@@ -42,7 +42,11 @@
 
   {% if previous %}
   <article class="card stack">
-    <div class="card-header"><h3>Cut from {{ previous.id }}</h3></div>
+    <div class="card-header">
+      <h3>Cut from {{ previous.id }}</h3>
+      <span class="spacer"></span>
+      {{ ui.link("Compare", shot_url ~ "/compare?left=previous_last&right=approved") }}
+    </div>
     <div class="pair">
       {{ ui.media(shot_paths.root.parent / previous.id / 'last_frame.png', media_url, previous.id ~ ' last frame') }}
       {{ ui.media(shot_paths.approved_frame, media_url, shot.id ~ ' first frame') }}

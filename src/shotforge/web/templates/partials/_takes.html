@@ -36,6 +36,9 @@
       {{ ui.post_button("Approve v" ~ take.number, attrs=card_swap(shot_url ~ "/approve"),
                         fields={"take": take.number}) }}
       {% endif %}
+      {% if kind == 'frame' %}
+      {{ ui.link("Compare", shot_url ~ "/compare?left=take:" ~ take.number, title="Hold it against a reference") }}
+      {% endif %}
       {{ ui.post_button(
            "Restore" if is_rejected else "Set aside",
            attrs=card_swap(shot_url ~ "/take/" ~ kind ~ "/" ~ take.number ~ "/reject"),
