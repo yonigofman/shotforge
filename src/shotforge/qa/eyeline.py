@@ -54,7 +54,7 @@ def check_eyeline(project: Project, shot: Shot, video: Path, duration: float) ->
 
     try:
         skill = find_skill("eyeline-qa", project.paths.skills)
-        engine = ClaudeCodeEngine(executable=executable, timeout_s=120, tools=("Read",))
+        engine = ClaudeCodeEngine(executable=executable, timeout_s=120)
         with TemporaryDirectory(prefix="shotforge-eyeline-") as directory:
             root = Path(directory)
             frames = _sample_frames(video, duration, root)
@@ -72,6 +72,8 @@ def check_eyeline(project: Project, shot: Shot, video: Path, duration: float) ->
     except (EngineError, ToolError, SkillError, OSError, subprocess.SubprocessError, YAMLError):
         return Finding(CHECK, WARN, "could not complete the eyeline review with Claude Code")
 
+    if result.data.get("is_error") or result.data.get("permission_denials"):
+        return Finding(CHECK, WARN, "Claude Code could not review the sampled frames")
     try:
         payload = result.data.get("parsed")
         if payload is None:

@@ -21,11 +21,12 @@ being written by hand.
 | `_inbox` routing, drag-and-drop onto the shot card | done |
 | Prompt skills: `chatgpt-first-frame`, `chatgpt-identity-pass`, `grok-video` | done |
 | Code-level QA: aspect ratio, clip duration, camera motion, speech timing, cut continuity | done |
+| Visual continuity across approved cuts via Claude Code | done |
 | Last-frame extraction feeding the next shot | done |
 | Cockpit: Scenes, Storyboard, Shot card, Takes, Bible, Skills, Log | done |
 | Engine layer (`Engine.run_skill`) with a Claude Code implementation | done |
 | Blender blockout with named shot cameras and a 180° axis check | done |
-| Masks and automatic face crops | not yet (Phase 2) |
+| Per-character masks and automatic face crops | done |
 | Video vision QA: unplanned lens contact in sampled frames | done |
 | Frame vision QA (identity, eyeline, AI look) | not yet (Phase 3) |
 | Breakdown, design and cinematography skills | not yet (Phase 4) |
@@ -85,6 +86,10 @@ why something was decided.
 
 The frame stage runs in two passes: pass 1 locks the composition from the Blender
 blockout, pass 2 fixes identity against the face crops. Approving ends the stage.
+On frame approval, Shotforge uses each character's mask to crop the head from
+`first.png` and saves it under `02_design/characters/<id>/face_crops/`. The
+shot card shows skipped crops. Pass 2 attaches each character's most recent
+approved crop immediately before the current shot's mask.
 
 A full shot, in the terminal:
 
@@ -129,8 +134,10 @@ Run `shotforge blockout s01_pub` from the project to render every shot, or
 pass a shot ID to render just that shot. The shot card offers **Render
 blockout** during the Blockout stage. Shotforge saves the set, figures and
 all shot cameras in `03_blender/<scene>.blend` and the selected PNGs under
-`03_blender/renders/<scene>/<shot>/blockout.png`. Review and approve each
-render at its Blockout gate. Each render rebuilds the scene file from YAML.
+`03_blender/renders/<scene>/<shot>/blockout.png`. Binary character masks named
+`mask_<character>.png` are saved beside the blockout at the same resolution.
+Review and approve each render at its Blockout gate. Each render rebuilds the
+scene file from YAML.
 
 If the Blender MCP add-on is listening locally, Shotforge renders through
 it. Otherwise it starts Blender in background mode using `tool_paths.blender`
@@ -213,6 +220,17 @@ actually went wrong in scene 1:
 
 QA advises; the approval is always yours. Sometimes a `warn` you accept beats
 risking a face that is already locked.
+
+Run `shotforge continuity s01_pub` or click **Run continuity check** on the
+storyboard to review gaze, hands and gestures, props, seating and the 180° side.
+Each cut needs both approved `frames/first.png` files and the earlier shot's
+`last_frame.png`. Shotforge skips cuts with missing media and lists what they
+need. The command exits with status 1 for a failed finding or review error.
+
+The check uses a signed-in Claude Code installation and caches successful
+reviews in `.shotforge/cache/continuity-check/`. Reopening the storyboard or
+the incoming shot card shows cached findings. If the frames, specs or skill
+rules change, run the check again to review the affected cuts.
 
 ## Theme
 

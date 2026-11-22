@@ -33,6 +33,14 @@
       </div>
       {% if action.detail %}<p class="muted" dir="auto">{{ action.detail }}</p>{% endif %}
 
+      {% if action.warnings %}
+      <ul class="findings">
+        {% for warning in action.warnings %}
+        <li>{{ ui.pip('warn', 'warning') }}<span>{{ warning }}</span></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
       {% if action.blocked_by %}
       <ul class="findings">
         {% for reason in action.blocked_by %}
@@ -196,6 +204,11 @@
             {{ ui.media(shot_paths.approved_frame, media_url, shot.id ~ ' first frame') }}
           </div>
         </div>
+        {% if cut_findings %}
+          {% with findings = cut_findings %}
+            {% include "partials/_findings.html" %}
+          {% endwith %}
+        {% endif %}
       </article>
       {% endif %}
     </section>

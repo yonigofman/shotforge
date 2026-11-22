@@ -40,9 +40,9 @@ def test_eyeline_reviews_a_dozen_frames_in_one_call(project, mp4, monkeypatch, d
     monkeypatch.setattr(eyeline, "find_tool", lambda *args, **kwargs: Path("fake-claude"))
 
     def review(engine, skill, inputs, *, cwd, files):
-        assert engine.tools == ("Read",)
         assert skill.name == "eyeline-qa"
         assert len(files) == 12 and all(path.is_file() for path in files)
+        assert all(path.parent == cwd for path in files)
         assert list(inputs["frames"].values()) == [path.name for path in files]
         assert inputs["in_frame"][0]["eyeline"] == "Durik's face"
         return EngineResult(text=json.dumps({"frames": [
