@@ -56,7 +56,7 @@ def test_cli_renders_the_scene_in_one_mcp_job(example_project, mcp_jobs):
     assert {figure["char"] for figure in job["spec"]["mannequins"]} == {
         "dima", "durik", "zhmurik",
     }
-    assert project.paths.blend_file(SCENE).is_file()
+    assert project.paths.set_file("pub").is_file()
     assert all(project.paths.blockout(SCENE, shot).is_file() for shot in job["renders"])
     for shot in project.shots(SCENE):
         assert set(job["masks"][shot.id]) == set(shot.characters)
@@ -80,14 +80,14 @@ def test_texture_changes_invalidate_only_scenes_that_use_them(example_project, m
 
     assert len(blender.render_scene(SCENE, project=project, changed=True)) == 3
     assert len(blender.render_scene(other.id, project=project, changed=True)) == 1
-    assert all(not job["spec"]["materials"] for job in mcp_jobs)
+    assert all(not job["spec"]["set"]["materials"] for job in mcp_jobs)
     assert blender.render_scene(SCENE, project=project, changed=True) == []
 
     active.write_bytes(png(width=32, height=32).read_bytes())
     assert blender.render_scene(other.id, project=project, changed=True) == []
     blender.render(SCENE, "sh07", project=project)
     assert set(mcp_jobs[-1]["renders"]) == {"sh07"}
-    assert mcp_jobs[-1]["spec"]["materials"]["wall"]["uv_scale"] == 0.85
+    assert mcp_jobs[-1]["spec"]["set"]["materials"]["wall"]["uv_scale"] == 0.85
 
     assert len(blender.render_scene(SCENE, project=project, changed=True)) == 2
     assert set(mcp_jobs[-1]["renders"]) == {"sh06", "sh08"}
@@ -134,7 +134,7 @@ def test_a_partial_mcp_result_falls_back_without_replacing_previous_renders(
 
     def partial(_script, job, *_args):
         attempts.append(job.parent)
-        (job.parent / "s01_pub.blend").write_bytes(b"blend")
+        (job.parent / "pub.blend").write_bytes(b"blend")
         (job.parent / "sh07.png").write_bytes(PNG)
         assert path.read_bytes() == b"previous blockout"
 
@@ -170,7 +170,7 @@ def test_background_blender_renders_the_example_and_checks_every_camera(
             assert struct.unpack(">IIBB", header[16:26]) == (960, 540, 8, 0)
     assert not project.paths.mask(SCENE, "sh08", "zhmurik").exists()
 
-    blend = project.paths.blend_file(SCENE)
+    blend = project.paths.set_file("pub")
     original = blend.read_bytes()
     scene = project.scene(SCENE)
     scene.axis_180 = BlockoutAxis(start=(-2, -0.6), end=(2, -0.8), room_side=(0, 1))
@@ -181,3 +181,50 @@ def test_background_blender_renders_the_example_and_checks_every_camera(
     with pytest.raises(blender.BlockoutError, match=r"sh08: camera CAM_S08.*scene.axis_180"):
         blender.render(SCENE, "sh07", project=project)
     assert blend.read_bytes() == original
+
+
+def test_two_scenes_in_one_location_share_a_set(example_project, mcp_jobs):
+    """The set is the place, so a second scene in the pub opens the first one's."""
+    project = example_project
+    elsewhere = project.scene(SCENE).model_copy(update={"id": "s09_pub_again"})
+    project.save_scene(elsewhere)
+    project.save_shot(elsewhere.id, project.shot(SCENE, "sh07"))
+
+    blender.render_scene(SCENE, project=project)
+    blender.render_scene(elsewhere.id, project=project)
+
+    assert [job["spec"]["set"]["location"] for job in mcp_jobs] == ["pub", "pub"]
+    assert mcp_jobs[0]["set_blend"] is None, "the first job builds the set"
+    assert mcp_jobs[1]["set_blend"], "the second job is handed the set that exists"
+    assert Path(mcp_jobs[1]["set_blend"]).name.endswith("pub.blend")
+    assert project.paths.set_file("pub").is_file()
+    assert not project.paths.set_file(elsewhere.id).exists()
+    # Each scene stages its own people over the same room.
+    assert mcp_jobs[0]["spec"]["set"]["geometry"] == mcp_jobs[1]["spec"]["set"]["geometry"]
+    assert {job["spec"]["scene"] for job in mcp_jobs} == {SCENE, elsewhere.id}
+
+
+def test_a_dressed_set_is_not_rebuilt_when_the_room_changes(example_project, mcp_jobs):
+    """Dressing is the director's: a wall that moves under it needs a say-so."""
+    project = example_project
+    blender.render_scene(SCENE, project=project)
+    state = json.loads(project.paths.set_state("pub").read_text(encoding="utf-8"))
+    assert state["dressing"] is False
+
+    # The script reports dressing when the saved set carries work of its own.
+    project.paths.set_state("pub").write_text(
+        json.dumps({**state, "dressing": True}), encoding="utf-8"
+    )
+    pub = project.entity("location", "pub")
+    pub.blockout = pub.blockout.model_copy(update={"room": (9.0, 5.0, 3.2)})
+    project.save_entity("location", pub)
+
+    before = len(mcp_jobs)
+    with pytest.raises(blender.BlockoutError, match="dressing of its own"):
+        blender.render_scene(SCENE, project=project)
+    assert len(mcp_jobs) == before, "nothing was rendered over the dressed set"
+
+    # Asked for plainly, it rebuilds and keeps what the director put there.
+    assert blender.render_scene(SCENE, project=project, rebuild=True)
+    assert mcp_jobs[-1]["spec"]["set"]["geometry"]["room"] == [9.0, 5.0, 3.2]
+    assert mcp_jobs[-1]["set_blend"], "the rebuild still opens the dressed set"

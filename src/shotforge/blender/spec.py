@@ -265,25 +265,45 @@ def _materials(project: Project, location: str, characters: set[str]) -> dict:
     return materials
 
 
-def build_spec(project: Project, scene: Scene, shots: list[Shot]) -> dict:
-    layout = _camera_layout(project, scene)
-    cameras = {shot.id: _camera(shot, layout) for shot in shots}
-    if len({camera.name for camera in cameras.values()}) != len(cameras):
-        raise BlockoutError(f"{scene.id}: camera.blender_cam names must be unique in the scene")
-
+def _resolution(project: Project) -> tuple[int, int]:
     width, height = project.config.aspect_tuple
     if not width or not height:
         raise BlockoutError("project aspect_ratio must use two positive numbers")
     divisor = math.gcd(width, height)
     width, height = width // divisor, height // divisor
     scale = 960 // max(width, height)
+    return max(4, width * scale), max(4, height * scale)
 
+
+def build_spec(project: Project, scene: Scene, shots: list[Shot]) -> dict:
+    """The whole job: the set the scene is shot in, and the scene over it.
+
+    The two halves are kept apart because they are reused on different
+    scales. The set is the place, and every scene shot there wants the same
+    one; the overlay is this scene's people and this shot's camera, and is
+    rebuilt whenever they move.
+    """
+    layout = _camera_layout(project, scene)
+    cameras = {shot.id: _camera(shot, layout) for shot in shots}
+    if len({camera.name for camera in cameras.values()}) != len(cameras):
+        raise BlockoutError(f"{scene.id}: camera.blender_cam names must be unique in the scene")
+
+    materials = _materials(project, scene.location, set(layout.seats))
     return {
+        "set": {
+            "location": scene.location,
+            "variant": "base",
+            "geometry": as_plain(layout.set),
+            # The place's own surfaces. A character's garment travels with the
+            # character, so it belongs to the scene, not to the room.
+            "materials": {
+                key: value for key, value in materials.items() if "." not in key
+            },
+        },
         "scene": scene.id,
-        "geometry": as_plain(layout.set),
         "mannequins": [asdict(figure) for figure in layout.mannequins],
         "cameras": {shot: asdict(camera) for shot, camera in cameras.items()},
         "axis": as_plain(layout.axis),
-        "resolution": (max(4, width * scale), max(4, height * scale)),
-        "materials": _materials(project, scene.location, set(layout.seats)),
+        "resolution": _resolution(project),
+        "materials": {key: value for key, value in materials.items() if "." in key},
     }

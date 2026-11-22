@@ -368,7 +368,8 @@ def blockout(
     except blender.BlockoutError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(f"Scene → {project.paths.rel(project.paths.blend_file(scene))}")
+    location = project.scene(scene).location
+    typer.echo(f"Set → {project.paths.rel(project.paths.set_file(location))}")
     if not paths:
         typer.echo("All blockout renders are current.")
     for path in paths:

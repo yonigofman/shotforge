@@ -197,8 +197,17 @@ class ProjectPaths:
     def blender(self) -> Path:
         return self.root / BLENDER_DIR
 
-    def blend_file(self, scene_id: str) -> Path:
-        return self.blender / f"{scene_id}.blend"
+    @property
+    def sets(self) -> Path:
+        return self.blender / "sets"
+
+    def set_file(self, location_id: str) -> Path:
+        """The set for a place. Every scene shot there opens this one file."""
+        return self.sets / f"{location_id}.blend"
+
+    def set_state(self, location_id: str) -> Path:
+        """What Shotforge last built into that set, so it knows when to rebuild."""
+        return self.sets / f"{location_id}.json"
 
     def renders(self, scene_id: str, shot_id: str) -> Path:
         return self.blender / "renders" / scene_id / shot_id
