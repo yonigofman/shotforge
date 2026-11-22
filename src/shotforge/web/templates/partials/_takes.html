@@ -9,28 +9,29 @@
 <div class="takes">
   {% for take in takes %}
   {% set is_rejected = take.number in rejected %}
-  {% call ui.take_tile(take, media_url, approved == take.number, is_rejected,
-                       'video' if kind == 'video' else 'image') %}
-    {% set origin = origins.get(take.number) %}
-    {% if origin and origin.get('prompt') %}
-    <p class="faint lineage">
-      from <span class="mono">{{ origin.prompt }}</span>{% if origin.note %} · <span dir="auto">“{{ origin.note }}”</span>{% endif %}
-    </p>
-    {% endif %}
-    {% if kind == 'frame' and take.number in verdicts %}
-    {{ ui.pip(verdicts[take.number], 'QA ' ~ verdicts[take.number]) }}
-    {% endif %}
-    {% set report = reports.get(take.number) %}
-    {% if report is not none %}
-    <details>
-      <summary>QA · {{ ui.pip(verdicts[take.number]) }}</summary>
-      {% with findings = report, verdict = verdicts[take.number],
-              subject = kind ~ ' v' ~ take.number, fix_take = none, rule_offers = [] %}
-        {% include "partials/_findings.html" %}
-      {% endwith %}
-    </details>
-    {% endif %}
-    <div class="row tight">
+  {% call(part) ui.take_tile(take, media_url, approved == take.number, is_rejected,
+                             'video' if kind == 'video' else 'image') %}
+    {% if part == 'meta' %}
+      {% if kind == 'frame' and take.number in verdicts %}
+      {{ ui.pip(verdicts[take.number], 'QA ' ~ verdicts[take.number]) }}
+      {% endif %}
+      {% set report = reports.get(take.number) %}
+      {% if report is not none %}
+      <details>
+        <summary>QA · {{ ui.pip(verdicts[take.number]) }}</summary>
+        {% with findings = report, verdict = verdicts[take.number],
+                subject = kind ~ ' v' ~ take.number, fix_take = none, rule_offers = [] %}
+          {% include "partials/_findings.html" %}
+        {% endwith %}
+      </details>
+      {% endif %}
+      {% set origin = origins.get(take.number) %}
+      {% if origin and origin.get('prompt') %}
+      <p class="faint lineage">
+        from <span class="mono">{{ origin.prompt }}</span>{% if origin.note %} · <span dir="auto">“{{ origin.note }}”</span>{% endif %}
+      </p>
+      {% endif %}
+    {% else %}
       {% if shot.status.stage.value == kind and not shot.status.is_approved and not is_rejected %}
       {{ ui.post_button("Approve v" ~ take.number, attrs=card_swap(shot_url ~ "/approve"),
                         fields={"take": take.number}) }}
@@ -41,7 +42,7 @@
            fields={"restore": "true"} if is_rejected else {},
            title="Bring it back into the running" if is_rejected
                  else "Keep the file, stop choosing it") }}
-    </div>
+    {% endif %}
   {% endcall %}
   {% endfor %}
 </div>
@@ -54,13 +55,14 @@
     <span class="faint">{{ frame_takes | length }} frame · {{ video_takes | length }} video</span>
   </div>
 
-  <form class="dropzone" method="post" enctype="multipart/form-data"
+  {% set no_takes = not frame_takes and not video_takes %}
+  <form class="dropzone {% if no_takes %}empty{% endif %}" method="post" enctype="multipart/form-data"
         action="{{ shot_url }}/upload"
         data-file-upload="takes" tabindex="0" aria-label="Upload shot takes">
     <input type="file" name="files" accept=".png,.jpg,.jpeg,.webp,.mp4,.mov,.webm,.m4v"
            multiple hidden />
-    <div data-upload-controls>
-      <p>Drop a frame or clip here, or focus here and paste an image.</p>
+    <div class="row" data-upload-controls>
+      <span class="faint">Drop a frame or clip here, or paste an image.</span>
       {{ ui.button("Choose files", variant="quiet", attrs={"data-choose-files": "true"}) }}
     </div>
     <span data-upload-status role="status" hidden>Filing takes and running QA…</span>

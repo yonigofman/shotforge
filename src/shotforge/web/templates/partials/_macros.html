@@ -162,10 +162,15 @@
 </button>
 {%- endmacro %}
 
+{#
+  One take: the image, what is known about it, and what you can do with it.
+  The caller fills `meta` and `actions`, so the tile keeps its own edges.
+#}
 {% macro take_tile(take, media_url, approved=false, rejected=false, kind='image') -%}
 <div class="take {% if approved %}approved{% endif %} {% if rejected %}rejected{% endif %}">
   {{ media(take.path, media_url,
            'v' ~ take.number ~ (' · approved' if approved else ''), kind) }}
-  {{ caller() if caller else "" }}
+  <div class="take-meta">{{ caller('meta') }}</div>
+  <div class="take-actions">{{ caller('actions') }}</div>
 </div>
 {%- endmacro %}
