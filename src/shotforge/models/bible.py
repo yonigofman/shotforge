@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pydantic import AliasChoices, Field
 
+from shotforge.models.blockout import BlockoutSet
 from shotforge.models.common import Entity, SFModel
 
 
@@ -38,6 +39,7 @@ class Character(Entity):
 
 
 class Location(Entity):
+    blockout: BlockoutSet | None = None
     set_dressing: list[str] = []
     fixed_props: list[str] = []
     lighting: str | None = None

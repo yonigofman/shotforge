@@ -10,7 +10,7 @@ from pathlib import Path
 
 import typer
 
-from shotforge import actions, checks, tools
+from shotforge import actions, blender, checks, tools
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
 from shotforge.models import Stage
@@ -184,6 +184,28 @@ def prompt(
         return
     typer.echo(f"# {result.skill.name} → {project.paths.rel(result.path)}\n")
     typer.echo(result.text)
+
+
+@app.command()
+def blockout(
+    scene: str,
+    shot_id: str | None = typer.Argument(None, metavar="SHOT", help="Omit to render every shot."),
+    project_dir: Path | None = ProjectOption,
+) -> None:
+    """Render one shot or an entire scene in Blender."""
+    project, _ = _open(project_dir)
+    try:
+        paths = (
+            [blender.render(project, scene, shot_id)]
+            if shot_id is not None
+            else blender.render_scene(project, scene)
+        )
+    except blender.BlockoutError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Scene → {project.paths.rel(project.paths.blend_file(scene))}")
+    for path in paths:
+        typer.echo(f"Rendered → {project.paths.rel(path)}")
 
 
 @app.command()

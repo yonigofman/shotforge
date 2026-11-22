@@ -1,0 +1,254 @@
+"""Build and render one Shotforge scene inside Blender's own Python."""
+
+from __future__ import annotations
+
+import json
+import math
+import sys
+from pathlib import Path
+from uuid import uuid4
+
+import bmesh
+import bpy
+from mathutils import Vector
+
+
+def _mesh(scene, name, center, dimensions, material, *, sphere=False, rotation=0):
+    mesh = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    if sphere:
+        bmesh.ops.create_uvsphere(bm, u_segments=20, v_segments=12, radius=0.5)
+    else:
+        bmesh.ops.create_cube(bm, size=1)
+    for vertex in bm.verts:
+        for axis, length in enumerate(dimensions):
+            vertex.co[axis] *= length
+    bm.to_mesh(mesh)
+    bm.free()
+    if sphere:
+        for polygon in mesh.polygons:
+            polygon.use_smooth = True
+    mesh.materials.append(material)
+    obj = bpy.data.objects.new(name, mesh)
+    scene.collection.objects.link(obj)
+    obj.location = center
+    obj.rotation_euler.z = rotation
+    return obj
+
+
+def _material(name, grey, *, emission=0.25):
+    material = bpy.data.materials.new(name)
+    material.diffuse_color = (grey, grey, grey, 1)
+    material.use_nodes = True
+    shader = material.node_tree.nodes.get("Principled BSDF")
+    shader.inputs["Base Color"].default_value = material.diffuse_color
+    shader.inputs["Roughness"].default_value = 0.82
+    emission_color = shader.inputs.get("Emission Color") or shader.inputs["Emission"]
+    emission_color.default_value = material.diffuse_color
+    shader.inputs["Emission Strength"].default_value = emission
+    return material
+
+
+def _room(scene, geometry, wall_material, floor_material):
+    width, depth, height = geometry["room"]
+    window = geometry.get("window")
+    _mesh(scene, "Floor", (0, 0, -0.08), (width, depth, 0.16), floor_material)
+    for name, span, fixed, along_x in (
+        ("back", width, -depth / 2, True),
+        ("front", width, depth / 2, True),
+        ("left", depth, -width / 2, False),
+        ("right", depth, width / 2, False),
+    ):
+        _wall(scene, name, span, fixed, along_x, height, window, wall_material)
+
+
+def _wall(scene, name, span, fixed, along_x, height, window, wall_material):
+    def panel(label, start, end, bottom, top, material, thickness=0.16, inset=0):
+        if end <= start or top <= bottom:
+            return
+        middle = (start + end) / 2
+        center = (middle, fixed + inset) if along_x else (fixed + inset, middle)
+        footprint = (end - start, thickness) if along_x else (thickness, end - start)
+        _mesh(
+            scene, f"{name.title()} {label}", (*center, (bottom + top) / 2),
+            (*footprint, top - bottom), material,
+        )
+
+    if not window or window["wall"] != name:
+        panel("wall", -span / 2, span / 2, 0, height, wall_material)
+        return
+
+    left = window["offset"] - window["width"] / 2
+    right = window["offset"] + window["width"] / 2
+    sill = window["sill"]
+    lintel = sill + window["height"]
+    panel("wall left of window", -span / 2, left, 0, height, wall_material)
+    panel("wall right of window", right, span / 2, 0, height, wall_material)
+    panel("wall below window", left, right, 0, sill, wall_material)
+    panel("wall above window", left, right, lintel, height, wall_material)
+
+    trim = _material("Window trim", 0.16)
+    for edge in (left, right, window["offset"]):
+        panel("window jamb", edge - 0.035, edge + 0.035, sill, lintel, trim, thickness=0.19)
+    for edge in (sill, lintel):
+        panel("window rail", left, right, edge - 0.035, edge + 0.035, trim, thickness=0.19)
+    outside = _material("Window exterior", 0.72, emission=0.8)
+    panel(
+        "window pane", left, right, sill, lintel, outside,
+        thickness=0.02, inset=math.copysign(0.18, fixed),
+    )
+
+
+def _table(scene, table, material):
+    x, y = table["center"]
+    width, depth, height = table["size"]
+    slab = min(0.09, height * 0.12)
+    _mesh(scene, "Hero tabletop", (x, y, height - slab / 2), (width, depth, slab), material)
+    for dx in (-0.40 * width, 0.40 * width):
+        for dy in (-0.35 * depth, 0.35 * depth):
+            _mesh(
+                scene, "Hero table leg", (x + dx, y + dy, (height - slab) / 2),
+                (min(0.10, width / 8), min(0.10, depth / 8), height - slab), material,
+            )
+
+
+def _mannequin(scene, figure, top, stool_material, material):
+    name = figure["char"]
+    x, y = figure["position"]
+    heading = figure["heading"]
+    cosine, sine = math.cos(heading), math.sin(heading)
+
+    def part(label, dx, dy, z, dimensions, *, sphere=True, shade=material):
+        center = (x + dx * cosine - dy * sine, y + dx * sine + dy * cosine, z)
+        _mesh(
+            scene, f"{name} {label}", center, dimensions, shade, sphere=sphere, rotation=heading
+        )
+
+    seat = max(0.12, top - 0.32)
+    part("stool base", 0, 0, seat / 2, (0.22, 0.23, seat), sphere=False, shade=stool_material)
+    part("stool seat", 0, 0, seat, (0.40, 0.39, 0.07), sphere=False, shade=stool_material)
+    part("torso", 0, 0, seat + 0.34, (0.41, 0.27, 0.60))
+    part("neck", 0, 0, seat + 0.66, (0.13, 0.13, 0.21))
+    part("head", 0, 0, seat + 0.81, (0.24, 0.24, 0.30))
+    part("face", 0, 0.10, seat + 0.79, (0.17, 0.11, 0.19))
+    for dx in (-0.23, 0.23):
+        part("upper arm", dx, 0.02, seat + 0.35, (0.14, 0.16, 0.39))
+        part("forearm", dx, 0.16, seat + 0.31, (0.13, 0.36, 0.13))
+    for dx in (-0.105, 0.105):
+        part("thigh", dx, 0.15, seat + 0.06, (0.18, 0.43, 0.18))
+        part("shin", dx, 0.30, seat / 2, (0.14, 0.16, seat * 0.92))
+
+
+def _camera(scene, spec):
+    data = bpy.data.cameras.new(spec["name"])
+    data.lens = spec["lens_mm"]
+    data.sensor_fit = "HORIZONTAL"
+    data.shift_x = spec["shift_x"]
+    camera = bpy.data.objects.new(spec["name"], data)
+    scene.collection.objects.link(camera)
+    camera.location = spec["location"]
+    direction = Vector(spec["target"]) - camera.location
+    camera.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+    return camera
+
+
+def _check_axis(scene, cameras, axis):
+    start, end = axis["start"], axis["end"]
+    dx, dy = end[0] - start[0], end[1] - start[1]
+    length = math.hypot(dx, dy)
+
+    def distance(x, y):
+        return (dx * (y - start[1]) - dy * (x - start[0])) / length
+
+    side = math.copysign(1, distance(*axis["room_side"]))
+    layer = scene.view_layers[0]
+    with bpy.context.temp_override(scene=scene, view_layer=layer):
+        layer.update()
+        for shot, camera in cameras.items():
+            position = camera.matrix_world.translation
+            if side * distance(position.x, position.y) <= 1e-6:
+                raise ValueError(
+                    f"{shot}: camera {camera.name} at XY ({position.x:.3g}, {position.y:.3g}) "
+                    "must be on the room side of scene.axis_180"
+                )
+
+
+def _lighting(scene):
+    world = bpy.data.worlds.new("Blockout world")
+    scene.world = world
+    light = bpy.data.lights.new("Key", "SUN")
+    light.energy = 1.8
+    light.angle = 0
+    obj = bpy.data.objects.new("Key", light)
+    scene.collection.objects.link(obj)
+    obj.rotation_euler = Vector((0.25, -0.42, -1)).to_track_quat("-Z", "Y").to_euler()
+
+
+def render_job(job_path):
+    job = json.loads(Path(job_path).read_text(encoding="utf-8"))
+    spec = job["spec"]
+
+    # Blender's add-on shares a process with the artist's current file.
+    # Track our data blocks so they can be removed without touching their scene.
+    groups = (
+        bpy.data.scenes, bpy.data.objects, bpy.data.meshes, bpy.data.materials,
+        bpy.data.worlds, bpy.data.lights, bpy.data.cameras,
+    )
+    originals = [set(group) for group in groups]
+    renamed = {}
+    try:
+        scene = bpy.data.scenes.new(spec["scene"])
+        scene.render.engine = "CYCLES"
+        scene.cycles.device = "CPU"
+        scene.cycles.samples = 4
+        scene.cycles.max_bounces = 1
+        scene.cycles.diffuse_bounces = 0
+        scene.cycles.use_denoising = False
+        scene.render.threads_mode = "FIXED"
+        scene.render.threads = min(8, scene.render.threads)
+        scene.render.resolution_x, scene.render.resolution_y = spec["resolution"]
+        scene.render.resolution_percentage = 100
+        scene.render.image_settings.file_format = "PNG"
+        scene.render.image_settings.color_mode = "RGB"
+
+        cameras = {}
+        for shot, camera_spec in spec["cameras"].items():
+            name = camera_spec["name"]
+            if (original := bpy.data.objects.get(name)) is not None:
+                renamed[original] = name
+                original.name = f"Shotforge temporary {uuid4()}"
+            cameras[shot] = _camera(scene, camera_spec)
+        _check_axis(scene, cameras, spec["axis"])
+
+        geometry = spec["geometry"]
+        wall = _material("Plaster blockout", 0.46)
+        floor = _material("Floor blockout", 0.28)
+        table = _material("Furniture blockout", 0.23)
+        _room(scene, geometry, wall, floor)
+        _table(scene, geometry["hero_table"], table)
+        greys = (0.54, 0.68, 0.41)
+        for index, figure in enumerate(spec["mannequins"]):
+            material = _material(f'{figure["char"]} grey', greys[index % len(greys)])
+            _mannequin(scene, figure, geometry["hero_table"]["size"][2], table, material)
+        _lighting(scene)
+
+        for shot, path in job["renders"].items():
+            scene.camera = cameras[shot]
+            scene.render.filepath = path
+            bpy.ops.render.render(scene=scene.name, write_still=True)
+
+        first = next(iter(cameras))
+        scene.camera = cameras[first]
+        scene.render.filepath = f'//renders/{spec["scene"]}/{first}/blockout.png'
+        # Write only the generated scene and its dependencies from the current session.
+        bpy.data.libraries.write(job["blend"], {scene})
+    finally:
+        bpy.data.batch_remove(ids=set().union(
+            *(set(group) - old for group, old in zip(groups, originals, strict=True))
+        ))
+        for original, name in renamed.items():
+            original.name = name
+
+
+if __name__ == "__main__":
+    render_job(sys.argv[sys.argv.index("--") + 1])

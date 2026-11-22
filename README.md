@@ -10,8 +10,8 @@ closes only when you approve it, and every approval is logged with your note.
 
 ## What works today
 
-This is Phase 0 and Phase 1 of the build plan: a shot can go from blockout to
-an approved video without a prompt being written by hand.
+A shot can go from a Blender blockout to an approved video without a prompt
+being written by hand.
 
 | Area | State |
 | --- | --- |
@@ -24,7 +24,8 @@ an approved video without a prompt being written by hand.
 | Last-frame extraction feeding the next shot | done |
 | Cockpit: Scenes, Storyboard, Shot card, Takes, Bible, Skills, Log | done |
 | Engine layer (`Engine.run_skill`) with a Claude Code implementation | done |
-| Blender blockout, masks, automatic face crops | not yet (Phase 2) |
+| Blender blockout with named shot cameras and a 180° axis check | done |
+| Masks and automatic face crops | not yet (Phase 2) |
 | Vision QA (identity, eyeline, AI look) | not yet (Phase 3) |
 | Breakdown, design and cinematography skills | not yet (Phase 4) |
 | Rough cut and assembly | not yet (Phase 5) |
@@ -32,7 +33,7 @@ an approved video without a prompt being written by hand.
 ## Install
 
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). ffmpeg is required;
-Blender and Claude Code are optional until Phases 2 and 3.
+Blender is required for blockout rendering. Claude Code is optional.
 
 ```bash
 uv venv && uv pip install -e ".[dev]"
@@ -89,6 +90,7 @@ A full shot, in the terminal:
 ```bash
 shotforge approve s01_pub sh07 --note "beats fine"   # breakdown
 shotforge begin   s01_pub sh07                       # → blockout
+shotforge blockout s01_pub sh07                       # render the blockout
 shotforge approve s01_pub sh07                       # blockout
 shotforge begin   s01_pub sh07                       # → frame
 shotforge prompt  s01_pub sh07                       # pass 1 prompt, saved next to the shot
@@ -100,6 +102,23 @@ shotforge prompt  s01_pub sh07                       # Grok prompt with timecode
 shotforge inbox file grok_result.mp4                 # becomes video/v1.mp4
 shotforge approve s01_pub sh07                       # → video/shot.mp4 + last_frame.png
 ```
+
+## Render a scene in Blender
+
+Run `shotforge blockout s01_pub` from the project to render every shot, or
+pass a shot ID to render just that shot. The shot card offers **Render
+blockout** during the Blockout stage. Shotforge saves the set, figures and
+all shot cameras in `03_blender/<scene>.blend` and the selected PNGs under
+`03_blender/renders/<scene>/<shot>/blockout.png`. Review and approve each
+render at its Blockout gate. Each render rebuilds the scene file from YAML.
+
+If the Blender MCP add-on is listening locally, Shotforge renders through
+it. Otherwise it starts Blender in background mode using `tool_paths.blender`
+or the auto-detected executable. The add-on defaults to port 9876. Set
+`SHOTFORGE_BLENDER_MCP_PORT` if yours uses another port.
+
+The adapter documents location measurements, camera controls and 180° axis
+formats. [Blender blockout skill](skills/blender-blockout/SKILL.md)
 
 ## The project folder
 
@@ -134,7 +153,8 @@ stages refer to, which is what stops two frames from overwriting each other.
 
 Every prompt comes from a skill: a folder in the
 [Agent Skills](https://code.claude.com/docs/en/skills) shape, with `SKILL.md`,
-`rules.md`, `template.j2` and `examples/`. The MVP skills render from templates
+`rules.md` and a `template.j2` where the skill has a deterministic output.
+The prompt skills render from templates
 and the project's own YAML — no model is called, so a scene does not stop when a
 usage limit is reached.
 

@@ -11,12 +11,13 @@ Everything else — `sh06` and `sh08`, the `durik` and `zhmurik` files, the styl
 text — is filled in so the chain has two cuts to check and the prompts have
 something to render. Replace it with the real design before using it for a film.
 
-There are no images here: the sheets, refs, blockouts and takes a real project
-accumulates are not in Git. `shotforge shot s01_pub sh07` will list them as
-missing, which is what it should do.
+The example ships without images. Generate all three blockout PNGs and a
+shared Blender scene with the blockout command below. Character sheets,
+references and takes are added during production.
 
 ```bash
 shotforge validate -C examples/ulybka_vavilony
+shotforge blockout s01_pub -C examples/ulybka_vavilony
 shotforge status   -C examples/ulybka_vavilony
 shotforge serve    -C examples/ulybka_vavilony
 ```
