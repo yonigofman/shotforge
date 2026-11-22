@@ -5,7 +5,7 @@ One place, so the web screens and the terminal cannot drift apart.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC
 from pathlib import Path
 
@@ -63,7 +63,7 @@ def run_qa(
         findings += checks.check_frame_file(project, take.path)
     else:
         findings += checks.check_video_file(project, scene_id, shot, take.path)
-    _write_report(shot_paths.qa / f"{kind.value}_v{number}.json", findings)
+    _write_report(take.qa_report(shot_paths), findings)
     return findings
 
 
@@ -75,10 +75,7 @@ def _write_report(path: Path, findings: list[checks.Finding]) -> None:
     payload = {
         "ran_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "verdict": checks.summarise(findings),
-        "findings": [
-            {"check": f.check, "level": f.level, "message": f.message, "fix": f.fix}
-            for f in findings
-        ],
+        "findings": [asdict(f) for f in findings],
     }
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 

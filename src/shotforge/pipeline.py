@@ -195,9 +195,10 @@ def _attachment(order: int, label: str, path: Path) -> Attachment:
     return Attachment(order=order, label=label, path=path, exists=path.is_file())
 
 
-def _face_crop_refs(
+def face_crop_refs(
     project: Project, current: tuple[str, str], chars: list[str]
 ) -> dict[str, Path]:
+    """Choose the latest approved crop or a manually seeded reference per character."""
     if not chars:
         return {}
     paths = project.paths
@@ -264,7 +265,7 @@ def frame_attachments(
         latest = takes[-1].path if takes else approved_path(shot_paths, TakeKind.frame)
         items.append(_attachment(order, "Frame from pass 1", latest))
         order += 1
-        crops = _face_crop_refs(project, (scene_id, shot_id), shot.characters)
+        crops = face_crop_refs(project, (scene_id, shot_id), shot.characters)
         for framed in shot.in_frame:
             items.append(
                 _attachment(order, f"{framed.char} face crop", crops[framed.char])

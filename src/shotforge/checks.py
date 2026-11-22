@@ -7,7 +7,9 @@ ones a plain function can settle, and they run before anything reaches you.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
+from hashlib import sha256
 from pathlib import Path
 
 from shotforge.media import frame_size, probe_duration
@@ -23,10 +25,38 @@ class Finding:
     level: str
     message: str
     fix: str | None = None
+    target: str | None = None
+    region: str | None = None
 
     @property
     def failed(self) -> bool:
         return self.level == FAIL
+
+    @property
+    def key(self) -> str:
+        """Identify a row even if a new report has reordered its findings."""
+        return sha256(json.dumps(asdict(self), sort_keys=True).encode()).hexdigest()
+
+
+def read_report(path: Path) -> list[Finding] | None:
+    """Read a take's findings, including reports written before targets were added."""
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))["findings"]
+        if not isinstance(rows, list):
+            return None
+        return [
+            Finding(
+                check=row["check"],
+                level=row["level"],
+                message=row["message"],
+                fix=row.get("fix"),
+                target=row.get("target"),
+                region=row.get("region"),
+            )
+            for row in rows
+        ]
+    except (FileNotFoundError, ValueError, TypeError, KeyError):
+        return None
 
 
 def check_spec(project: Project, scene_id: str, shot: Shot) -> list[Finding]:
