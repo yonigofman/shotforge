@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
-from shotforge import actions
+from shotforge import actions, frame_qa
+from shotforge.engine import EngineResult
 from shotforge.pipeline import approve
 from shotforge.takes import TakeKind, add_take
 from shotforge.web.app import create_app
@@ -79,6 +82,32 @@ def test_uploading_a_frame_files_it_as_a_take(client, project, state, png):
     assert response.status_code == 200
     assert (project.paths.shot("s01_pub", "sh01").frames / "first_v1.png").is_file()
     assert "v1" in response.text
+
+
+def test_upload_shows_the_saved_vision_failure_and_allows_approval(
+    client, project, state, png, monkeypatch
+):
+    class VisionEngine:
+        def run_skill(self, skill, inputs, *, cwd, files):
+            return EngineResult(
+                text='{"findings":[{"check":"eyeline","level":"fail",'
+                     '"message":"Dima looks into the lens."}]}'
+            )
+
+    monkeypatch.setattr(frame_qa, "get_engine", lambda name: VisionEngine())
+    _to_frame_stage(project, state)
+    url = "/shot/s01_pub/sh01"
+    response = client.post(
+        f"{url}/upload", files={"files": ("drop.png", png().read_bytes(), "image/png")}
+    )
+    assert response.status_code == 200
+    assert "QA fail" in response.text
+    card = client.get(f"{url}/card").text
+    assert "frame v1" in card
+    assert "Dima looks into the lens." in card
+    assert "disabled" not in re.search(r"<button[^>]*data-approve[^>]*>", card)[0]
+    assert client.post(f"{url}/approve", data={"take": 1}).status_code == 200
+    assert project.shot("s01_pub", "sh01").status.value == "frame_approved"
 
 
 def test_uploading_something_else_is_refused(client, project, state):

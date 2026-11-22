@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from shotforge import actions
 from shotforge.project import Project
 from shotforge.takes import Take, TakeKind, add_take
 
@@ -69,8 +70,10 @@ def file_to_shot(
     scene_id: str,
     shot_id: str,
     kind: TakeKind | None = None,
+    *,
+    vision: bool | None = None,
 ) -> Take:
-    """Move one inbox file in as the next take of a shot."""
+    """Move one inbox file in as the next take and run QA on new frames."""
     inbox_file = Path(inbox_file)
     if not inbox_file.is_file():
         raise FileNotFoundError(inbox_file)
@@ -83,7 +86,10 @@ def file_to_shot(
     shot_paths = project.paths.shot(scene_id, shot_id)
     if not shot_paths.spec.is_file():
         raise FileNotFoundError(f"no shot {shot_id} in scene {scene_id}")
-    return add_take(shot_paths, kind, inbox_file, move=True)
+    take = add_take(shot_paths, kind, inbox_file, move=True)
+    if kind is TakeKind.frame:
+        actions.run_qa(project, scene_id, shot_id, kind, take.number, vision=vision)
+    return take
 
 
 def drain(

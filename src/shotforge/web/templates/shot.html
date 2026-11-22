@@ -1,7 +1,5 @@
 {% extends "base.html" %}
 {% block title %}{{ scene.id }}/{{ shot.id }} — Shotforge{% endblock %}
 {% block content %}
-<div id="shot-card" hx-get="/shot/{{ scene.id }}/{{ shot.id }}/card" hx-trigger="card-changed from:body" hx-swap="outerHTML">
-  {% include "partials/_card.html" %}
-</div>
+{% include "partials/_card.html" %}
 {% endblock %}

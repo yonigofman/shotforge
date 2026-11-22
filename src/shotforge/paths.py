@@ -179,6 +179,9 @@ class ProjectPaths:
     def ref(self, kind: str, entity_id: str) -> Path:
         return self.design_dir(kind, entity_id) / "ref.png"
 
+    def wall_ref(self, location_id: str) -> Path:
+        return self.design_dir("location", location_id) / "wall_ref.png"
+
     def face_crops(self, character_id: str) -> Path:
         return self.design_dir("character", character_id) / "face_crops"
 
