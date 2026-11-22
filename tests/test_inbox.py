@@ -25,6 +25,7 @@ def test_scan_classifies_and_skips_partial_downloads(project, png, mp4):
 def test_filing_moves_the_file_in_as_the_next_take(project, png):
     source = _drop(project, png("a.png"), "chatgpt.png")
     take = inbox_mod.file_to_shot(project, source, "s01_pub", "sh01")
+    assert take.qa_report(project.paths.shot("s01_pub", "sh01")).is_file()
     assert take.kind is TakeKind.frame
     assert take.path.name == "first_v1.png"
     assert not source.exists()
@@ -51,3 +52,4 @@ def test_draining_files_everything_to_one_shot(project, png, mp4):
     filed = inbox_mod.drain(project, "s01_pub", "sh01")
     assert sorted(t.path.name for t in filed) == ["first_v1.png", "first_v2.png", "v1.mp4"]
     assert inbox_mod.scan(project) == []
+    assert (project.paths.shot("s01_pub", "sh01").qa / "video_v1.json").is_file()

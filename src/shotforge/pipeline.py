@@ -195,9 +195,10 @@ def _attachment(order: int, label: str, path: Path) -> Attachment:
     return Attachment(order=order, label=label, path=path, exists=path.is_file())
 
 
-def _face_crop_refs(
+def face_crop_refs(
     project: Project, current: tuple[str, str], chars: list[str]
 ) -> dict[str, Path]:
+    """Pick prior approved face crops, falling back to manually seeded references."""
     if not chars:
         return {}
     paths = project.paths
@@ -256,7 +257,7 @@ def frame_attachments(
             )
             order += 1
         location = project.scene(scene_id).location
-        wall_ref = paths.design_dir("location", location) / "wall_ref.png"
+        wall_ref = paths.wall_ref(location)
         items.append(_attachment(order, f"{location} wall reference", wall_ref))
         order += 1
     else:
@@ -264,7 +265,7 @@ def frame_attachments(
         latest = takes[-1].path if takes else approved_path(shot_paths, TakeKind.frame)
         items.append(_attachment(order, "Frame from pass 1", latest))
         order += 1
-        crops = _face_crop_refs(project, (scene_id, shot_id), shot.characters)
+        crops = face_crop_refs(project, (scene_id, shot_id), shot.characters)
         for framed in shot.in_frame:
             items.append(
                 _attachment(order, f"{framed.char} face crop", crops[framed.char])

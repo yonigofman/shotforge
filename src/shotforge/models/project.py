@@ -26,6 +26,7 @@ class ProjectConfig(SFModel):
     #: Where image and video takes live relative to Git: lfs | external | git.
     media: str = "lfs"
     engine: str = "claude-code"
+    vision_qa: bool = True
     tool_paths: ToolPaths = ToolPaths()
 
     @field_validator("aspect_ratio")

@@ -8,13 +8,16 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Lock
 
+from shotforge import actions
 from shotforge.models.materials import texture_filename
 from shotforge.project import Project
 from shotforge.takes import Take, TakeKind, add_take
 
 IGNORED_NAMES = {".gitkeep", ".DS_Store", "Thumbs.db"}
 PARTIAL_SUFFIXES = (".part", ".crdownload", ".download", ".tmp")
+_FILING_LOCK = Lock()
 
 
 @dataclass
@@ -69,8 +72,10 @@ def file_to_shot(
     scene_id: str,
     shot_id: str,
     kind: TakeKind | None = None,
+    *,
+    vision: bool | None = None,
 ) -> Take:
-    """Move one inbox file in as the next take of a shot."""
+    """File an inbox item as the next numbered take and run its QA."""
     inbox_file = Path(inbox_file)
     if not inbox_file.is_file():
         raise FileNotFoundError(inbox_file)
@@ -83,7 +88,11 @@ def file_to_shot(
     shot_paths = project.paths.shot(scene_id, shot_id)
     if not shot_paths.spec.is_file():
         raise FileNotFoundError(f"no shot {shot_id} in scene {scene_id}")
-    return add_take(shot_paths, kind, inbox_file, move=True)
+    # Allocate and file the take before another request can pick the same number.
+    with _FILING_LOCK:
+        take = add_take(shot_paths, kind, inbox_file, move=True)
+    actions.run_qa(project, scene_id, shot_id, kind, take.number, vision=vision)
+    return take
 
 
 def file_to_texture(project: Project, inbox_file: Path, name: str) -> Path:
@@ -99,7 +108,7 @@ def file_to_texture(project: Project, inbox_file: Path, name: str) -> Path:
     takes = textures / "takes" / name
     takes.mkdir(parents=True, exist_ok=True)
     target = textures / filename
-    with TemporaryDirectory(prefix=".texture-", dir=textures) as scratch:
+    with _FILING_LOCK, TemporaryDirectory(prefix=".texture-", dir=textures) as scratch:
         staged = Path(scratch) / "active.png"
         shutil.copyfile(inbox_file, staged)
         with staged.open("rb") as image:
@@ -123,7 +132,7 @@ def file_to_texture(project: Project, inbox_file: Path, name: str) -> Path:
         except OSError:
             take.unlink(missing_ok=True)
             raise
-    inbox_file.unlink(missing_ok=True)
+        inbox_file.unlink(missing_ok=True)
     return target
 
 
