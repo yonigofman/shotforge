@@ -196,9 +196,9 @@ def blockout(
     project, _ = _open(project_dir)
     try:
         paths = (
-            [blender.render(project, scene, shot_id)]
+            [blender.render(scene, shot_id, project=project)]
             if shot_id is not None
-            else blender.render_scene(project, scene)
+            else blender.render_scene(scene, project=project)
         )
     except blender.BlockoutError as exc:
         typer.echo(str(exc), err=True)

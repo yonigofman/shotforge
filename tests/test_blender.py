@@ -54,6 +54,12 @@ def test_cli_renders_the_scene_in_one_mcp_job(example_project, mcp_jobs):
     assert all(project.paths.blockout(SCENE, shot).is_file() for shot in job["renders"])
 
 
+def test_render_discovers_the_project(example_project, mcp_jobs, monkeypatch):
+    monkeypatch.chdir(example_project.paths.root)
+    assert blender.render(SCENE, "sh07") == example_project.paths.blockout(SCENE, "sh07")
+    assert set(mcp_jobs[0]["renders"]) == {"sh07"}
+
+
 def test_shot_card_renders_one_png_and_makes_approval_ready(example_project, mcp_jobs):
     project = example_project
     client = TestClient(create_app(project.paths.root))
@@ -93,7 +99,7 @@ def test_a_partial_mcp_result_falls_back_without_replacing_previous_renders(
     monkeypatch.setattr(blender.mcp, "render", partial)
     monkeypatch.setattr(blender.headless, "render", partial)
     with pytest.raises(blender.BlockoutError, match="did not produce s01_pub.blend"):
-        blender.render(project, SCENE, "sh07")
+        blender.render(SCENE, "sh07", project=project)
     assert len(set(attempts)) == 2
     assert path.read_bytes() == b"previous blockout"
 
@@ -109,7 +115,7 @@ def test_background_blender_renders_the_example_and_checks_every_camera(
 
     monkeypatch.setattr(blender.mcp, "render", offline)
     project = example_project
-    paths = blender.render_scene(project, SCENE)
+    paths = blender.render_scene(SCENE, project=project)
     assert len(paths) == 3
     for path in paths:
         header = path.read_bytes()[:24]
@@ -125,5 +131,5 @@ def test_background_blender_renders_the_example_and_checks_every_camera(
     reverse.camera.position = (0.0, -1.9)
     project.save_shot(SCENE, reverse)
     with pytest.raises(blender.BlockoutError, match=r"sh08: camera CAM_S08.*scene.axis_180"):
-        blender.render(project, SCENE, "sh07")
+        blender.render(SCENE, "sh07", project=project)
     assert blend.read_bytes() == original

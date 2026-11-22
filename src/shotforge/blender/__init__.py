@@ -18,20 +18,23 @@ __all__ = ["BlockoutError", "render", "render_scene"]
 _SCRIPT = Path(__file__).resolve().parent / "scripts" / "blockout.py"
 
 
-def render(project: Project, scene: str, shot: str) -> Path:
+def render(scene: str, shot: str, *, project: Project | None = None) -> Path:
     """Render one shot and save the shared scene with all its cameras."""
-    return _render(project, scene, shot)[0]
+    return _render(scene, shot, project=project)[0]
 
 
-def render_scene(project: Project, scene: str) -> list[Path]:
+def render_scene(scene: str, *, project: Project | None = None) -> list[Path]:
     """Render all shots with a single Blender job."""
-    return _render(project, scene)
+    return _render(scene, project=project)
 
 
-def _render(project: Project, scene_id: str, shot_id: str | None = None) -> list[Path]:
+def _render(
+    scene_id: str, shot_id: str | None = None, *, project: Project | None,
+) -> list[Path]:
     if not ID_RE.fullmatch(scene_id) or (shot_id is not None and not ID_RE.fullmatch(shot_id)):
         raise BlockoutError("scene and shot IDs use lowercase letters, digits and underscores")
     try:
+        project = project or Project.discover()
         scene = project.scene(scene_id)
         if shot_id is not None and shot_id not in project.shot_ids(scene_id):
             raise BlockoutError(f"no shot {shot_id!r} in scene {scene_id!r}")

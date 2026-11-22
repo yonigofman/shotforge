@@ -246,7 +246,7 @@ def create_app(project_root: Path) -> FastAPI:
         if shot.status is not ShotStatus.blockout:
             raise HTTPException(400, "Start the Blockout stage before rendering.")
         try:
-            blender.render(project, scene_id, shot_id)
+            blender.render(scene_id, shot_id, project=project)
         except blender.BlockoutError as exc:
             raise HTTPException(400, str(exc)) from exc
         return shot_card(request, scene_id, shot_id)
