@@ -23,7 +23,17 @@ from fastapi.templating import Jinja2Templates
 from starlette.datastructures import FormData
 from starlette.responses import FileResponse, Response
 
-from shotforge import actions, blender, breakdown, checks, cinematography, continuity, fixes, tools
+from shotforge import (
+    actions,
+    blender,
+    breakdown,
+    checks,
+    cinematography,
+    continuity,
+    fixes,
+    tools,
+    undo,
+)
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
 from shotforge.models import Scene, Shot, ShotStatus, Stage, as_plain
@@ -235,6 +245,9 @@ def create_app(
             "video_verdicts": {n: checks.summarise(report) for n, report in video_reports.items()},
             "approved_frame": approved_take_number(shot_paths, TakeKind.frame),
             "approved_video": approved_take_number(shot_paths, TakeKind.video),
+            "rejected_frames": state.rejected_takes(scene_id, shot_id, TakeKind.frame.value),
+            "rejected_videos": state.rejected_takes(scene_id, shot_id, TakeKind.video.value),
+            "undoable": undo.can_undo(shot.status),
             "rule_offers": fixes.rule_offers(project, state, scene_id, shot),
             "cut_findings": continuity.shot_findings(project, scene, shot, previous),
             "previous": previous,
@@ -667,6 +680,62 @@ def create_app(
             raise HTTPException(400, str(exc)) from exc
         return shot_card(request, scene_id, shot_id)
 
+    @routes.get("/shot/{scene_id}/{shot_id}/undo", response_class=HTMLResponse)
+    def undo_confirm(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
+        project, state = load(request)
+        try:
+            plan = undo.plan_undo(project, state, scene_id, shot_id)
+        except (TransitionError, ProjectError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        shot_paths = project.paths.shot(scene_id, shot_id)
+        kept = len(list_takes(shot_paths, TakeKind.frame)) + len(
+            list_takes(shot_paths, TakeKind.video)
+        )
+        return render(
+            request,
+            "partials/_undo.html",
+            {
+                "project": project,
+                "scene": project.scene(scene_id),
+                "shot": project.shot(scene_id, shot_id),
+                "plan": plan,
+                "kept_takes": kept,
+            },
+        )
+
+    @routes.post("/shot/{scene_id}/{shot_id}/undo", response_class=HTMLResponse)
+    def undo_approval(
+        request: Request,
+        scene_id: str,
+        shot_id: str,
+        note: str | None = Form(None),
+    ) -> HTMLResponse:
+        project, state = load(request)
+        try:
+            undo.undo_approval(project, state, scene_id, shot_id, note=(note or "").strip() or None)
+        except (TransitionError, ProjectError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except OSError as exc:
+            raise HTTPException(500, str(exc)) from exc
+        return shot_card(request, scene_id, shot_id)
+
+    @routes.post("/shot/{scene_id}/{shot_id}/take/{kind}/{number}/reject")
+    def reject_take(
+        request: Request,
+        scene_id: str,
+        shot_id: str,
+        kind: TakeKind,
+        number: int,
+        restore: bool = Form(False),
+    ) -> HTMLResponse:
+        project, state = load(request)
+        try:
+            get_take(project.paths.shot(scene_id, shot_id), kind, number)
+        except FileNotFoundError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        state.set_take_rejected(scene_id, shot_id, kind.value, number, not restore)
+        return shot_card(request, scene_id, shot_id)
+
     @routes.post("/shot/{scene_id}/{shot_id}/reopen", response_class=HTMLResponse)
     def reopen_stage(
         request: Request,
@@ -837,10 +906,11 @@ def create_app(
         return RedirectResponse(f"{project_prefix(request)}/skills", status_code=303)
 
     def _latest(project: Project, scene_id: str, shot_id: str, kind: TakeKind) -> int:
-        takes = list_takes(project.paths.shot(scene_id, shot_id), kind)
-        if not takes:
-            raise HTTPException(400, f"no {kind.value} take yet for {shot_id}")
-        return takes[-1].number
+        state = ProjectState(project.paths)
+        try:
+            return actions.latest_take_number(project, state, scene_id, shot_id, kind)
+        except FileNotFoundError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
     app.include_router(routes, prefix="/p/{project_id}")
     app.include_router(routes)

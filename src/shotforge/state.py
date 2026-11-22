@@ -29,6 +29,8 @@ class ShotState:
 
     frame_pass: int = 1
     active_take: dict[str, int] = field(default_factory=dict)
+    #: Take numbers you set aside, by kind. The files stay; they stop being chosen.
+    rejected: dict[str, list[int]] = field(default_factory=dict)
     updated: str = ""
 
 
@@ -44,6 +46,8 @@ class ApprovalEntry:
     detail: dict[str, Any] = field(default_factory=dict)
     entity_kind: str | None = None
     entity_id: str | None = None
+    #: For an ``unapprove``: the ``ts`` of the approval it takes back.
+    undoes: str | None = None
 
     @property
     def subject(self) -> str:
@@ -99,6 +103,7 @@ class ProjectState:
         return ShotState(
             frame_pass=int(raw.get("frame_pass", 1)),
             active_take=dict(raw.get("active_take", {})),
+            rejected={kind: list(numbers) for kind, numbers in (raw.get("rejected") or {}).items()},
             updated=raw.get("updated", ""),
         )
 
@@ -114,6 +119,28 @@ class ProjectState:
             self._data["shots"][self.key(scene_id, shot_id)] = asdict(state)
             self.save()
             return state
+
+    # -- rejected takes ----------------------------------------------------
+    def rejected_takes(self, scene_id: str, shot_id: str, kind: str) -> set[int]:
+        """Take numbers set aside for this kind. Nothing is deleted."""
+        return set(self.shot(scene_id, shot_id).rejected.get(str(kind), []))
+
+    def set_take_rejected(
+        self, scene_id: str, shot_id: str, kind: str, number: int, rejected: bool
+    ) -> set[int]:
+        state = self.shot(scene_id, shot_id)
+        numbers = set(state.rejected.get(str(kind), []))
+        if rejected:
+            numbers.add(number)
+        else:
+            numbers.discard(number)
+        by_kind = dict(state.rejected)
+        if numbers:
+            by_kind[str(kind)] = sorted(numbers)
+        else:
+            by_kind.pop(str(kind), None)
+        self.update_shot(scene_id, shot_id, rejected=by_kind)
+        return numbers
 
     # -- per-entity design -------------------------------------------------
     def approved_design_revision(self, kind: str, entity_id: str) -> str | None:
@@ -139,6 +166,8 @@ class ProjectState:
         record = asdict(entry)
         if entry.entity_kind is None:
             del record["entity_kind"], record["entity_id"]
+        if entry.undoes is None:
+            del record["undoes"]
         with self.paths.approvals_log.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
 

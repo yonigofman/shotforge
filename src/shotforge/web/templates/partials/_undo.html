@@ -1,0 +1,57 @@
+{% import "partials/_macros.html" as ui %}
+<article class="card raised stack" id="undo-panel">
+  <div class="card-header">
+    <h3>Undo the {{ plan.label }} approval</h3>
+    <span class="spacer"></span>
+    <span class="faint">back to {{ plan.target.value }}</span>
+  </div>
+
+  {% if plan.approved_at %}
+  <p class="faint mono">approved {{ plan.approved_at[0:16].replace('T', ' ') }}</p>
+  {% endif %}
+
+  {% if plan.removes %}
+  <ul class="attachments">
+    {% for path in plan.removes %}
+    <li>
+      <span class="order">−</span>
+      <span class="mono faint">{{ rel(path) }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="faint">This gate wrote no file; only the stage moves back.</p>
+  {% endif %}
+
+  {% if plan.dependents %}
+  <ul class="findings">
+    {% for line in plan.dependents %}
+    <li>{{ ui.pip('warn', 'depends') }}<span>{{ line }}</span></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <p class="faint">
+    {% if kept_takes == 1 %}1 take stays{% else %}{{ kept_takes }} takes stay{% endif %} on disk —
+    nothing generated is ever deleted.
+  </p>
+
+  <form
+    class="gate"
+    hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/undo"
+    hx-target="#shot-card"
+    hx-swap="outerHTML"
+  >
+    <input type="text" name="note" placeholder="Why, for the log (optional)" style="flex:1" />
+    <button class="primary" type="submit">Undo the approval</button>
+    <button
+      class="quiet"
+      type="button"
+      hx-get="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/card"
+      hx-target="#shot-card"
+      hx-swap="outerHTML"
+    >
+      Keep it
+    </button>
+  </form>
+</article>

@@ -576,6 +576,15 @@ kbd {
   align-items: start;
 }
 
+/* A take you set aside: still on disk, no longer in the running. */
+.takes .take.rejected {
+  opacity: 0.45;
+}
+
+.takes .take.rejected .frame {
+  filter: grayscale(1);
+}
+
 .takes .take.approved {
   outline: 2px solid var(--color-success);
   outline-offset: 2px;
