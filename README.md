@@ -30,7 +30,8 @@ being written by hand.
 | Video vision QA: unplanned lens contact in sampled frames | done |
 | Frame vision QA (identity, eyeline, continuity, AI look) | done |
 | Chapter breakdown and scene-to-shots skills | done |
-| Design and cinematography skills | not yet (Phase 4) |
+| Cinematography skill and technique library | done |
+| Design skills | not yet (Phase 4) |
 | Rough cut and assembly | not yet (Phase 5) |
 
 ## Install
@@ -113,6 +114,7 @@ approved crop immediately before the current shot's mask.
 A full shot, in the terminal:
 
 ```bash
+shotforge camera  s01_pub sh07                       # review the camera diff
 shotforge approve s01_pub sh07 --note "beats fine"   # breakdown
 shotforge begin   s01_pub sh07                       # → blockout
 shotforge blockout s01_pub sh07                       # render the blockout
@@ -223,6 +225,13 @@ Judgment skills (breakdown, cinematography, vision QA) go through the engine
 layer instead: `Engine.run_skill(skill, inputs) -> outputs`, implemented today by
 `ClaudeCodeEngine` (`claude -p`, on your subscription). Another engine can be
 added without touching the pipeline or the skills.
+
+During Breakdown, `shotforge camera <scene> <shot>` or **Propose camera** on
+the shot card uses the scene seating, the 180° line, and adjacent shots to
+propose a lens, height, angle, and techniques from the bundled library. Review
+the diff and apply it to save the settings and their reasons to `shot.yaml`.
+Shotforge refuses a proposal that crosses the line or uses over-the-shoulder
+framing without a foreground character. The shot card shows the saved reasons.
 
 ## QA
 

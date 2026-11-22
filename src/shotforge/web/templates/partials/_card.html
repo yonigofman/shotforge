@@ -172,6 +172,38 @@
 
     <!-- What it produced -->
     <section class="stack">
+      {% if shot.status.value == 'breakdown' or shot.camera.why or shot.technique_why %}
+      <article class="card stack">
+        <div class="card-header">
+          <h3>Camera</h3>
+          {% if shot.status.value == 'breakdown' %}
+          <span class="spacer"></span>
+          <button
+            hx-post="/shot/{{ scene.id }}/{{ shot.id }}/camera"
+            hx-target="#camera-proposal"
+            hx-swap="innerHTML"
+            hx-disabled-elt="this"
+          >Propose camera <span class="spinner">…</span></button>
+          {% endif %}
+        </div>
+        {% if shot.camera.why %}
+        {% set camera = shot.camera %}
+        <p class="muted">
+          {% if camera.lens_mm is not none %}<span>Lens {{ camera.lens_mm }} mm</span>{% endif %}
+          {% if camera.height is not none %}<span> · Height {{ camera.height }}{% if camera.height is number %} m{% endif %}</span>{% endif %}
+          {% if camera.angle is not none %}<span> · Angle {{ camera.angle }}{% if camera.angle is number %}°{% endif %}</span>{% endif %}
+        </p>
+        <p dir="auto">{{ shot.camera.why }}</p>
+        {% endif %}
+        {% if shot.technique_why %}
+        <p><strong>{{ shot.technique | join(', ') | replace('_', ' ') }}</strong></p>
+        <p dir="auto">{{ shot.technique_why }}</p>
+        {% endif %}
+        {% if shot.status.value == 'breakdown' %}
+        <div id="camera-proposal" class="stack" aria-live="polite"></div>
+        {% endif %}
+      </article>
+      {% endif %}
       <div id="takes">
         {% include "partials/_takes.html" %}
       </div>

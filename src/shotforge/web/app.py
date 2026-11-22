@@ -24,7 +24,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.datastructures import FormData
 from starlette.responses import FileResponse
 
-from shotforge import actions, blender, breakdown, checks, continuity, fixes, tools
+from shotforge import actions, blender, breakdown, checks, cinematography, continuity, fixes, tools
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
 from shotforge.models import Scene, Shot, ShotStatus, Stage, as_plain
@@ -47,6 +47,7 @@ def _number(value: float | int) -> str:
 
 STAGES: tuple[Stage, ...] = (Stage.breakdown, Stage.blockout, Stage.frame, Stage.video)
 BREAKDOWN_ERRORS = (breakdown.BreakdownError, ProjectError, ProjectFileError, OSError)
+CAMERA_ERRORS = (cinematography.CameraError, ProjectFileError, OSError)
 
 
 @dataclass
@@ -108,6 +109,7 @@ def create_app(project_root: Path) -> FastAPI:
     templates.env.filters["n"] = _number
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     drafts: OrderedDict[str, BreakdownDraft] = OrderedDict()
+    camera_drafts: OrderedDict[str, tuple[str, str, cinematography.CameraProposal]] = OrderedDict()
     drafts_lock = Lock()
 
     # ---- helpers ---------------------------------------------------------
@@ -457,6 +459,55 @@ def create_app(project_root: Path) -> FastAPI:
         )
 
     # ---- actions ---------------------------------------------------------
+    @app.post("/shot/{scene_id}/{shot_id}/camera", response_class=HTMLResponse)
+    def propose_camera(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
+        project, _ = load()
+        try:
+            proposal, diff = cinematography.propose_camera(project, scene_id, shot_id)
+        except ProjectError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except CAMERA_ERRORS as exc:
+            return render(
+                request,
+                "partials/_camera_proposal.html",
+                {"project": project, "camera_error": str(exc)},
+            )
+        token = None
+        if diff:
+            token = uuid4().hex
+            with drafts_lock:
+                camera_drafts[token] = (scene_id, shot_id, proposal)
+                if len(camera_drafts) > 16:
+                    camera_drafts.popitem(last=False)
+        return render(
+            request,
+            "partials/_camera_proposal.html",
+            {
+                "project": project,
+                "camera_token": token,
+                "camera_diff": diff,
+                "shot_url": f"/shot/{scene_id}/{shot_id}",
+            },
+        )
+
+    @app.post("/shot/{scene_id}/{shot_id}/camera/apply", response_class=HTMLResponse)
+    def apply_camera(
+        request: Request, scene_id: str, shot_id: str, token: str = Form(...)
+    ) -> HTMLResponse:
+        project, _ = load()
+        with drafts_lock:
+            draft = camera_drafts.get(token)
+            if draft is None or draft[:2] != (scene_id, shot_id):
+                raise HTTPException(409, "Generate a new camera proposal for this shot.")
+            try:
+                cinematography.apply_camera(project, scene_id, shot_id, draft[2])
+            except ProjectError as exc:
+                raise HTTPException(404, str(exc)) from exc
+            except CAMERA_ERRORS as exc:
+                raise HTTPException(400, str(exc)) from exc
+            camera_drafts.pop(token)
+        return shot_card(request, scene_id, shot_id)
+
     @app.post("/shot/{scene_id}/{shot_id}/prompt", response_class=HTMLResponse)
     def make_prompt(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
         project, state = load()
@@ -541,7 +592,8 @@ def create_app(project_root: Path) -> FastAPI:
             else:
                 from shotforge.pipeline import approve
 
-                approve(project, state, scene_id, shot_id, note=note)
+                with drafts_lock:
+                    approve(project, state, scene_id, shot_id, note=note)
         except (TransitionError, ValueError, FileNotFoundError) as exc:
             raise HTTPException(400, str(exc)) from exc
         return shot_card(request, scene_id, shot_id)

@@ -207,14 +207,7 @@ def _run(project: Project, engine: Engine | None, name: str, inputs: dict, schem
         skill = find_skill(name, project.paths.skills)
         engine = engine or get_engine(project.config.engine)
         result = engine.run_skill(skill, inputs, cwd=project.paths.root)
-        if result.data.get("is_error"):
-            raise EngineError(result.text[:500])
-        payload = result.data.get("parsed")
-        if payload is None:
-            payload = json.loads(result.text)
-        if isinstance(payload, dict) and isinstance(error := payload.get("error"), str):
-            raise EngineError(error[:500])
-        return schema.model_validate(payload)
+        return schema.model_validate(result.structured())
     except ValidationError as exc:
         detail = _validation_detail(exc)
         raise BreakdownError(f"{name} returned an invalid proposal. {detail}") from exc

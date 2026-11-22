@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import abc
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,17 @@ class EngineResult:
     data: dict[str, Any] = field(default_factory=dict)
     raw: str = ""
     cost_note: str | None = None
+
+    def structured(self) -> Any:
+        """Read a text skill's JSON output, including a reported engine or skill error."""
+        if self.data.get("is_error"):
+            raise EngineError(self.text[:500])
+        payload = self.data.get("parsed")
+        if payload is None:
+            payload = json.loads(self.text)
+        if isinstance(payload, dict) and isinstance(error := payload.get("error"), str):
+            raise EngineError(error[:500])
+        return payload
 
 
 class Engine(abc.ABC):

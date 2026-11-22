@@ -10,7 +10,7 @@ from pathlib import Path
 
 import typer
 
-from shotforge import actions, blender, breakdown, checks, continuity, tools
+from shotforge import actions, blender, breakdown, checks, cinematography, continuity, tools
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
 from shotforge.models import Stage
@@ -219,6 +219,10 @@ def shot(
     typer.echo(f"\n{action.title}  [{action.tool}]")
     if action.detail:
         typer.echo(action.detail)
+    if shot.camera.why:
+        typer.echo(f"\nCamera — {shot.camera.why}")
+    if shot.technique_why:
+        typer.echo(f"Techniques — {shot.technique_why}")
     for warning in action.warnings:
         typer.echo(f"  - {warning}")
     if action.skill:
@@ -270,6 +274,28 @@ def prompt(
         return
     typer.echo(f"# {result.skill.name} → {project.paths.rel(result.path)}\n")
     typer.echo(result.text)
+
+
+@app.command()
+def camera(
+    scene: str,
+    shot_id: str = typer.Argument(..., metavar="SHOT"),
+    project_dir: Path | None = ProjectOption,
+) -> None:
+    """Propose a camera during Breakdown and save it on confirmation."""
+    project, _ = _open(project_dir)
+    try:
+        proposal, diff = cinematography.propose_camera(project, scene, shot_id)
+        if not diff:
+            typer.echo("The camera and techniques already match the proposal.")
+            return
+        typer.echo(diff, nl=False)
+        if typer.confirm("Apply this camera proposal?"):
+            cinematography.apply_camera(project, scene, shot_id, proposal)
+            typer.echo(f"Saved camera proposal for {scene}/{shot_id}.")
+    except (cinematography.CameraError, ProjectError, ProjectFileError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
 
 
 @app.command()

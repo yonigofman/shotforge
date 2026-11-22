@@ -1,0 +1,12 @@
+{% if camera_error %}
+<p class="prompt" role="alert">{{ camera_error }}</p>
+{% elif camera_diff %}
+<pre class="prompt" aria-label="Proposed camera changes">{{ camera_diff }}</pre>
+<form class="row" hx-post="{{ shot_url }}/camera/apply" hx-target="#shot-card" hx-swap="outerHTML" hx-disabled-elt="find button">
+  <input type="hidden" name="token" value="{{ camera_token }}" />
+  <button class="primary" type="submit">Apply camera changes</button>
+  <a class="button quiet" href="{{ shot_url }}">Cancel</a>
+</form>
+{% else %}
+<p>The camera and techniques already match the proposal.</p>
+{% endif %}

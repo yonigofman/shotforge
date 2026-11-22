@@ -37,6 +37,10 @@ categories with no new entries. Include optional scene fields such as `time`,
 `seating`, `axis_180`, `lighting` and `sound` only when useful. Shotforge
 records the chapter filename and handles file writes.
 
+Use `room side` for the default seating axis. For a measured axis, supply
+`start`, `end` and `room_side` as XY points in metres. Omit `axis_180` when
+there is no planned line of action or measured layout.
+
 ```json
 {
   "scenes": [{

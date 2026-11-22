@@ -39,6 +39,14 @@ class ShotCamera:
     shift_x: float
 
 
+@dataclass(frozen=True)
+class _CameraLayout:
+    set: BlockoutSet
+    mannequins: list[Mannequin]
+    seats: dict[str, Point]
+    axis: BlockoutAxis
+
+
 def _describe_set(project: Project, scene: Scene) -> SetDescription:
     location = project.location(scene.location)
     try:
@@ -149,6 +157,36 @@ def _camera_position(
     return max(-0.45 * width, min(x, 0.45 * width)), min(y, 0.45 * depth)
 
 
+def _subject_position(shot: Shot, layout: _CameraLayout) -> Point:
+    subject = shot.subject
+    center = layout.set.hero_table.center
+    return layout.seats.get(subject.char, center) if subject else center
+
+
+def _camera_layout(project: Project, scene: Scene) -> _CameraLayout:
+    description = _describe_set(project, scene)
+    mannequins, row = _mannequins(description)
+    seats = {figure.char: figure.position for figure in mannequins}
+    return _CameraLayout(description.set, mannequins, seats, _axis(scene, description.set, row))
+
+
+def camera_axis_positions(
+    project: Project, scene: Scene, shots: list[Shot]
+) -> tuple[BlockoutAxis, dict[str, Point]]:
+    """Resolve the same axis and camera positions that the blockout will render."""
+    measured = {
+        shot.id: point for shot in shots if isinstance(point := shot.camera.position, tuple)
+    }
+    if isinstance(scene.axis_180, BlockoutAxis) and len(measured) == len(shots):
+        return scene.axis_180, measured
+    layout = _camera_layout(project, scene)
+    points = {
+        shot.id: _camera_position(shot, layout.set, layout.seats, _subject_position(shot, layout))
+        for shot in shots
+    }
+    return layout.axis, points
+
+
 def _camera_level(
     shot: Shot, field: str, value: str | float | None, cues: dict[str, float], default: float
 ) -> float:
@@ -160,7 +198,7 @@ def _camera_level(
     return default if value is None else value
 
 
-def _camera(shot: Shot, set_: BlockoutSet, seats: dict[str, Point]) -> ShotCamera:
+def _camera(shot: Shot, layout: _CameraLayout) -> ShotCamera:
     camera = shot.camera
     name = camera.blender_cam
     if not name or "\0" in name or len(name.encode("utf-8")) > 63:
@@ -170,9 +208,9 @@ def _camera(shot: Shot, set_: BlockoutSet, seats: dict[str, Point]) -> ShotCamer
         raise BlockoutError(f"{shot.id}: camera.lens_mm must be at least 1")
 
     subject = shot.subject
-    point = seats.get(subject.char, set_.hero_table.center) if subject else set_.hero_table.center
-    x, y = _camera_position(shot, set_, seats, point)
-    top = set_.hero_table.size[2]
+    point = _subject_position(shot, layout)
+    x, y = _camera_position(shot, layout.set, layout.seats, point)
+    top = layout.set.hero_table.size[2]
     z = _camera_level(
         shot,
         "height",
@@ -200,11 +238,8 @@ def _camera(shot: Shot, set_: BlockoutSet, seats: dict[str, Point]) -> ShotCamer
 
 
 def build_spec(project: Project, scene: Scene, shots: list[Shot]) -> dict:
-    description = _describe_set(project, scene)
-    set_ = description.set
-    mannequins, row = _mannequins(description)
-    seats = {figure.char: figure.position for figure in mannequins}
-    cameras = {shot.id: _camera(shot, set_, seats) for shot in shots}
+    layout = _camera_layout(project, scene)
+    cameras = {shot.id: _camera(shot, layout) for shot in shots}
     if len({camera.name for camera in cameras.values()}) != len(cameras):
         raise BlockoutError(f"{scene.id}: camera.blender_cam names must be unique in the scene")
 
@@ -217,9 +252,9 @@ def build_spec(project: Project, scene: Scene, shots: list[Shot]) -> dict:
 
     return {
         "scene": scene.id,
-        "geometry": as_plain(set_),
-        "mannequins": [asdict(figure) for figure in mannequins],
+        "geometry": as_plain(layout.set),
+        "mannequins": [asdict(figure) for figure in layout.mannequins],
         "cameras": {shot: asdict(camera) for shot, camera in cameras.items()},
-        "axis": as_plain(_axis(scene, set_, row)),
+        "axis": as_plain(layout.axis),
         "resolution": (max(4, width * scale), max(4, height * scale)),
     }

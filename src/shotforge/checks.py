@@ -5,12 +5,17 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from hashlib import sha256
-from math import isfinite
+from math import copysign, isfinite
 from pathlib import Path
 
+from shotforge.blender.errors import BlockoutError
+from shotforge.blender.spec import camera_axis_positions
 from shotforge.media import frame_size, probe_duration
 from shotforge.models import Scene, Shot
-from shotforge.project import Project
+from shotforge.models.blockout import signed_distance
+from shotforge.models.shot import Technique
+from shotforge.project import Project, ProjectError
+from shotforge.yamlio import ProjectFileError
 
 PASS, WARN, FAIL = "pass", "warn", "fail"
 
@@ -127,13 +132,106 @@ def check_spec(project: Project, scene_id: str, shot: Shot) -> list[Finding]:
             )
         )
 
-    findings.extend(check_continuity(project, scene_id, shot))
+    previous = project.previous_shot(scene_id, shot.id)
+    findings.extend(check_camera(project, scene, shot, previous))
+    findings.extend(_check_continuity(previous, shot))
+    return findings
+
+
+def _techniques(shot: Shot) -> set[str]:
+    names = {"_".join(name.lower().replace("-", " ").split()) for name in shot.technique}
+    if "ots" in names:
+        names.add(Technique.over_the_shoulder)
+    return names
+
+
+def check_camera(
+    project: Project,
+    scene: Scene,
+    shot: Shot,
+    previous: Shot | None,
+    *,
+    following: Shot | None = None,
+    proposal: bool = False,
+) -> list[Finding]:
+    """Check the foreground and the axis for the cuts affected by this camera."""
+    findings: list[Finding] = []
+    techniques = _techniques(shot)
+    subject = shot.subject
+    if Technique.over_the_shoulder in techniques and not (
+        subject
+        and any(
+            framed.char != subject.char and framed.role.startswith("foreground")
+            for framed in shot.in_frame
+        )
+    ):
+        findings.append(
+            Finding(
+                "technique",
+                FAIL,
+                f"{shot.id}: over-the-shoulder needs another character in the foreground",
+                fix="set a foreground role in in_frame or choose another technique",
+            )
+        )
+
+    matched_reverse = Technique.matched_reverse in techniques
+    matched_following = (
+        following if following and Technique.matched_reverse in _techniques(following) else None
+    )
+    if not (proposal or matched_reverse or matched_following):
+        return findings
+
+    cameras = [shot]
+    if matched_reverse:
+        if previous is None:
+            findings.append(
+                Finding(
+                    "axis_180",
+                    FAIL,
+                    f"{shot.id}: matched reverse needs a preceding shot to match",
+                    fix="choose a different technique or establish an angle in an earlier shot",
+                )
+            )
+        else:
+            cameras.append(previous)
+    if matched_following is not None:
+        cameras.append(matched_following)
+
+    try:
+        axis, points = camera_axis_positions(project, scene, cameras)
+    except (BlockoutError, ProjectError, ProjectFileError, OSError) as exc:
+        findings.append(
+            Finding(
+                "axis_180",
+                FAIL,
+                f"Could not resolve the 180° line and camera positions: {exc}",
+                fix="provide measurable axis_180 and camera.position values, or use blockout cues",
+            )
+        )
+        return findings
+
+    room = copysign(1, signed_distance(axis.start, axis.end, axis.room_side))
+    for camera_shot in cameras:
+        point = points[camera_shot.id]
+        if room * signed_distance(axis.start, axis.end, point) <= 1e-6:
+            findings.append(
+                Finding(
+                    "axis_180",
+                    FAIL,
+                    f"{camera_shot.id}: camera at XY ({point[0]:.3g}, {point[1]:.3g}) "
+                    "must stay on the room side of the 180° line",
+                    fix="move the camera to the room side of scene.axis_180",
+                )
+            )
     return findings
 
 
 def check_continuity(project: Project, scene_id: str, shot: Shot) -> list[Finding]:
     """``continuity.in`` of this shot against ``continuity.out`` of the one before."""
-    previous = project.previous_shot(scene_id, shot.id)
+    return _check_continuity(project.previous_shot(scene_id, shot.id), shot)
+
+
+def _check_continuity(previous: Shot | None, shot: Shot) -> list[Finding]:
     if previous is None:
         return []
     findings: list[Finding] = []
