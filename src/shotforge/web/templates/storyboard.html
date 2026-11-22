@@ -9,19 +9,22 @@
   </div>
   {% if scene.axis_180 %}<p class="muted" dir="auto">180°: {{ scene.axis_180 }}</p>{% endif %}
 
-  {% if chain %}
   <section class="card">
-    <div class="card-header"><h3>Continuity across the cuts</h3></div>
-    <ul class="findings">
-      {% for finding in chain %}
-      <li>
-        {{ ui.pip(finding.level) }}
-        <span>{{ finding.message }}{% if finding.fix %}<br /><span class="fix">{{ finding.fix }}</span>{% endif %}</span>
-      </li>
-      {% endfor %}
-    </ul>
+    <div class="card-header">
+      <h3>Continuity across the cuts</h3>
+      <span class="spacer"></span>
+      <button
+        hx-post="/scene/{{ scene.id }}/continuity"
+        hx-target="#continuity-findings"
+        hx-disabled-elt="this"
+      >
+        Run continuity check <span class="spinner">…</span>
+      </button>
+    </div>
+    <div id="continuity-findings" aria-live="polite">
+      {% include "partials/_findings.html" %}
+    </div>
   </section>
-  {% endif %}
 
   <div class="strip">
     {% for row in rows %}

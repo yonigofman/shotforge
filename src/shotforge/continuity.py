@@ -1,0 +1,169 @@
+"""Review the pictures on either side of each cut and cache the findings."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import asdict, dataclass, field, replace
+from itertools import pairwise
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+
+from pydantic import TypeAdapter
+
+from shotforge.checks import FAIL, PASS, WARN, Finding
+from shotforge.engine import Engine, EngineError, EngineResult, get_engine
+from shotforge.models import Scene, Shot
+from shotforge.models.common import as_plain
+from shotforge.project import Project
+from shotforge.skills import find_skill
+from shotforge.skills.registry import SkillError
+from shotforge.tools import ToolError
+
+SKILL_NAME = "continuity-check"
+ENGINE_NAME = "claude-code"
+REVIEW = "visual continuity"
+FINDINGS = TypeAdapter(list[Finding])
+
+
+@dataclass
+class _CutReview:
+    findings: list[Finding] = field(default_factory=list)
+    status: Finding | None = None
+
+
+def scene_findings(project: Project, scene: Scene, *, run: bool = False) -> list[Finding]:
+    """Read cached reviews, or run the missing reviews when explicitly requested."""
+    engine = get_engine(ENGINE_NAME) if run else None
+    findings = []
+    for earlier, later in pairwise(project.shots(scene.id)):
+        review = _review_cut(project, scene, earlier, later, engine)
+        entries = review.findings
+        if review.status is not None:
+            entries = [*entries, review.status]
+        findings.extend(_label_cut(earlier, later, entries))
+    return findings
+
+
+def shot_findings(
+    project: Project, scene: Scene, shot: Shot, earlier: Shot | None
+) -> list[Finding]:
+    """Show cached gaps on the shot receiving the cut."""
+    if earlier is None:
+        return []
+    review = _review_cut(project, scene, earlier, shot, engine=None)
+    return _label_cut(earlier, shot, review.findings)
+
+
+def _label_cut(earlier: Shot, later: Shot, findings: list[Finding]) -> list[Finding]:
+    return [replace(f, message=f"{earlier.id} → {later.id}: {f.message}") for f in findings]
+
+
+def _review_cut(
+    project: Project, scene: Scene, earlier: Shot, later: Shot, engine: Engine | None
+) -> _CutReview:
+    before = project.paths.shot(scene.id, earlier.id)
+    after = project.paths.shot(scene.id, later.id)
+    frames = {
+        "earlier_approved_frame": before.approved_frame,
+        "earlier_last_frame": before.last_frame,
+        "later_approved_frame": after.approved_frame,
+    }
+    try:
+        missing = [project.paths.rel(path) for path in frames.values() if not path.is_file()]
+        if missing:
+            message = f"Skipped. Missing {', '.join(missing)}."
+            return _CutReview(status=Finding(REVIEW, WARN, message))
+
+        skill = find_skill(SKILL_NAME, project.paths.skills)
+        inputs = {
+            "scene": as_plain(scene),
+            "earlier_shot": _shot_spec(earlier),
+            "later_shot": _shot_spec(later),
+            "frames": {role: project.paths.rel(path) for role, path in frames.items()},
+        }
+        files = list(frames.values())
+        digests = _frame_digests(files)
+        content = json.dumps(
+            [ENGINE_NAME, skill.body, skill.rules(), inputs, digests], sort_keys=True
+        )
+        key = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        cache = project.paths.cache / SKILL_NAME / f"{key}.json"
+        findings = _read_cache(cache)
+        if findings is None:
+            if engine is None:
+                return _CutReview(status=Finding(REVIEW, WARN, "Ready for a continuity check."))
+            result = engine.run_skill(skill, inputs, cwd=project.paths.root, files=files)
+            findings = _parse_result(result)
+            if _frame_digests(files) != digests:
+                raise EngineError("the frames changed during the review. Run the check again.")
+            _write_cache(cache, findings)
+    except (EngineError, OSError, SkillError, ToolError) as exc:
+        return _CutReview(status=Finding(REVIEW, FAIL, f"Review failed. {exc}"))
+
+    status = None if findings else Finding(REVIEW, PASS, "No visual continuity gaps found.")
+    return _CutReview(findings, status)
+
+
+def _shot_spec(shot: Shot) -> dict:
+    spec = as_plain(shot)
+    spec.pop("status", None)
+    return spec
+
+
+def _frame_digests(files: list[Path]) -> list[str]:
+    digests = []
+    for path in files:
+        with path.open("rb") as image:
+            digests.append(hashlib.file_digest(image, "sha256").hexdigest())
+    return digests
+
+
+def _validate_findings(payload: object) -> list[Finding]:
+    if not isinstance(payload, list):
+        raise ValueError("expected a list of findings")
+    findings = FINDINGS.validate_python(payload)
+    for finding in findings:
+        if finding.level not in (PASS, WARN, FAIL) or not (
+            finding.check.strip() and finding.message.strip()
+        ):
+            raise ValueError("each finding needs a check, a valid level and a message")
+    return findings
+
+
+def _parse_result(result: EngineResult) -> list[Finding]:
+    if result.data.get("is_error"):
+        raise EngineError(f"Claude Code reported an error: {result.text[:500]}")
+    if result.data.get("permission_denials"):
+        raise EngineError("Claude Code could not read all the frames.")
+    try:
+        payload = result.data.get("parsed")
+        if payload is None:
+            payload = json.loads(result.text)
+        if not isinstance(payload, dict):
+            raise ValueError("expected a JSON object")
+        if isinstance(error := payload.get("error"), str) and error.strip():
+            raise EngineError(error[:500])
+        return _validate_findings(payload.get("findings"))
+    except ValueError as exc:
+        raise EngineError("the continuity skill returned invalid findings") from exc
+
+
+def _read_cache(path: Path) -> list[Finding] | None:
+    try:
+        return _validate_findings(json.loads(path.read_text(encoding="utf-8")))
+    except (FileNotFoundError, ValueError):
+        return None
+
+
+def _write_cache(path: Path, findings: list[Finding]) -> None:
+    payload = json.dumps([asdict(finding) for finding in findings], ensure_ascii=False)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    file = NamedTemporaryFile(dir=path.parent, encoding="utf-8", mode="w", delete=False)
+    tmp = Path(file.name)
+    try:
+        with file:
+            file.write(payload)
+        tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)

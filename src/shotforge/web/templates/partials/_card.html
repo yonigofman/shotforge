@@ -204,6 +204,11 @@
             {{ ui.media(shot_paths.approved_frame, media_url, shot.id ~ ' first frame') }}
           </div>
         </div>
+        {% if cut_findings %}
+          {% with findings = cut_findings %}
+            {% include "partials/_findings.html" %}
+          {% endwith %}
+        {% endif %}
       </article>
       {% endif %}
     </section>

@@ -116,6 +116,10 @@ class ProjectPaths:
         return self.root / STATE_DIR
 
     @property
+    def cache(self) -> Path:
+        return self.state_dir / "cache"
+
+    @property
     def state_file(self) -> Path:
         return self.state_dir / "state.json"
 
