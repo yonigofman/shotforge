@@ -1,9 +1,12 @@
 # Last Light
 
-An original two-shot miniature for rehearsing Shotforge approvals. The
-chapter and scene are original. Stills were rendered in Blender, and the
-clips use those renders and synthesized rain. The assets contain no material
-from the Ulybka Vavilony sample or from a third-party source.
+Last Light is an original three-chapter story about a night watchkeeper's
+last shift at a river crossing. The opening scene of *The Seal* is the
+two-shot demo. All three chapters are in `00_source/` and can be selected
+in **Breakdown**.
+
+The stills were rendered in Blender. The clips use those renders and
+synthesized rain.
 
 Use `shotforge demo` to make a writable copy. Each shot has a ready blockout
 and three files in `downloads/` that stand in for the two frame passes and
