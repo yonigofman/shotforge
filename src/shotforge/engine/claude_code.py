@@ -25,6 +25,13 @@ TEXT_ONLY_ARGS = ("--tools", "", "--strict-mcp-config", "--setting-sources", "")
 VISION_ARGS = ("--tools", "Read", "--allowedTools", "Read")
 
 
+def _cli_failure(skill: Skill, exit_code: int, detail: str) -> EngineError:
+    message = f"claude -p failed for skill {skill.name} (exit {exit_code}):\n{detail[:2000]}"
+    if "oauth session expired" in detail.casefold():
+        message += "\nRun claude auth login as the user running Shotforge, then retry."
+    return EngineError(message)
+
+
 class ClaudeCodeEngine(Engine):
     """``claude -p`` with the project's skills, on your Claude subscription."""
 
@@ -145,10 +152,7 @@ class ClaudeCodeEngine(Engine):
             raise EngineError(f"could not start Claude Code for skill {skill.name}: {exc}") from exc
         if completed.returncode != 0:
             detail = completed.stderr.strip() or self._parse(completed.stdout).text
-            raise EngineError(
-                f"claude -p failed for skill {skill.name} (exit {completed.returncode}):\n"
-                f"{detail[:2000]}"
-            )
+            raise _cli_failure(skill, completed.returncode, detail)
         return self._parse(completed.stdout)
 
     def run_skill_with_progress(
@@ -177,10 +181,7 @@ class ClaudeCodeEngine(Engine):
                     detail = errors.read(2000).decode("utf-8", errors="replace").strip()
                     if process.returncode:
                         detail = detail or (result.text if result else "No result was returned.")
-                        raise EngineError(
-                            f"claude -p failed for skill {skill.name} "
-                            f"(exit {process.returncode}):\n{detail[:2000]}"
-                        )
+                        raise _cli_failure(skill, process.returncode, detail)
                     if result is None:
                         raise EngineError(
                             f"Claude Code ended without a result for {skill.name}. "

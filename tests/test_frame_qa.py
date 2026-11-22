@@ -88,6 +88,27 @@ def test_missing_claude_keeps_code_findings_and_writes_an_advisory_report(projec
     assert actions.read_qa_report(take.qa_report(shot)) == findings
 
 
+def test_expired_claude_oauth_explains_how_to_sign_in_again(project, png, monkeypatch):
+    shot = project.paths.shot(SCENE, SHOT)
+    take = add_take(shot, TakeKind.frame, png())
+    engine = ClaudeCodeEngine(executable=Path("claude"))
+    monkeypatch.setattr(frame_qa, "get_engine", lambda name: engine)
+    failure = SimpleNamespace(
+        returncode=1,
+        stderr="Failed to authenticate: OAuth session expired and could not be refreshed",
+        stdout="",
+    )
+    monkeypatch.setattr(claude_mod.subprocess, "run", lambda *args, **kwargs: failure)
+
+    findings = actions.run_qa(project, SCENE, SHOT, TakeKind.frame, take.number)
+    assert [(finding.check, finding.level) for finding in findings] == [
+        ("aspect ratio", "pass"), ("vision", "warn")
+    ]
+    assert "OAuth session expired" in findings[-1].message
+    assert "claude auth login" in findings[-1].message
+    assert actions.read_qa_report(take.qa_report(shot)) == findings
+
+
 def test_frame_check_streams_review_and_cancel_preserves_report(project, png, monkeypatch):
     paths = project.paths.shot(SCENE, SHOT)
     take = add_take(paths, TakeKind.frame, png())
