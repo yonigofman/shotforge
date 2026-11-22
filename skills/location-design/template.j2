@@ -1,0 +1,17 @@
+{% extends "design-brief.j2" %}
+{% block craft %}
+LOCATION DESIGN
+{% if entity.get('set_dressing') %}
+Set dressing: {{ entity.set_dressing | join(', ') }}
+{% endif %}
+{% if entity.get('fixed_props') %}
+Fixed props: {{ entity.fixed_props | join(', ') }}
+{% endif %}
+{% if entity.get('lighting') %}
+Lighting: {{ entity.lighting }}
+{% endif %}
+{% if entity.get('blockout') %}
+Preserve this blockout layout and dimensions: {{ entity.blockout | tojson }}
+{% endif %}
+Match the layout, architecture and materials across views. Keep the set empty of people.
+{% endblock %}

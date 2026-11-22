@@ -1,0 +1,12 @@
+{% extends "design-brief.j2" %}
+{% block craft %}
+CHARACTER DESIGN
+{% if entity.get('outfit') %}
+Production wardrobe:
+{% for piece, description in entity.outfit.items() %}
+- {{ piece }}: {{ description }}
+{% endfor %}
+{% endif %}
+Show stable facial structure, hair, silhouette and wardrobe across all views.
+Use the baseline appearance for this character.
+{% endblock %}

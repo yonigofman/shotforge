@@ -6,16 +6,34 @@ shot, and then the file becomes the next numbered take in the right folder.
 
 from __future__ import annotations
 
+import shutil
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import BinaryIO
 
 from shotforge import actions
+from shotforge.media import write_design_png
+from shotforge.paths import ProjectPaths
 from shotforge.project import Project
 from shotforge.takes import Take, TakeKind, add_take
 
 IGNORED_NAMES = {".gitkeep", ".DS_Store", "Thumbs.db"}
 PARTIAL_SUFFIXES = (".part", ".crdownload", ".download", ".tmp")
+
+
+class DesignAsset(StrEnum):
+    sheet = "sheet"
+    ref = "ref"
+
+    def path(self, paths: ProjectPaths, kind: str, entity_id: str) -> Path:
+        if self is DesignAsset.sheet:
+            return paths.sheet(kind, entity_id)
+        return paths.ref(kind, entity_id)
 
 
 @dataclass
@@ -62,6 +80,46 @@ def scan(project: Project) -> list[InboxFile]:
             continue
         found.append(InboxFile(path=path, kind=classify(path)))
     return sorted(found, key=lambda f: f.path.stat().st_mtime, reverse=True)
+
+
+@contextmanager
+def stage_upload(project: Project, name: str, stream: BinaryIO) -> Iterator[Path]:
+    """Stage a browser upload in the inbox without replacing an existing download."""
+    staging = project.paths.inbox
+    staging.mkdir(parents=True, exist_ok=True)
+    basename = Path(name.replace("\\", "/")).name
+    if basename in {"", ".", ".."}:
+        raise ValueError("upload needs a file name")
+    with TemporaryDirectory(prefix=".upload-", dir=staging) as directory:
+        source = Path(directory) / basename
+        with source.open("wb") as file:
+            shutil.copyfileobj(stream, file)
+        yield source
+
+
+def file_to_design(
+    project: Project, inbox_file: Path, kind: str, entity_id: str, asset: DesignAsset
+) -> Path:
+    """File one inbox image under its fixed design filename."""
+    project.entity(kind, entity_id)
+    inbox_file = Path(inbox_file)
+    if (
+        not inbox_file.is_file()
+        or inbox_file.is_symlink()
+        or not inbox_file.resolve().is_relative_to(project.paths.inbox.resolve())
+    ):
+        raise FileNotFoundError(f"{inbox_file.name} is not a file in the inbox")
+    if classify(inbox_file) is not TakeKind.frame:
+        raise ValueError("choose a PNG, JPEG or WebP image")
+
+    target = asset.path(project.paths, kind, entity_id)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix=".filing-", dir=target.parent) as directory:
+        staged = Path(directory) / target.name
+        write_design_png(inbox_file, staged)
+        staged.replace(target)
+    inbox_file.unlink()
+    return target
 
 
 def file_to_shot(

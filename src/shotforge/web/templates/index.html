@@ -70,7 +70,13 @@
             {% for entry in log %}
             <tr>
               <td class="mono faint">{{ entry.ts[5:16].replace('T', ' ') }}</td>
-              <td><a href="/shot/{{ entry.scene }}/{{ entry.shot }}">{{ entry.shot }}</a></td>
+              <td>
+                {% if entry.entity_kind %}
+                <a href="/bible/{{ entry.entity_kind }}/{{ entry.entity_id }}">{{ entry.entity_id }}</a>
+                {% else %}
+                <a href="/shot/{{ entry.scene }}/{{ entry.shot }}">{{ entry.shot }}</a>
+                {% endif %}
+              </td>
               <td>{{ entry.to_status }}</td>
               <td class="faint">{{ entry.note or '' }}</td>
             </tr>

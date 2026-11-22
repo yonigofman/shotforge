@@ -10,11 +10,9 @@ import asyncio
 import json
 import os
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any
 
 from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
-from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -30,6 +28,7 @@ from shotforge.skills import find_skill, latest_prompt
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
 from shotforge.takes import TakeKind, approved_take_number, list_takes
+from shotforge.web.bible import register_bible
 from shotforge.yamlio import ProjectFileError
 
 HERE = Path(__file__).resolve().parent
@@ -229,26 +228,7 @@ def create_app(project_root: Path) -> FastAPI:
         context = shot_card_context(request, scene_id, shot_id)
         return render(request, "partials/_takes.html", context)
 
-    @app.get("/bible", response_class=HTMLResponse)
-    def bible(request: Request) -> HTMLResponse:
-        project, _ = load()
-        kinds = []
-        for kind in ("character", "location", "prop"):
-            entities = []
-            for entity_id, entity in project.entities(kind).items():
-                entities.append(
-                    {
-                        "entity": entity,
-                        "sheet": project.paths.sheet(kind, entity_id),
-                        "ref": project.paths.ref(kind, entity_id),
-                    }
-                )
-            kinds.append({"kind": kind, "entities": entities})
-        return render(
-            request,
-            "bible.html",
-            {"project": project, "kinds": kinds, "style": project.style(), "page": "bible"},
-        )
+    register_bible(app, load, render)
 
     @app.get("/log", response_class=HTMLResponse)
     def log_page(request: Request) -> HTMLResponse:
@@ -390,26 +370,21 @@ def create_app(project_root: Path) -> FastAPI:
         return shot_card(request, scene_id, shot_id)
 
     @app.post("/shot/{scene_id}/{shot_id}/upload", response_class=HTMLResponse)
-    async def upload(
+    def upload(
         request: Request, scene_id: str, shot_id: str, files: list[UploadFile]
     ) -> HTMLResponse:
         project, _ = load()
         shot_paths = project.paths.shot(scene_id, shot_id)
         if not shot_paths.spec.is_file():
             raise HTTPException(404, f"no shot {shot_id} in {scene_id}")
-        staging = project.paths.inbox
-        staging.mkdir(parents=True, exist_ok=True)
-        with TemporaryDirectory(dir=staging, prefix=".upload-") as folder:
+        try:
             for upload_file in files:
-                name = Path(upload_file.filename or "upload.bin").name
-                temporary = Path(folder) / name
-                kind = inbox_mod.classify(temporary)
-                if kind is None:
-                    raise HTTPException(400, f"{name} is not an image or a video Shotforge files")
-                temporary.write_bytes(await upload_file.read())
-                await run_in_threadpool(
-                    inbox_mod.file_to_shot, project, temporary, scene_id, shot_id, kind
-                )
+                with inbox_mod.stage_upload(
+                    project, upload_file.filename or "upload.bin", upload_file.file
+                ) as source:
+                    inbox_mod.file_to_shot(project, source, scene_id, shot_id)
+        except (ValueError, FileNotFoundError) as exc:
+            raise HTTPException(400, str(exc)) from exc
         context = shot_card_context(request, scene_id, shot_id)
         return render(request, "partials/_takes.html", context)
 

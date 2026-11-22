@@ -627,3 +627,32 @@ tr:last-child td {
   display: inline;
   color: var(--color-ink-subtle);
 }
+
+/* Bible editor and file drop */
+.bible-editor textarea {
+  width: 100%;
+  min-height: 18rem;
+  height: auto;
+  padding: var(--space-3);
+  resize: vertical;
+  font-family: var(--font-mono);
+}
+
+.bible-error {
+  color: var(--color-danger);
+  white-space: pre-wrap;
+}
+
+[data-design-drop] {
+  display: flex;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+
+[data-design-drop] input {
+  max-width: 100%;
+}
+
+#sheet, #ref, #prompts, #approval {
+  scroll-margin-top: calc(var(--size-topbar-height) + var(--space-4));
+}
