@@ -2,7 +2,7 @@
 {% if not findings %}
 <p class="faint">Nothing to flag.</p>
 {% else %}
-{% if verdict is defined %}
+{% if verdict %}
 <p class="row">{{ ui.pip(verdict) }}<span class="faint">{{ subject | default('spec') }}</span></p>
 {% endif %}
 <ul class="findings">

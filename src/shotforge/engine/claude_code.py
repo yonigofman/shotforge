@@ -87,11 +87,14 @@ class ClaudeCodeEngine(Engine):
             "--output-format",
             "json",
         ]
+        if files:
+            # Headless reviews need to open the images listed in the prompt.
+            command.extend(["--tools", "Read", "--allowedTools", "Read"])
         try:
             completed = subprocess.run(
                 command,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
                 cwd=str(cwd) if cwd else None,
                 timeout=self.timeout_s,
             )
@@ -99,10 +102,13 @@ class ClaudeCodeEngine(Engine):
             raise EngineError(
                 f"claude -p did not finish within {self.timeout_s}s for skill {skill.name}"
             ) from exc
+        except OSError as exc:
+            raise EngineError(f"could not start Claude Code for skill {skill.name}: {exc}") from exc
         if completed.returncode != 0:
+            detail = completed.stderr.strip() or self._parse(completed.stdout).text
             raise EngineError(
                 f"claude -p failed for skill {skill.name} (exit {completed.returncode}):\n"
-                f"{completed.stderr.strip()[:2000]}"
+                f"{detail[:2000]}"
             )
         return self._parse(completed.stdout)
 

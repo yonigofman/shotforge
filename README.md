@@ -21,6 +21,7 @@ being written by hand.
 | `_inbox` routing, drag-and-drop onto the shot card | done |
 | Prompt skills: `chatgpt-first-frame`, `chatgpt-identity-pass`, `grok-video` | done |
 | Code-level QA: aspect ratio, clip duration, continuity between cuts | done |
+| Visual continuity across approved cuts via Claude Code | done |
 | Last-frame extraction feeding the next shot | done |
 | Cockpit: Scenes, Storyboard, Shot card, Takes, Bible, Skills, Log | done |
 | Engine layer (`Engine.run_skill`) with a Claude Code implementation | done |
@@ -199,6 +200,17 @@ actually went wrong in scene 1:
 
 QA advises; the approval is always yours. Sometimes a `warn` you accept beats
 risking a face that is already locked.
+
+Run `shotforge continuity s01_pub` or click **Run continuity check** on the
+storyboard to review gaze, hands and gestures, props, seating and the 180° side.
+Each cut needs both approved `frames/first.png` files and the earlier shot's
+`last_frame.png`. Shotforge skips cuts with missing media and lists what they
+need. The command exits with status 1 for a failed finding or review error.
+
+The check uses a signed-in Claude Code installation and caches successful
+reviews in `.shotforge/cache/continuity-check/`. Reopening the storyboard or
+the incoming shot card shows cached findings. If the frames, specs or skill
+rules change, run the check again to review the affected cuts.
 
 ## Theme
 

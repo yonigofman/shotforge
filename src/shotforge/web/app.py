@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.responses import FileResponse
 
-from shotforge import actions, blender, checks, fixes, tools
+from shotforge import actions, blender, checks, continuity, fixes, tools
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
 from shotforge.models import ShotStatus, Stage
@@ -105,10 +105,12 @@ def create_app(project_root: Path) -> FastAPI:
             if latest and report is not None
             else {"findings": checks.check_spec(project, scene_id, shot)}
         )
+        scene = project.scene(scene_id)
+        previous = project.previous_shot(scene_id, shot_id)
         return {
             "request": request,
             "project": project,
-            "scene": project.scene(scene_id),
+            "scene": scene,
             "shot": shot,
             "shot_paths": shot_paths,
             "blockout": project.paths.blockout(scene_id, shot_id),
@@ -124,7 +126,8 @@ def create_app(project_root: Path) -> FastAPI:
             "approved_video": approved_take_number(shot_paths, TakeKind.video),
             **qa,
             "rule_offers": fixes.rule_offers(project, state, scene_id, shot),
-            "previous": project.previous_shot(scene_id, shot_id),
+            "cut_findings": continuity.shot_findings(project, scene, shot, previous),
+            "previous": previous,
             "active": state.active == (scene_id, shot_id),
             "stage_label": STAGE_LABEL,
             "label": actions.stage_label(shot),
@@ -188,10 +191,24 @@ def create_app(project_root: Path) -> FastAPI:
                 "project": project,
                 "scene": scene,
                 "rows": rows,
-                "chain": checks.check_scene_chain(project, scene_id),
+                "findings": checks.check_scene_chain(project, scene_id)
+                + continuity.scene_findings(project, scene),
                 "active": state.active,
                 "page": "storyboard",
             },
+        )
+
+    @app.post("/scene/{scene_id}/continuity", response_class=HTMLResponse)
+    def review_continuity(request: Request, scene_id: str) -> HTMLResponse:
+        project, _ = load()
+        try:
+            scene = project.scene(scene_id)
+        except ProjectError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        findings = checks.check_scene_chain(project, scene_id)
+        findings += continuity.scene_findings(project, scene, run=True)
+        return render(
+            request, "partials/_findings.html", {"project": project, "findings": findings}
         )
 
     @app.get("/shot/{scene_id}/{shot_id}", response_class=HTMLResponse)

@@ -142,9 +142,9 @@ def test_identity_fix_and_explicit_rule_promotion(client, project, state, png, m
     shutil.copytree(skill.root, project.paths.skills / skill.name)
     skill = find_skill(skill.name, project.paths.skills)
     original_rules = skill.rules()
-    correction = "Match the reference's age."
+    correction = "Match Dima's age to the reference."
     failure = checks.Finding(
-        "identity", checks.FAIL, "The face looks too old.", correction, target="dima"
+        "identity", checks.FAIL, "Dima looks too old next to Durik.", correction
     )
     monkeypatch.setattr(checks, "check_frame_file", lambda *_: [failure])
     frame = png()
@@ -173,8 +173,8 @@ def test_identity_fix_and_explicit_rule_promotion(client, project, state, png, m
     assert approved.status_code == 200
     assert "Add to skill rules" not in approved.text
 
-    passed = checks.Finding("identity", checks.PASS, "Dima matches.", target="dima")
-    monkeypatch.setattr(checks, "check_frame_file", lambda *_: [passed, other])
+    passed = checks.Finding("identity", checks.PASS, "All visible faces match their crops.")
+    monkeypatch.setattr(checks, "check_frame_file", lambda *_: [passed])
     qa = client.post(f"{url}/qa", data={"take": 2})
     assert qa.text.count("Add to skill rules") == 1
     assert 'action="/skills/chatgpt-identity-pass/rules"' in qa.text

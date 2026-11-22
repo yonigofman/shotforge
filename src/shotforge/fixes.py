@@ -38,15 +38,26 @@ def _words(text: str) -> str:
     return re.sub(r"[\W_]+", " ", text.casefold()).strip()
 
 
-def _identity_target(shot: Shot, finding: Finding) -> str | None:
+def _identity_targets(shot: Shot, finding: Finding) -> list[str]:
     visible = [framed.char for framed in shot.in_frame if framed.role != "offscreen"]
     if finding.target:
-        return next((char for char in visible if _words(char) == _words(finding.target)), None)
-    message = f" {_words(' '.join((finding.check, finding.message, finding.fix or '')))} "
-    named = [char for char in visible if f" {_words(char)} " in message]
-    if len(named) == 1:
-        return named[0]
-    return visible[0] if len(visible) == 1 else None
+        return [char for char in visible if _words(char) == _words(finding.target)]
+    for detail in (finding.fix, f"{finding.check} {finding.message}"):
+        message = f" {_words(detail or '')} "
+        named = [char for char in visible if f" {_words(char)} " in message]
+        if named:
+            return named
+    return visible if len(visible) == 1 else []
+
+
+def _matches_target(shot: Shot, finding: Finding, attempt: FixAttempt) -> bool:
+    if attempt.target is None:
+        return True
+    if attempt.skill == IDENTITY_SKILL:
+        targets = _identity_targets(shot, finding)
+        # Vision QA can give one verdict for all visible faces.
+        return attempt.target in targets or (not targets and finding.target is None)
+    return finding.target is None or _words(finding.target) == _words(attempt.target)
 
 
 def build_fix(
@@ -74,9 +85,10 @@ def build_fix(
     rule_skill = "chatgpt-first-frame"
 
     if "identity" in labels:
-        character = _identity_target(shot, finding)
-        if character is None:
+        targets = _identity_targets(shot, finding)
+        if len(targets) != 1:
             raise ValueError("Name one in-frame character in the identity finding's target.")
+        character = targets[0]
         target = character
         framed = next(item for item in shot.in_frame if item.char == character)
         crop_path = face_crop_refs(project, (scene_id, shot_id), [character])[character]
@@ -175,16 +187,11 @@ def rule_offers(
             continue
         if attempt.next_take != number:
             continue
-        relevant = [row for row in findings if _words(row.check) == attempt.check]
-        if attempt.target is not None:
-            if attempt.skill == IDENTITY_SKILL:
-                relevant = [
-                    row for row in relevant if _identity_target(shot, row) == attempt.target
-                ]
-            else:
-                relevant = [
-                    row for row in relevant if _words(row.target or "") == _words(attempt.target)
-                ]
+        relevant = [
+            row
+            for row in findings
+            if _words(row.check) == attempt.check and _matches_target(shot, row, attempt)
+        ]
         if relevant and all(row.level == checks.PASS for row in relevant):
             offers[(attempt.check, attempt.target)] = attempt
     return [
