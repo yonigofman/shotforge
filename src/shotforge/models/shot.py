@@ -54,6 +54,18 @@ class Camera(SFModel):
     height: str | FiniteFloat | None = None
     angle: str | FiniteFloat | None = None
     move: str = "static"
+    why: str | None = None
+
+
+class Technique(StrEnum):
+    """Names from the cinematography library used in new proposals."""
+
+    over_the_shoulder = "over_the_shoulder"
+    dirty_single = "dirty_single"
+    matched_reverse = "matched_reverse"
+    cut_on_action = "cut_on_action"
+    bookend = "bookend"
+    insert = "insert"
 
 
 class FramedCharacter(SFModel):
@@ -136,6 +148,7 @@ class Shot(SFModel):
     summary: str | None = None
     camera: Camera = Camera()
     technique: list[str] = []
+    technique_why: str | None = None
     in_frame: list[FramedCharacter] = []
     beats: list[Beat] = []
     continuity: Continuity = Continuity()
