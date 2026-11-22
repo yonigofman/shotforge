@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="stack">
+  <h1>Approval log</h1>
+  <p class="muted">Every gate that closed, with its note — so you can see why what was decided, was.</p>
+  <article class="card">
+    {% if not entries %}
+    <p class="faint">Nothing yet.</p>
+    {% else %}
+    <table>
+      <thead>
+        <tr><th>When</th><th>Shot</th><th>Move</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        {% for entry in entries %}
+        <tr>
+          <td class="mono faint">{{ entry.ts[0:16].replace('T', ' ') }}</td>
+          <td><a href="/shot/{{ entry.scene }}/{{ entry.shot }}">{{ entry.scene }}/{{ entry.shot }}</a></td>
+          <td>{{ entry.action }}: {{ entry.from_status }} → {{ entry.to_status }}</td>
+          <td class="faint">
+            {{ entry.note or '' }}
+            {% if entry.detail and entry.detail.get('take') %}<span class="badge">take v{{ entry.detail.take }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </article>
+</div>
+{% endblock %}

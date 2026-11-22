@@ -1,0 +1,10 @@
+name: Улыбка Вавилоны
+language: ru
+aspect_ratio: '16:9'
+fps: 24
+tools:
+- chatgpt
+- grok
+media: lfs
+engine: claude-code
+tool_paths: {}

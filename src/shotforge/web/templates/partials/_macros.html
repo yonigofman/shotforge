@@ -1,0 +1,30 @@
+{% macro pip(level, text) -%}
+<span class="pip {{ level }}">{{ text or level }}</span>
+{%- endmacro %}
+
+{% macro progress(stage_index) -%}
+<div class="progress" aria-hidden="true">
+  {% for step in range(4) %}
+  <span
+    class="step {% if stage_index // 2 > step %}done{% elif stage_index // 2 == step %}current{% endif %}"
+  ></span>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{% macro media(path, media_url, caption, kind='image') -%}
+{% if path and path.is_file() %}
+<figure class="frame" style="margin:0">
+  {% if kind == 'video' %}
+  <video src="{{ media_url(path) }}" controls preload="metadata"></video>
+  {% else %}
+  <img src="{{ media_url(path) }}" alt="{{ caption }}" loading="lazy" />
+  {% endif %}
+  {% if caption %}<figcaption>{{ caption }}</figcaption>{% endif %}
+</figure>
+{% else %}
+<div class="frame" style="padding:var(--space-6);text-align:center">
+  <span class="faint">{{ caption }} — not yet</span>
+</div>
+{% endif %}
+{%- endmacro %}

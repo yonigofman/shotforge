@@ -1,0 +1,52 @@
+id: sh07
+duration_s: 15
+size: OTS
+camera:
+  blender_cam: CAM_S07
+  lens_mm: 50
+  position: window end of table
+  move: static
+technique:
+  - over_the_shoulder
+  - cut_on_action
+in_frame:
+  - char: dima
+    role: foreground_soft
+    view: left_profile
+  - char: durik
+    role: subject
+    frame_x: right_third
+    eyeline: Dima's face, toward left edge, eye level
+  - char: zhmurik
+    role: background
+beats:
+  - t: [0, 2]
+    action: Durik lifts his hand from the table and raises one finger
+  - t: [2, 9]
+    speaker: durik
+    line: "Я сказал студентам: …"
+  - t: [9, 11]
+    action: pause and shrug
+    silence: true
+  - t: [11, 15]
+    speaker: durik
+    line: "…может, она бы и жива осталась."
+continuity:
+  in:
+    beer: half
+    durik_hand: on_table
+    mood: smile
+  out:
+    beer: half
+    mood: laughing
+refs:
+  from_shots:
+    - sh06
+  face_crops:
+    - dima
+    - durik
+    - zhmurik
+sound:
+  ambience: pub, rain
+  music: none
+status: breakdown

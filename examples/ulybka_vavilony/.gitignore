@@ -1,0 +1,5 @@
+# Downloads land here and are sorted into the tree; nothing to keep in Git.
+_inbox/
+
+# Runtime cache (state and the approval log itself are worth keeping).
+.shotforge/cache/

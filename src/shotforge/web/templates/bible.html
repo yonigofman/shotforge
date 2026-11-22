@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "partials/_macros.html" as ui %}
+{% block content %}
+<div class="stack">
+  <h1>Bible</h1>
+  <article class="card raised stack">
+    <div class="card-header"><h3>Style</h3></div>
+    <p>{{ style.art_style }}</p>
+    {% if style.film_stock %}<p class="muted">Film stock: {{ style.film_stock }}</p>{% endif %}
+    {% if style.palette %}<p class="muted">Palette: {{ style.palette | join(', ') }}</p>{% endif %}
+    {% if style.world_rules %}
+    <h3>World rules</h3>
+    <ul>{% for rule in style.world_rules %}<li>{{ rule }}</li>{% endfor %}</ul>
+    {% endif %}
+  </article>
+
+  {% for group in kinds %}
+  {% if group.entities %}
+  <h3>{{ group.kind }}s</h3>
+  <div class="takes">
+    {% for item in group.entities %}
+    <article class="card stack" style="gap:var(--space-2)">
+      <div class="row">
+        <strong>{{ item.entity.id }}</strong>
+        {% if item.entity.tag %}<span class="badge">{{ item.entity.tag }}</span>{% endif %}
+      </div>
+      {{ ui.media(item.sheet, media_url, 'sheet') }}
+      {% if item.entity.names %}
+      <span class="faint">{{ item.entity.names.values() | join(' · ') }}</span>
+      {% endif %}
+      {% if item.entity.design_choices %}
+      <ul class="faint" dir="auto">
+        {% for choice in item.entity.design_choices %}<li>{{ choice }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endblock %}

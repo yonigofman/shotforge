@@ -1,0 +1,37 @@
+<div class="card">
+  {% if not inbox %}
+  <p class="faint">
+    Empty. Download from ChatGPT or Grok into <code>_inbox/</code> and it shows up here.
+  </p>
+  {% else %}
+  <table>
+    <tbody>
+      {% for item in inbox %}
+      <tr>
+        <td class="mono">{{ item.name }}</td>
+        <td class="faint">{{ item.filed_as }} · {{ item.size_kb }} KB</td>
+        <td style="text-align:right">
+          {% if active %}
+          <form
+            hx-post="/inbox/file"
+            hx-target="#inbox"
+            hx-swap="innerHTML"
+            style="display:inline"
+          >
+            <input type="hidden" name="name" value="{{ item.name }}" />
+            <input type="hidden" name="scene" value="{{ active[0] }}" />
+            <input type="hidden" name="shot" value="{{ active[1] }}" />
+            <button type="submit" {% if not item.kind %}disabled{% endif %}>
+              File to {{ active[1] }}
+            </button>
+          </form>
+          {% else %}
+          <span class="faint">open a shot card first</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>

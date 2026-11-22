@@ -1,0 +1,19 @@
+art_style: >-
+  Grounded, slightly desaturated cinematic realism — a late-Soviet provincial
+  pub at night, shot on film. People look lived-in, never retouched.
+film_stock: Kodak Vision3 500T, visible grain, soft highlight rolloff
+palette:
+  - warm tungsten amber
+  - cold blue window light
+  - burgundy and camel in wardrobe
+  - nicotine-stained plaster
+grade: warm midtones, cool shadows, no HDR glow
+world_rules:
+  - Yuzik's currency is the only money named on screen; no real banknotes.
+  - The pub's walls are nicotine-stained plaster, never wood panelling.
+  - No signage, no neon, and no written text anywhere in frame.
+negative:
+  - no subtitles
+  - no text, no watermark
+  - no other patrons unless the shot calls for them
+  - no plastic skin, no embossed pores, no tilt-shift

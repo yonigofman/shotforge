@@ -1,0 +1,18 @@
+id: durik
+tag: "@Durik"
+names:
+  book: Дурик
+from_book:
+  - מרצה לסטודנטים
+  - מדבר בידיים
+design_choices:
+  - שפם עבה (נבדק בכל פריים)
+  - סוף שנות ה-40
+  - מעיל אפור כבד על הכתפיים
+outfit:
+  jacket: heavy grey jacket worn open
+  shirt: checked flannel
+voice: dry, fast, lands on the last word
+assets:
+  sheet: 02_design/characters/durik/sheet.png
+  ref: 02_design/characters/durik/ref.png

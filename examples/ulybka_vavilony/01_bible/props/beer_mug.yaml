@@ -1,0 +1,12 @@
+id: beer_mug
+tag: "@BeerMug"
+description: >-
+  Half-litre faceted glass mug, thick handle, slightly cloudy from the wash.
+  The beer stays calm: no foam head to speak of, never spilling.
+states:
+  - full
+  - half
+  - low
+  - empty
+assets:
+  sheet: 02_design/props/beer_mug/sheet.png

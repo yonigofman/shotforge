@@ -1,0 +1,24 @@
+id: pub
+tag: "@Pub"
+names:
+  book: пивная
+from_book:
+  - שולחן גבוה ליד החלון
+  - ערב, גשם בחוץ
+design_choices:
+  - nicotine-stained plaster walls, never wood panelling
+  - one tall window on the room side, rain on the glass
+  - hero table for three, stools, no booth
+set_dressing:
+  - mismatched glassware on the bar
+  - a single row of practicals over the bar
+  - worn linoleum floor
+fixed_props:
+  - beer mugs
+  - ashtray
+  - salt shaker
+lighting: warm tungsten practicals, cold blue window
+assets:
+  sheet: 02_design/locations/pub/sheet.png
+  plate: 02_design/locations/pub/plate.png
+  wall_ref: 02_design/locations/pub/wall_ref.png

@@ -1,0 +1,91 @@
+{{ project.name }} — {{ scene.id }} / {{ shot.id }} — first frame, pass 1
+
+STYLE
+{{ style.art_style }}
+{% if style.get('film_stock') %}
+Film stock: {{ style.film_stock }}
+{% endif %}
+{% if style.get('palette') %}
+Palette: {{ style.palette | join(', ') }}
+{% endif %}
+{% if style.get('grade') %}
+Grade: {{ style.grade }}
+{% endif %}
+Aspect ratio: {{ project.aspect_ratio }}. A single still frame, no text of any kind.
+
+SHOT
+{% if shot.get('size') %}
+Shot size: {{ shot.size }}.
+{% endif %}
+{% if shot.camera.get('lens_mm') %}
+Lens: {{ shot.camera.lens_mm }}mm{{ (", camera at the " ~ shot.camera.position) if shot.camera.get('position') else "" }}.
+{% endif %}
+Camera is completely static and locked off.
+{% if shot.get('technique') %}
+Technique: {{ shot.technique | join(', ') }}.
+{% endif %}
+{% if shot.get('summary') %}
+{{ shot.summary }}
+{% endif %}
+Match the composition of the attached blockout render exactly: positions, head
+sizes, perspective, and what is behind each character.
+
+SET
+{% if location %}
+{{ location.get('design_choices', []) | join('. ') }}
+{% if location.get('set_dressing') %}
+Dressing: {{ location.set_dressing | join(', ') }}.
+{% endif %}
+{% if location.get('fixed_props') %}
+Always present: {{ location.fixed_props | join(', ') }}.
+{% endif %}
+{% endif %}
+{% if scene.get('lighting') %}
+Lighting: {{ scene.lighting }}.
+{% endif %}
+{% if scene.get('time') %}
+Time: {{ scene.time }}.
+{% endif %}
+
+IN FRAME
+{% for framed in shot.in_frame %}
+{% set character = characters.get(framed.char) %}
+- {{ framed.char }}{{ (" (" ~ character.names.book ~ ")") if character and character.get('names', {}).get('book') else "" }} — {{ framed.role }}{{ (", " ~ framed.view) if framed.get('view') else "" }}{{ (", at the " ~ framed.frame_x ~ " of the frame") if framed.get('frame_x') else "" }}.
+{% if character and character.get('design_choices') %}
+  Appearance: {{ character.design_choices | join('; ') }}.
+{% endif %}
+{% if character and character.get('outfit') %}
+  Wearing: {{ character.outfit.values() | join('; ') }}.
+{% endif %}
+{% if framed.get('eyeline') %}
+  Gaze: {{ framed.eyeline }}.
+{% endif %}
+{% if framed.get('notes') %}
+  {{ framed.notes }}
+{% endif %}
+{% endfor %}
+
+STATE AT THIS MOMENT
+{% for key, value in shot.continuity.get('in', {}).items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
+{% if shot.beats %}
+The frame is the moment just before the first beat: {{ shot.beats[0].get('action') or shot.beats[0].get('line') }}
+{% endif %}
+
+MUST HOLD
+{% for rule in rules %}
+- {{ rule }}
+{% endfor %}
+
+DO NOT
+{% for item in style.get('negative', []) %}
+- {{ item }}
+{% endfor %}
+- no camera movement, no motion blur, no depth-of-field haze beyond the lens
+- no AI skin: no plastic smoothness, no embossed pores, no HDR glow, no tilt-shift
+
+ATTACH IN THIS ORDER
+{% for attachment in attachments %}
+{{ attachment.order }}. {{ attachment.label }} — {{ attachment.path }}{{ "  (MISSING)" if not attachment.exists else "" }}
+{% endfor %}

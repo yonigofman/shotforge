@@ -1,0 +1,58 @@
+[project]
+name = "shotforge"
+version = "0.1.0"
+description = "Local, open-source cockpit that turns book text into AI video scenes, with an approval gate at every step."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Shotforge contributors" }]
+keywords = ["ai-video", "filmmaking", "storyboard", "pipeline", "blender"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Framework :: FastAPI",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+  "pydantic>=2.7",
+  "pyyaml>=6.0",
+  "typer>=0.12",
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+qa = ["opencv-python-headless>=4.10", "numpy>=1.26"]
+dev = ["pytest>=8.2", "httpx>=0.27", "ruff>=0.5"]
+
+[project.scripts]
+shotforge = "shotforge.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yonigofman/shotforge"
+Repository = "https://github.com/yonigofman/shotforge"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shotforge"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"skills" = "shotforge/_skills"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008"]
