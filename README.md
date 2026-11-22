@@ -183,11 +183,13 @@ The cockpit is dark because the work is night footage. Tokens live in
 python -m shotforge.web.tokens
 ```
 
-The scales (surfaces, type, spacing, radii, motion, focus ring, status colours)
-come from the Klyro design system; the name, the mark and the ember accent are
-Shotforge's own. Around frames and video only neutral surfaces are used, so the
-eye judges skin, lighting and grade honestly, and the accent appears only on the
-primary action and on focus.
+The scales come from the Klyro design system at its own values: surfaces, the
+named type scale, spacing, radii, shadows, the focus ring, control heights,
+durations, easings and the status colours — as does the volt accent. What is
+Shotforge's own is the name, the mark, and `surface-neutral`: around frames and
+video only neutral surfaces are used, so the eye judges skin, lighting and grade
+honestly. The accent appears on the primary action and on focus, never on an
+image or beside one.
 
 ## Offline
 

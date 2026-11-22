@@ -2,9 +2,9 @@
 
 The scales come from the Klyro design system at its own values: surfaces,
 lines, ink, status colours, the type scale, spacing, radii, shadows, the focus
-ring, control sizes, durations and easings. What is Shotforge's own is the
-name, the mark and an ember accent in place of volt — and
-``surface-neutral``, the only ground allowed around frames and video.
+ring, control sizes, durations and easings — and the volt accent. What is
+Shotforge's own is the name, the mark, and ``surface-neutral``, the only ground
+allowed around frames and video.
 
 Run ``python -m shotforge.web.tokens`` after editing the tokens to rewrite
 ``static/tokens.css``.
