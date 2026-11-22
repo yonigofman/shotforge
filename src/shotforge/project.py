@@ -141,7 +141,15 @@ class Project:
         keep.touch(exist_ok=True)
         return cls(paths=paths, config=config)
 
-    # -- bible -------------------------------------------------------------
+    # -- source and bible --------------------------------------------------
+    def chapter_text(self, filename: str) -> str:
+        if not filename or Path(filename).name != filename:
+            raise ProjectError("Choose a chapter filename in 00_source.")
+        text = (self.paths.source / filename).read_text(encoding="utf-8-sig")
+        if not text.strip() or text.strip() == _SOURCE_PLACEHOLDER.strip():
+            raise ProjectError(f"Add the book text to 00_source/{filename} before generating.")
+        return text
+
     @property
     def name(self) -> str:
         return self.config.name
@@ -190,9 +198,9 @@ class Project:
     def props(self) -> dict[str, Prop]:
         return self.entities("prop")  # type: ignore[return-value]
 
-    def save_entity(self, kind: str, entity) -> Path:
+    def save_entity(self, kind: str, entity, *, create_only: bool = False) -> Path:
         path = self.bible_entity_path(kind, entity.id)
-        dump(path, entity)
+        dump(path, entity, create_only=create_only)
         return path
 
     # -- scenes and shots --------------------------------------------------
@@ -234,17 +242,17 @@ class Project:
         index = ids.index(shot_id)
         return self.shot(scene_id, ids[index + 1]) if index + 1 < len(ids) else None
 
-    def save_scene(self, scene: Scene) -> Path:
+    def save_scene(self, scene: Scene, *, create_only: bool = False) -> Path:
         paths = self.paths.scene(scene.id)
         paths.shots_dir.mkdir(parents=True, exist_ok=True)
-        dump(paths.spec, scene)
+        dump(paths.spec, scene, create_only=create_only)
         return paths.spec
 
-    def save_shot(self, scene_id: str, shot: Shot) -> Path:
+    def save_shot(self, scene_id: str, shot: Shot, *, create_only: bool = False) -> Path:
         shot_paths = self.paths.shot(scene_id, shot.id)
         for folder in shot_paths.dirs():
             folder.mkdir(parents=True, exist_ok=True)
-        dump(shot_paths.spec, shot)
+        dump(shot_paths.spec, shot, create_only=create_only)
         return shot_paths.spec
 
     def shot_refs(self, scene_id: str, shot_id: str) -> dict[str, Path]:

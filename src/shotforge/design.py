@@ -25,10 +25,11 @@ def save_entity(
     entity = project.parse_entity(kind, text, entity_id)
     path = project.bible_entity_path(kind, entity.id)
     with _mutations:
-        if entity_id is None and path.exists():
-            raise ProjectError(f"{kind.capitalize()} {entity.id!r} already exists.")
         previous = project.entity(kind, entity_id) if entity_id is not None else None
-        write_text(path, text)
+        try:
+            write_text(path, text, create_only=entity_id is None)
+        except FileExistsError as exc:
+            raise ProjectError(f"{kind.capitalize()} {entity.id!r} already exists.") from exc
         if previous != entity:
             state.set_design_approval(kind, entity.id, None)
     return entity

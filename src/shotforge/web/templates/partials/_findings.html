@@ -2,18 +2,34 @@
 {% if not findings %}
 <p class="faint">Nothing to flag.</p>
 {% else %}
-{% if verdict is defined %}
+{% if verdict %}
 <p class="row">{{ ui.pip(verdict) }}<span class="faint">{{ subject | default('spec') }}</span></p>
 {% endif %}
 <ul class="findings">
   {% for finding in findings %}
   <li>
     {{ ui.pip(finding.level, finding.check) }}
-    <span>
+    <div>
       {{ finding.message }}
       {% if finding.fix and finding.level != 'pass' %}<br /><span class="fix">{{ finding.fix }}</span>{% endif %}
-    </span>
+      {% if fix_take and finding.failed %}
+      <form hx-post="/shot/{{ scene.id }}/{{ shot.id }}/fix" hx-target="#shot-card" hx-swap="outerHTML">
+        <input type="hidden" name="take" value="{{ fix_take }}" />
+        <input type="hidden" name="finding" value="{{ finding.key }}" />
+        <button class="quiet" type="submit" hx-disabled-elt="this" aria-label="Fix {{ finding.check }} in ChatGPT">Fix in ChatGPT</button>
+      </form>
+      {% endif %}
+    </div>
   </li>
   {% endfor %}
 </ul>
 {% endif %}
+
+{% for offer in rule_offers %}
+<form action="/skills/{{ offer.skill }}/rules" method="post" class="stack">
+  <p>Frame v{{ offer.next_take }} passed the {{ offer.check }} check. Add a rule to <code>{{ offer.skill }}</code>?</p>
+  <p class="muted">{{ offer.rule }}</p>
+  <input type="hidden" name="rule" value="{{ offer.rule }}" />
+  <button type="submit">Add to skill rules</button>
+</form>
+{% endfor %}

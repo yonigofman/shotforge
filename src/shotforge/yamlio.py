@@ -24,12 +24,19 @@ class ProjectFileError(Exception):
 
 
 def read_yaml(path: Path) -> dict:
-    return _mapping(path.read_text(encoding="utf-8"), path)
+    return _mapping(_read_text(path), path)
 
 
 def load(path: Path, model: type[T]) -> T:
     """Load one YAML file and validate it, reporting the field that is wrong."""
-    return parse(path.read_text(encoding="utf-8"), path, model)
+    return parse(_read_text(path), path, model)
+
+
+def _read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeError as exc:
+        raise ProjectFileError(path, str(exc)) from exc
 
 
 def parse(text: str, path: Path, model: type[T]) -> T:
@@ -56,21 +63,28 @@ def _mapping(text: str, path: Path) -> dict:
     return data
 
 
-def dump(path: Path, model: BaseModel) -> None:
-    """Validate, then write. A file is never left half-written."""
-    text = yaml.safe_dump(
+def render_yaml(model: BaseModel) -> str:
+    return yaml.safe_dump(
         as_plain(model),
         allow_unicode=True,
         sort_keys=False,
         default_flow_style=False,
         width=100,
     )
-    write_text(path, text)
 
 
-def write_text(path: Path, text: str) -> None:
+def dump(path: Path, model: BaseModel, *, create_only: bool = False) -> None:
+    write_text(path, render_yaml(model), create_only=create_only)
+
+
+def write_text(path: Path, text: str, *, create_only: bool = False) -> None:
+    """Write a whole file at once, optionally refusing to replace an existing file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(dir=path.parent, prefix=f".{path.name}-") as directory:
-        temp = Path(directory) / path.name
-        temp.write_text(text, encoding="utf-8")
-        temp.replace(path)
+        temporary = Path(directory) / path.name
+        temporary.write_text(text, encoding="utf-8")
+        if create_only:
+            # Linking a complete file refuses an existing destination atomically.
+            path.hardlink_to(temporary)
+        else:
+            temporary.replace(path)
