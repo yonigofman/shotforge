@@ -46,6 +46,7 @@ from shotforge.state import ProjectState
 from shotforge.takes import Take, TakeKind, approved_take_number, get_take, list_takes
 from shotforge.web.bible import materials_for_page, register_bible
 from shotforge.web.edit import register_edit
+from shotforge.web.lifecycle import shutting_down
 from shotforge.web.local import LocalOnlyMiddleware
 from shotforge.web.projects import project_prefix, register_projects
 from shotforge.web.settings import register_settings
@@ -62,6 +63,13 @@ def _number(value: float | int) -> str:
 
 
 STAGES: tuple[Stage, ...] = (Stage.breakdown, Stage.blockout, Stage.frame, Stage.video)
+
+#: How often the event stream looks for a change.
+EVENT_POLL_SECONDS = 2.0
+#: How long one event stream lives before it ends and the browser reconnects.
+#: An endless response keeps the server from shutting down: uvicorn waits for
+#: open connections, so Ctrl+C looks like it does nothing while a tab is open.
+EVENT_STREAM_SECONDS = 60.0
 BREAKDOWN_ERRORS = (breakdown.BreakdownError, ProjectError, ProjectFileError, OSError)
 CAMERA_ERRORS = (cinematography.CameraError, ProjectFileError, OSError)
 
@@ -859,10 +867,19 @@ def create_app(
     async def events(request: Request) -> StreamingResponse:
         """Server-sent events: the inbox and the approval log, as they change."""
 
+        async def wait(seconds: float) -> None:
+            """Sleep, but notice a shutdown while we are in it."""
+            slept = 0.0
+            while slept < seconds and not shutting_down():
+                step = min(0.25, seconds - slept)
+                await asyncio.sleep(step)
+                slept += step
+
         async def stream():
             last = None
-            while True:
-                if await request.is_disconnected():
+            deadline = asyncio.get_running_loop().time() + EVENT_STREAM_SECONDS
+            while asyncio.get_running_loop().time() < deadline:
+                if shutting_down() or await request.is_disconnected():
                     break
                 try:
                     project, state = load(request)
@@ -875,7 +892,8 @@ def create_app(
                 if payload != last:
                     last = payload
                     yield f"data: {json.dumps(payload)}\n\n"
-                await asyncio.sleep(2)
+                await wait(EVENT_POLL_SECONDS)
+            # The browser's EventSource reconnects on its own.
 
         return StreamingResponse(stream(), media_type="text/event-stream")
 

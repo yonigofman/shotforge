@@ -37,6 +37,7 @@ from shotforge.skills import find_skill, list_skills
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
 from shotforge.takes import TakeKind, get_take, list_takes
+from shotforge.web import lifecycle
 from shotforge.yamlio import ProjectFileError
 
 app = typer.Typer(
@@ -689,6 +690,7 @@ def serve(
             os.environ["SHOTFORGE_PROJECT"] = str(root)
     address = f"[{host}]" if ":" in host else host
     typer.echo(f"{title} — cockpit on http://{address}:{port}")
+    lifecycle.watch_for_shutdown(uvicorn)
     uvicorn.run(
         "shotforge.web.app:app_from_env" if reload else create_app(root, enforce_local=True),
         host=host,
@@ -697,6 +699,8 @@ def serve(
         factory=reload,
         log_level="info",
         proxy_headers=False,
+        # Ctrl+C must mean Ctrl+C, even with a cockpit tab still open.
+        timeout_graceful_shutdown=5,
     )
 
 
