@@ -68,9 +68,44 @@ function toast(message, level = "") {
   setTimeout(() => node.remove(), 4000);
 }
 
+function setRail(shut) {
+  document.documentElement.dataset.rail = shut ? "shut" : "open";
+  try {
+    localStorage.setItem("shotforge.rail", shut ? "shut" : "open");
+  } catch {}
+  const toggle = document.querySelector("[data-rail-toggle]");
+  if (toggle) {
+    const label = shut ? "Show the rail" : "Collapse the rail";
+    toggle.setAttribute("aria-label", label);
+    toggle.title = `${label}  [`;
+  }
+}
+
+// "g" then a letter jumps to a rail destination; the rail itself carries the
+// letters, so the map is never a second list to keep in step.
+let chord = 0;
+
 document.addEventListener("keydown", (event) => {
   if (event.ctrlKey || event.metaKey || event.altKey || event.target.isContentEditable ||
       event.target.matches("input, textarea, select")) return;
+  if (event.key === "[") {
+    setRail(document.documentElement.dataset.rail !== "shut");
+    return;
+  }
+  if (chord && Date.now() - chord < 1200) {
+    chord = 0;
+    const item = document.querySelector(`.rail-item[data-nav="${CSS.escape(event.key)}"]`);
+    if (item) {
+      event.preventDefault();
+      window.location.href = item.href;
+      return;
+    }
+  }
+  if (event.key === "g") {
+    chord = Date.now();
+    return;
+  }
+  chord = 0;
   if (event.key === "c") {
     const button = document.querySelector("[data-copy-prompt]");
     if (button) button.click();
@@ -149,6 +184,10 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-rail-toggle]")) {
+    setRail(document.documentElement.dataset.rail !== "shut");
+    return;
+  }
   const chooser = event.target.closest("[data-choose-files]");
   if (chooser) chooser.form.querySelector('input[type="file"]').click();
   const button = event.target.closest("[data-copy-image]");

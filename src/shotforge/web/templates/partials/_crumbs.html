@@ -1,0 +1,10 @@
+{#
+  Where you are. Read off the URL, so every screen says it the same way.
+#}
+<nav class="crumbs" aria-label="Breadcrumb">
+  {% for crumb in crumbs %}
+  {%- if crumb.href %}<a href="{{ crumb.href }}">{{ crumb.label }}</a>
+  {%- else %}<span aria-current="page">{{ crumb.label }}</span>{% endif -%}
+  {%- if not loop.last %}<span class="crumb-sep" aria-hidden="true">/</span>{% endif -%}
+  {% endfor %}
+</nav>

@@ -80,23 +80,73 @@ pre,
 
 /* --- shell ------------------------------------------------------------- */
 
-.topbar {
+.skip {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: var(--z-toast);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-overlay);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  font-size: var(--type-ui-size);
+  transform: translateY(-300%);
+}
+
+.skip:focus-visible {
+  transform: none;
+}
+
+:root {
+  --rail: 232px;
+}
+
+html[data-rail="shut"] {
+  --rail: 56px;
+}
+
+.icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  min-height: 100vh;
+  transition: grid-template-columns var(--duration-base) var(--ease-out);
+}
+
+/* --- rail -------------------------------------------------------------- */
+
+.rail {
   position: sticky;
   top: 0;
-  z-index: var(--z-sticky);
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  height: 100vh;
+  padding: var(--space-4) var(--space-3);
+  overflow: hidden;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-line);
+}
+
+.rail-head {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  height: var(--size-topbar-height);
-  padding: 0 var(--space-6);
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-line);
+  gap: var(--space-2);
+  height: var(--size-control-md);
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
+  padding-inline: var(--space-1);
   font-family: var(--font-display);
   font-stretch: 75%;
   font-size: var(--type-title-size);
@@ -110,17 +160,292 @@ pre,
   flex: none;
 }
 
-.topbar nav {
+.brand span {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.rail-toggle {
+  margin-inline-start: auto;
+  width: var(--size-control-sm);
+  min-width: 0;
+  height: var(--size-control-sm);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-subtle);
+}
+
+.rail-toggle:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-ink);
+}
+
+/* The project you are in, and the way out to the others. */
+.switcher {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: var(--space-2_5);
+  padding: var(--space-1_5);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  transition: background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.switcher:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-line-strong);
+  color: var(--color-ink);
+}
+
+.switcher-id {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  background: var(--color-accent-soft);
+  border-radius: var(--radius-sm);
+  color: var(--color-accent-ink);
+  font-size: var(--type-label-size);
+  font-weight: 600;
+}
+
+.switcher-text {
+  min-width: 0;
+}
+
+.switcher-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--type-ui-strong-size);
+  line-height: var(--type-ui-strong-line);
+  font-weight: 500;
+}
+
+.switcher-meta {
+  display: block;
+  color: var(--color-ink-subtle);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-variant-numeric: tabular-nums;
+}
+
+.switcher .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--color-ink-disabled);
+  justify-self: end;
+}
+
+.rail-nav {
   display: flex;
+  flex-direction: column;
   gap: var(--space-4);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rail-label {
+  margin: 0 0 var(--space-1);
+  padding-inline: var(--space-2_5);
+  color: var(--color-ink-disabled);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: var(--type-caption-weight);
+  letter-spacing: var(--type-caption-tracking);
+  text-transform: uppercase;
+}
+
+.rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2_5);
+  height: var(--size-control-md);
+  padding-inline: var(--space-2_5);
+  border-radius: var(--radius-md);
+  color: var(--color-ink-muted);
   font-size: var(--type-ui-size);
   line-height: var(--type-ui-line);
+  white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.rail-item .icon {
+  color: var(--color-ink-disabled);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.rail-item:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-ink);
+}
+
+.rail-item:hover .icon {
   color: var(--color-ink-muted);
 }
 
-.topbar nav a[aria-current="page"] {
+.rail-item[aria-current="page"] {
+  background: var(--color-surface-active);
   color: var(--color-ink);
-  box-shadow: inset 0 -2px 0 var(--color-accent);
+  font-weight: 500;
+}
+
+.rail-item[aria-current="page"] .icon {
+  color: var(--color-accent);
+}
+
+/* The one lit edge in the rail says which page you are on from the corner
+   of the eye, without a second colour anywhere else. */
+.rail-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(-1 * var(--space-3));
+  inset-block: var(--space-1_5);
+  width: 2px;
+  border-start-end-radius: var(--radius-full);
+  border-end-end-radius: var(--radius-full);
+  background: var(--color-accent);
+}
+
+.rail-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rail-foot {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-line);
+}
+
+.rail-item .count {
+  margin-inline-start: auto;
+  padding-inline: var(--space-1_5);
+  min-width: 18px;
+  background: var(--color-accent-soft);
+  border-radius: var(--radius-full);
+  color: var(--color-accent-ink);
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-sm-size);
+  line-height: 18px;
+  text-align: center;
+}
+
+/* Shut: icons only, each one centred, labels and chrome out of the way. */
+html[data-rail="shut"] .rail {
+  padding-inline: var(--space-2);
+}
+
+html[data-rail="shut"] .brand span,
+html[data-rail="shut"] .rail-label,
+html[data-rail="shut"] .rail-text,
+html[data-rail="shut"] .switcher-text,
+html[data-rail="shut"] .switcher .icon,
+html[data-rail="shut"] .rail-item .count {
+  display: none;
+}
+
+html[data-rail="shut"] .rail-head {
+  justify-content: center;
+}
+
+html[data-rail="shut"] .brand {
+  display: none;
+}
+
+html[data-rail="shut"] .rail-toggle {
+  margin-inline-start: 0;
+}
+
+html[data-rail="shut"] .switcher {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  border-color: transparent;
+  background: transparent;
+}
+
+html[data-rail="shut"] .rail-item {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+html[data-rail="shut"] .rail-item[aria-current="page"]::before {
+  inset-inline-start: calc(-1 * var(--space-2));
+}
+
+html[data-rail="shut"] .rail-group {
+  gap: var(--space-0_5);
+}
+
+/* --- workbar ----------------------------------------------------------- */
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.workbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  min-height: var(--size-topbar-height);
+  padding: var(--space-2) var(--space-6);
+  background: color-mix(in srgb, var(--color-canvas) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+  color: var(--color-ink-subtle);
+}
+
+.crumbs a {
+  color: var(--color-ink-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crumbs a:hover {
+  color: var(--color-ink);
+}
+
+.crumbs [aria-current="page"] {
+  color: var(--color-ink);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crumb-sep {
+  color: var(--color-ink-disabled);
 }
 
 .spacer {
@@ -128,39 +453,77 @@ pre,
 }
 
 main {
-  padding: var(--space-6);
-  max-width: 1440px;
+  flex: 1;
+  width: 100%;
+  max-width: 1320px;
   margin: 0 auto;
+  padding: var(--space-6);
 }
 
-@media (max-width: 680px) {
-  .topbar {
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-3);
+/* Narrow windows: the rail lies down across the top. The phone is a later
+   job; this only keeps a small window usable. */
+@media (max-width: 860px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rail {
+    position: static;
     height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
     padding: var(--space-2) var(--space-4);
+    border-right: 0;
+    border-bottom: 1px solid var(--color-line);
+    overflow-x: auto;
   }
 
-  .topbar > .faint:nth-child(2) {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .topbar .spacer {
+  .rail-head .rail-toggle,
+  .rail-label {
     display: none;
   }
 
-  .topbar nav {
-    order: 1;
-    flex-basis: 100%;
-    overflow-x: auto;
+  .switcher {
+    grid-template-columns: 26px minmax(0, 1fr);
+    flex: none;
+    max-width: 180px;
+  }
+
+  .switcher .icon {
+    display: none;
+  }
+
+  .rail-nav {
+    flex-direction: row;
+    gap: var(--space-3);
+    overflow: visible;
+  }
+
+  .rail-group {
+    flex-direction: row;
+    gap: var(--space-1);
+  }
+
+  .rail-item[aria-current="page"]::before {
+    inset: auto var(--space-2_5) 0;
+    width: auto;
+    height: 2px;
+    border-radius: var(--radius-full);
+  }
+
+  .rail-foot {
+    margin: 0;
+    padding: 0;
+    border: 0;
   }
 
   main {
     padding: var(--space-4);
+  }
+
+  .workbar {
+    padding-inline: var(--space-4);
   }
 }
 
@@ -483,7 +846,8 @@ main {
    runs: it sticks to the bottom of the viewport until you reach the end. */
 .gatebar {
   position: fixed;
-  left: 0;
+  left: var(--rail);
+  transition: left var(--duration-base) var(--ease-out);
   right: 0;
   bottom: 0;
   z-index: var(--z-sticky);

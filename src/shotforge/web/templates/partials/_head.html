@@ -3,7 +3,7 @@
 <div id="shot-head" class="stack tight"
      hx-get="{{ shot_url }}/region/head" hx-trigger="head-changed from:body" hx-swap="outerHTML">
   <div class="row">
-    <h1>{{ scene.id }} / {{ shot.id }}</h1>
+    <h1>{{ shot.id }}</h1>
     {{ ui.badge(label) }}
     {% if shot.size %}{{ ui.badge(shot.size) }}{% endif %}
     <span class="faint mono">{{ shot.duration_s | n }}s</span>
@@ -14,7 +14,6 @@
     {% else %}
     {{ ui.pip("active", "active — inbox files here") }}
     {% endif %}
-    {{ ui.link("Storyboard", project_prefix ~ "/scene/" ~ scene.id) }}
   </div>
   <div class="row tight">
     {{ ui.stage_path(stages, stage_index, stage_label,

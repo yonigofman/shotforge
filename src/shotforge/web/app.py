@@ -45,6 +45,7 @@ from shotforge.skills import find_skill, latest_prompt, prompt_history
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
 from shotforge.takes import Take, TakeKind, approved_take_number, get_take, list_takes
+from shotforge.web import shell
 from shotforge.web.bible import materials_for_page, register_bible
 from shotforge.web.edit import register_edit
 from shotforge.web.lifecycle import shutting_down
@@ -205,6 +206,11 @@ def create_app(
         context.setdefault("project_prefix", prefix)
         context.setdefault("media_url", lambda path: f"{prefix}/media/{project.paths.rel(path)}")
         context.setdefault("rel", project.paths.rel)
+        context.setdefault(
+            "nav", shell.navigation(prefix, shell.current_scene(context, project))
+        )
+        context.setdefault("crumbs", shell.crumbs(request.url.path, prefix))
+        context.setdefault("inbox_count", len(inbox_mod.scan(project)))
         return templates.TemplateResponse(request, name, context, status_code=status_code)
 
     def inbox_context(project: Project, state: ProjectState) -> dict[str, Any]:
