@@ -487,11 +487,17 @@ def create_app(
         except ProjectError as exc:
             raise HTTPException(404, str(exc)) from exc
         rows = []
+        earlier = None
         for shot in project.shots(scene_id):
             shot_paths = project.paths.shot(scene_id, shot.id)
+            # The cut into this shot, from whatever the last check left behind.
+            cut = continuity.shot_findings(project, scene, shot, earlier)
+            earlier = shot
             rows.append(
                 {
                     "shot": shot,
+                    "cut": checks.summarise(cut) if cut else None,
+                    "cut_why": " ".join(finding.message for finding in cut),
                     "label": actions.stage_label(shot),
                     "action": next_action(project, state, scene_id, shot.id),
                     "blockout": project.paths.blockout(scene_id, shot.id),

@@ -44,6 +44,11 @@
 <span class="pip {{ level }}">{{ text or level }}</span>
 {%- endmacro %}
 
+{# The same signal with no room for a word: the label goes to the tooltip. #}
+{% macro dot(level, label) -%}
+<span class="pip dot {{ level }}" title="{{ label }}"><span class="sr-only">{{ label }}</span></span>
+{%- endmacro %}
+
 {% macro badge(text, tone="") -%}
 <span class="badge {{ tone }}">{{ text }}</span>
 {%- endmacro %}

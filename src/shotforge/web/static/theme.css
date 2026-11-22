@@ -2043,3 +2043,91 @@ button.rail-item {
 .field-inline input[type="number"] {
   width: 5rem;
 }
+
+/* --- storyboard -------------------------------------------------------- */
+
+.scene-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.scene-summary {
+  max-width: 60ch;
+  text-align: end;
+}
+
+.axis {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.axis-mark {
+  width: var(--space-6);
+  height: 1px;
+  background: repeating-linear-gradient(
+    to right,
+    var(--color-line-strong) 0 4px,
+    transparent 4px 7px
+  );
+}
+
+.board {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  overflow-x: auto;
+  list-style: none;
+}
+
+.board-shot {
+  flex: 0 0 min(340px, 80vw);
+}
+
+.board-shot > .card {
+  height: 100%;
+}
+
+/* The join between two shots, drawn where it happens. */
+.board-cut {
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: var(--space-10);
+}
+
+.board-cut .pip {
+  position: relative;
+  z-index: 1;
+  padding-inline: var(--space-1_5);
+  background: var(--color-canvas);
+}
+
+.pip.dot {
+  gap: 0;
+  padding: var(--space-1_5);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.cut-line {
+  position: absolute;
+  inset-block: var(--space-6);
+  width: 1px;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--color-line-strong) 0 4px,
+    transparent 4px 8px
+  );
+}
