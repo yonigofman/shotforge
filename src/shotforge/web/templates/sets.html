@@ -48,20 +48,37 @@
         </tr>
         {% if row.exists %}
         <tr>
-          <td class="faint">File</td>
-          <td class="mono">{{ rel(row.path) }}</td>
-        </tr>
-        <tr>
-          <td class="faint">Your dressing</td>
-          <td>
-            {% if row.dressing %}kept in the set{% else %}
-            <span class="faint">nothing of yours in it yet — put it in the Dressing collection</span>
-            {% endif %}
-          </td>
+          <td class="faint">Open</td>
+          <td><code>{{ rel(row.path) }}</code></td>
         </tr>
         {% endif %}
       </tbody>
     </table>
+
+    {#
+      The split that decides what survives a render, said on the screen and
+      not only in the code that enforces it.
+    #}
+    <div class="ownership">
+      <section>
+        <h3>Yours to keep</h3>
+        <ul class="plain">
+          <li><code>Dressing</code>{% if row.dressing %} <span class="faint">— has work in it</span>
+            {% elif row.exists %} <span class="faint">— empty so far</span>{% endif %}</li>
+          <li class="faint">any other collection you add</li>
+        </ul>
+      </section>
+      <section>
+        <h3>Shotforge rebuilds</h3>
+        <ul class="plain">
+          {% for name in row.owns %}<li><code>{{ name }}</code></li>{% endfor %}
+        </ul>
+      </section>
+      <p class="faint">
+        Work kept in a collection survives every render. Anything left loose
+        outside one does not.
+      </p>
+    </div>
 
     {% if row.blocked %}
     <p class="muted">

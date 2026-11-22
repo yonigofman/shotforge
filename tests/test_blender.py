@@ -248,3 +248,25 @@ def test_the_cockpit_shows_each_location_set_and_builds_it(example_project, mcp_
     page = client.get("/sets").text
     assert "street" in page and "no scene yet" in page
     assert client.post("/set/street/build").status_code == 400
+
+
+def test_the_cockpit_names_the_same_collections_the_script_builds():
+    """Ownership is a naming convention, so the two spellings must agree.
+
+    The build script runs in Blender's own Python and cannot import this
+    package, so its constants are read out of the source rather than shared.
+    """
+    import ast
+
+    from shotforge import sets
+
+    source = (Path(blender.__file__).parent / "scripts" / "blockout.py").read_text("utf-8")
+    script = {
+        node.targets[0].id: node.value.value
+        for node in ast.parse(source).body
+        if isinstance(node, ast.Assign)
+        and isinstance(node.targets[0], ast.Name)
+        and isinstance(node.value, ast.Constant)
+    }
+    for name in ("SET", "DRESSING", "SCENE_PREFIX", "CAMERA_PREFIX"):
+        assert script[name] == getattr(sets, name), f"{name} differs between the two"

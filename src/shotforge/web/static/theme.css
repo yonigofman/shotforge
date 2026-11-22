@@ -2198,3 +2198,35 @@ button.rail-item {
 .facts td:last-child {
   width: auto;
 }
+
+/* --- what survives a render -------------------------------------------- */
+
+.ownership {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3) var(--space-6);
+  padding: var(--space-4);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+
+.ownership > p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.ownership h3 {
+  margin-bottom: var(--space-2);
+}
+
+ul.plain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1_5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+}

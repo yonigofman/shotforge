@@ -17,6 +17,14 @@ from shotforge.blender.errors import BlockoutError
 from shotforge.blender.spec import set_spec
 from shotforge.project import Project
 
+# The names the build script gives its own collections. They live in Blender's
+# own Python, which cannot import this package, so the two are kept in step by
+# a test rather than by sharing a constant.
+SET = "Shotforge Set"
+DRESSING = "Dressing"
+SCENE_PREFIX = "Shotforge Scene "
+CAMERA_PREFIX = "Shotforge Cameras "
+
 
 @dataclass(frozen=True)
 class SetStatus:
@@ -32,6 +40,15 @@ class SetStatus:
     shots: int
     rendered: int
     error: str | None = None
+
+    @property
+    def owns(self) -> list[str]:
+        """The collections Shotforge rebuilds, and so will throw away."""
+        return [SET, *(
+            prefix + scene_id
+            for scene_id in self.scenes
+            for prefix in (SCENE_PREFIX, CAMERA_PREFIX)
+        )]
 
     @property
     def state(self) -> str:
