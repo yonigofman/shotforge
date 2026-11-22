@@ -1,4 +1,46 @@
 {% import "partials/_macros.html" as ui %}
+{% set shot_url = project_prefix ~ "/shot/" ~ scene.id ~ "/" ~ shot.id %}
+
+{#
+  Frame takes and video takes differ only in what they show and which stage
+  can approve them, so one grid draws both.
+#}
+{% macro take_grid(takes, kind, approved, rejected, verdicts, reports={}) %}
+<div class="takes">
+  {% for take in takes %}
+  {% set is_rejected = take.number in rejected %}
+  {% call ui.take_tile(take, media_url, approved == take.number, is_rejected,
+                       'video' if kind == 'video' else 'image') %}
+    {% if kind == 'frame' and take.number in verdicts %}
+    {{ ui.pip(verdicts[take.number], 'QA ' ~ verdicts[take.number]) }}
+    {% endif %}
+    {% set report = reports.get(take.number) %}
+    {% if report is not none %}
+    <details>
+      <summary>QA · {{ ui.pip(verdicts[take.number]) }}</summary>
+      {% with findings = report, verdict = verdicts[take.number],
+              subject = kind ~ ' v' ~ take.number, fix_take = none, rule_offers = [] %}
+        {% include "partials/_findings.html" %}
+      {% endwith %}
+    </details>
+    {% endif %}
+    <div class="row tight">
+      {% if shot.status.stage.value == kind and not shot.status.is_approved and not is_rejected %}
+      {{ ui.post_button("Approve v" ~ take.number, attrs=card_swap(shot_url ~ "/approve"),
+                        fields={"take": take.number}) }}
+      {% endif %}
+      {{ ui.post_button(
+           "Restore" if is_rejected else "Set aside",
+           attrs=card_swap(shot_url ~ "/take/" ~ kind ~ "/" ~ take.number ~ "/reject"),
+           fields={"restore": "true"} if is_rejected else {},
+           title="Bring it back into the running" if is_rejected
+                 else "Keep the file, stop choosing it") }}
+    </div>
+  {% endcall %}
+  {% endfor %}
+</div>
+{% endmacro %}
+
 <article class="card stack">
   <div class="card-header">
     <h3>Takes</h3>
@@ -7,94 +49,22 @@
   </div>
 
   <form class="dropzone" method="post" enctype="multipart/form-data"
-        action="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/upload"
+        action="{{ shot_url }}/upload"
         data-file-upload="takes" tabindex="0" aria-label="Upload shot takes">
     <input type="file" name="files" accept=".png,.jpg,.jpeg,.webp,.mp4,.mov,.webm,.m4v"
            multiple hidden />
     <div data-upload-controls>
       <p>Drop a frame or clip here, or focus here and paste an image.</p>
-      <button class="quiet" type="button" data-choose-files>Choose files</button>
+      {{ ui.button("Choose files", variant="quiet", attrs={"data-choose-files": "true"}) }}
     </div>
     <span data-upload-status role="status" hidden>Filing takes and running QA…</span>
   </form>
 
   {% if frame_takes %}
-  <div class="takes">
-    {% for take in frame_takes %}
-    {% set is_rejected = take.number in rejected_frames %}
-    <div class="take {% if approved_frame == take.number %}approved{% endif %} {% if is_rejected %}rejected{% endif %}">
-      {{ ui.media(take.path, media_url, 'v' ~ take.number ~ (' · approved' if approved_frame == take.number else '')) }}
-      {% if take.number in frame_verdicts %}
-      {{ ui.pip(frame_verdicts[take.number], 'QA ' ~ frame_verdicts[take.number]) }}
-      {% endif %}
-      <div class="row" style="gap:var(--space-2);margin-top:var(--space-2)">
-        {% if shot.status.stage.value == 'frame' and not shot.status.is_approved and not is_rejected %}
-        <form
-          hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/approve"
-          hx-target="#shot-card"
-          hx-swap="outerHTML"
-        >
-          <input type="hidden" name="take" value="{{ take.number }}" />
-          <button class="quiet" type="submit">Approve v{{ take.number }}</button>
-        </form>
-        {% endif %}
-        <form
-          hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/take/frame/{{ take.number }}/reject"
-          hx-target="#shot-card"
-          hx-swap="outerHTML"
-        >
-          {% if is_rejected %}<input type="hidden" name="restore" value="true" />{% endif %}
-          <button class="quiet" type="submit"
-                  title="{% if is_rejected %}Bring it back into the running{% else %}Keep the file, stop choosing it{% endif %}">
-            {% if is_rejected %}Restore{% else %}Set aside{% endif %}
-          </button>
-        </form>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
+  {{ take_grid(frame_takes, 'frame', approved_frame, rejected_frames, frame_verdicts) }}
   {% endif %}
 
   {% if video_takes %}
-  <div class="takes">
-    {% for take in video_takes %}
-    {% set is_rejected = take.number in rejected_videos %}
-    <div class="take {% if approved_video == take.number %}approved{% endif %} {% if is_rejected %}rejected{% endif %}">
-      {{ ui.media(take.path, media_url, 'v' ~ take.number ~ (' · approved' if approved_video == take.number else ''), 'video') }}
-      {% set report = video_reports.get(take.number) %}
-      {% if report is not none %}
-      <details>
-        <summary>QA · {{ ui.pip(video_verdicts[take.number]) }}</summary>
-        {% with findings = report, verdict = video_verdicts[take.number], subject = 'video v' ~ take.number, fix_take = none, rule_offers = [] %}
-          {% include "partials/_findings.html" %}
-        {% endwith %}
-      </details>
-      {% endif %}
-      <div class="row" style="gap:var(--space-2);margin-top:var(--space-2)">
-        {% if shot.status.stage.value == 'video' and not shot.status.is_approved and not is_rejected %}
-        <form
-          hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/approve"
-          hx-target="#shot-card"
-          hx-swap="outerHTML"
-        >
-          <input type="hidden" name="take" value="{{ take.number }}" />
-          <button class="quiet" type="submit">Approve v{{ take.number }}</button>
-        </form>
-        {% endif %}
-        <form
-          hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/take/video/{{ take.number }}/reject"
-          hx-target="#shot-card"
-          hx-swap="outerHTML"
-        >
-          {% if is_rejected %}<input type="hidden" name="restore" value="true" />{% endif %}
-          <button class="quiet" type="submit"
-                  title="{% if is_rejected %}Bring it back into the running{% else %}Keep the file, stop choosing it{% endif %}">
-            {% if is_rejected %}Restore{% else %}Set aside{% endif %}
-          </button>
-        </form>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
+  {{ take_grid(video_takes, 'video', approved_video, rejected_videos, video_verdicts, video_reports) }}
   {% endif %}
 </article>

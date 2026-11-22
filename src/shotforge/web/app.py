@@ -56,6 +56,16 @@ from shotforge.yamlio import ProjectFileError
 HERE = Path(__file__).resolve().parent
 
 
+def _hx(**parts: object) -> dict[str, object]:
+    """``hx(post=url, target="#takes")`` → the hx- attributes for a component."""
+    return {f"hx-{name.replace('_', '-')}": value for name, value in parts.items()}
+
+
+def _card_swap(url: str, method: str = "post") -> dict[str, object]:
+    """The commonest one: act, then redraw the shot card."""
+    return {f"hx-{method}": url, "hx-target": "#shot-card", "hx-swap": "outerHTML"}
+
+
 def _number(value: float | int) -> str:
     """15 rather than 15.0 — the same spelling as in the prompts."""
     number = float(value)
@@ -140,6 +150,8 @@ def create_app(
     routes = APIRouter()
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     templates.env.filters["n"] = _number
+    templates.env.globals["hx"] = _hx
+    templates.env.globals["card_swap"] = _card_swap
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     register_projects(app, registry, templates, project_root)
     drafts: OrderedDict[str, BreakdownDraft] = OrderedDict()

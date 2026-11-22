@@ -1,3 +1,4 @@
+{% import "partials/_macros.html" as ui %}
 {% macro provenance(record) %}
   {% for label, notes in [("From the book", record.from_book), ("Design choices", record.design_choices)] %}
     {% if notes %}
@@ -102,7 +103,7 @@
   </datalist>
   {% if draft.plan.files %}
   <div class="row">
-    <button class="primary" type="submit">Approve and save</button>
+    {{ ui.button("Approve and save", variant="primary", type="submit") }}
     <span class="muted">New shots enter Breakdown.</span>
   </div>
   {% endif %}
@@ -111,6 +112,6 @@
 <form method="post" action="{{ project_prefix }}/breakdown/propose"
       data-stream-target="breakdown-proposal">
   <input type="hidden" name="chapter" value="{{ source.name }}">
-  <button class="primary" type="submit">Generate proposal</button>
+  {{ ui.button("Generate proposal", variant="primary", type="submit") }}
 </form>
 {% endif %}

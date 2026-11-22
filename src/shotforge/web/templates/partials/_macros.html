@@ -1,30 +1,147 @@
+{#
+  The cockpit's components. Every control on every screen comes from here, so
+  a button, a gate or a take tile looks and behaves the same wherever it is.
+  Nothing in a template should carry a `style=` attribute or hand-roll a
+  control — use these, and the utility classes in theme.css.
+#}
+
+{%- macro _attrs(items) -%}
+{%- for name, value in items.items() -%}
+{%- if value is not none and value is not false %} {{ name }}="{{ value }}"{% endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+
+{# --- controls ------------------------------------------------------- #}
+
+{% macro button(label, variant="", type="button", attrs={}, kbd=none, title=none,
+                disabled=false, spinner=false) -%}
+<button class="{{ variant }}" type="{{ type }}"
+  {{- _attrs(attrs) }}{% if title %} title="{{ title }}"{% endif %}{% if disabled %} disabled{% endif %}>
+  {{- label }}{% if kbd %} <kbd>{{ kbd }}</kbd>{% endif %}{% if spinner %} <span class="spinner">…</span>{% endif %}
+</button>
+{%- endmacro %}
+
+{% macro link(label, href, variant="quiet", title=none, target=none) -%}
+<a class="button {{ variant }}" href="{{ href }}"
+  {%- if title %} title="{{ title }}"{% endif %}
+  {%- if target %} target="{{ target }}"{% endif %}>{{ label }}</a>
+{%- endmacro %}
+
+{# A one-field form whose only job is to post something. #}
+{% macro post_button(label, attrs, fields={}, variant="quiet", title=none, type="submit",
+                     disabled=false, spinner=false) -%}
+<form class="inline"{{ _attrs(attrs) }}>
+  {% for name, value in fields.items() %}
+  <input type="hidden" name="{{ name }}" value="{{ value }}" />
+  {% endfor %}
+  {{ button(label, variant=variant, type=type, title=title, disabled=disabled, spinner=spinner) }}
+</form>
+{%- endmacro %}
+
+{# --- status --------------------------------------------------------- #}
+
 {% macro pip(level, text) -%}
 <span class="pip {{ level }}">{{ text or level }}</span>
 {%- endmacro %}
 
-{% macro progress(stage_index) -%}
-<div class="progress" aria-hidden="true">
+{% macro badge(text, tone="") -%}
+<span class="badge {{ tone }}">{{ text }}</span>
+{%- endmacro %}
+
+{% macro progress(stage_index, label=none) -%}
+<div class="progress" role="img" aria-label="{{ label or 'Stage ' ~ (stage_index // 2 + 1) ~ ' of 4' }}">
   {% for step in range(4) %}
-  <span
-    class="step {% if stage_index // 2 > step %}done{% elif stage_index // 2 == step %}current{% endif %}"
-  ></span>
+  <span class="step {% if stage_index // 2 > step %}done{% elif stage_index // 2 == step %}current{% endif %}"></span>
   {% endfor %}
 </div>
 {%- endmacro %}
 
-{% macro media(path, media_url, caption, kind='image') -%}
+{# --- media ---------------------------------------------------------- #}
+
+{% macro media(path, media_url, caption, kind='image', bust=false) -%}
 {% if path and path.is_file() %}
-<figure class="frame" style="margin:0">
+<figure class="frame">
   {% if kind == 'video' %}
   <video src="{{ media_url(path) }}" controls preload="metadata"></video>
   {% else %}
-  <img src="{{ media_url(path) }}" alt="{{ caption }}" loading="lazy" />
+  <img src="{{ media_url(path) }}{% if bust %}?v={{ path.stat().st_mtime_ns }}{% endif %}"
+       alt="{{ caption }}" loading="lazy" />
   {% endif %}
   {% if caption %}<figcaption>{{ caption }}</figcaption>{% endif %}
 </figure>
 {% else %}
-<div class="frame" style="padding:var(--space-6);text-align:center">
+<div class="frame frame-empty">
   <span class="faint">{{ caption }} — not yet</span>
 </div>
 {% endif %}
+{%- endmacro %}
+
+{# --- blocks --------------------------------------------------------- #}
+
+{% macro empty_state(message, hint=none) -%}
+<p class="faint">{{ message }}{% if hint %} {{ hint }}{% endif %}</p>
+{%- endmacro %}
+
+{% macro prompt_block(text, saved_as=none, id="prompt-text") -%}
+<div class="prompt" id="{{ id }}">{{ text }}</div>
+{% if saved_as %}<span class="faint">saved as {{ saved_as }}</span>{% endif %}
+{%- endmacro %}
+
+{% macro reasons(items, level='warn', label='waiting') -%}
+{% if items %}
+<ul class="findings">
+  {% for item in items %}
+  <li>{{ pip(level, label) }}<span>{{ item }}</span></li>
+  {% endfor %}
+</ul>
+{% endif %}
+{%- endmacro %}
+
+{% macro attachment_list(attachments, media_url, rel) -%}
+<ul class="attachments">
+  {% for attachment in attachments %}
+  <li>
+    <span class="order">{{ attachment.order }}.</span>
+    <span class="attachment-description">
+      {{ attachment.label }}
+      <br />
+      {% if attachment.exists %}
+      <a class="mono faint" href="{{ media_url(attachment.path) }}" target="_blank">{{ rel(attachment.path) }}</a>
+      {% else %}
+      <span class="mono missing">{{ rel(attachment.path) }} — missing</span>
+      {% endif %}
+    </span>
+    {% if attachment.exists and attachment.is_image %}
+    {{ button("Copy image", variant="quiet",
+              attrs={"data-copy-image": media_url(attachment.path),
+                     "aria-label": "Copy image for " ~ attachment.label}) }}
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{%- endmacro %}
+
+{# The approval gate: a note for the log, and the one primary action. #}
+{% macro gate(label, attrs, ready=true, kbd='a', note_placeholder='Note for the log (optional)') -%}
+<form class="gate"{{ _attrs(attrs) }}>
+  <input class="grow" type="text" name="note" placeholder="{{ note_placeholder }}" />
+  {{ button(label, variant="primary", type="submit", kbd=kbd, disabled=not ready,
+            attrs={"data-approve": "true"}) }}
+  {{ caller() if caller else "" }}
+</form>
+{%- endmacro %}
+
+{# Alpine owns the label, so the copy control lives here too. #}
+{% macro copy_button(target, idle='Copy prompt', kbd='c') -%}
+<button data-copy-prompt @click="copy('{{ target }}')">
+  <span x-text="copied ? 'Copied' : '{{ idle }}'">{{ idle }}</span>{% if kbd %} <kbd>{{ kbd }}</kbd>{% endif %}
+</button>
+{%- endmacro %}
+
+{% macro take_tile(take, media_url, approved=false, rejected=false, kind='image') -%}
+<div class="take {% if approved %}approved{% endif %} {% if rejected %}rejected{% endif %}">
+  {{ media(take.path, media_url,
+           'v' ~ take.number ~ (' · approved' if approved else ''), kind) }}
+  {{ caller() if caller else "" }}
+</div>
 {%- endmacro %}

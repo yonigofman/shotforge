@@ -266,6 +266,42 @@ main {
   resize: vertical;
 }
 
+/* --- utilities ---------------------------------------------------------
+   The few layout needs that recur. A template should reach for one of these
+   rather than carry a style attribute of its own. */
+
+.grow {
+  flex: 1;
+}
+
+.inline {
+  display: inline;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.right {
+  text-align: right;
+}
+
+.tight {
+  gap: var(--space-2);
+}
+
+.gap-3 {
+  gap: var(--space-3);
+}
+
+/* Two panes of equal width that stay side by side: a cut, a comparison. */
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
 /* --- surfaces ---------------------------------------------------------- */
 
 .card {
@@ -540,6 +576,15 @@ kbd {
 }
 
 /* --- media: neutral ground only ---------------------------------------- */
+
+figure.frame {
+  margin: 0;
+}
+
+.frame-empty {
+  padding: var(--space-6);
+  text-align: center;
+}
 
 .frame {
   background: var(--color-surface-neutral);

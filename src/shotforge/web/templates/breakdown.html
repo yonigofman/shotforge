@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "partials/_macros.html" as ui %}
 {% block title %}Breakdown — {{ project.name }}{% endblock %}
 
 {% import "partials/_stream_loading.html" as stream %}
@@ -17,7 +18,7 @@
           <option value="{{ name }}" {% if name == selected %}selected{% endif %}>{{ name }}</option>
           {% endfor %}
         </select>
-        <button type="submit">Open chapter</button>
+        {{ ui.button("Open chapter", type="submit") }}
       </form>
       {% else %}
       <p class="muted">Add a chapter file to <code>00_source/</code> to get started.</p>

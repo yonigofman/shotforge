@@ -1,3 +1,4 @@
+{% import "partials/_macros.html" as ui %}
 <div class="card">
   {% if material_error %}<p class="muted" role="alert">{{ material_error }}</p>{% endif %}
   {% if not inbox %}
@@ -11,21 +12,13 @@
       <tr>
         <td class="mono">{{ item.name }}</td>
         <td class="faint">{{ item.filed_as }} · {{ item.size_kb }} KB</td>
-        <td style="text-align:right">
+        <td class="right">
           {% if active %}
-          <form
-            hx-post="{{ project_prefix }}/inbox/file"
-            hx-target="#inbox"
-            hx-swap="innerHTML"
-            style="display:inline"
-          >
-            <input type="hidden" name="name" value="{{ item.name }}" />
-            <input type="hidden" name="scene" value="{{ active[0] }}" />
-            <input type="hidden" name="shot" value="{{ active[1] }}" />
-            <button type="submit" {% if not item.kind %}disabled{% endif %}>
-              File to {{ active[1] }}
-            </button>
-          </form>
+          {{ ui.post_button("File to " ~ active[1], variant="",
+                            attrs=hx(post=project_prefix ~ "/inbox/file", target="#inbox",
+                                     swap="innerHTML"),
+                            fields={"name": item.name, "scene": active[0], "shot": active[1]},
+                            disabled=not item.kind) }}
           {% elif not texture_targets or item.path.suffix | lower != '.png' %}
           <span class="faint">open a shot card first</span>
           {% endif %}
@@ -37,7 +30,7 @@
               <option value="{{ texture }}">{{ texture }}</option>
               {% endfor %}
             </select>
-            <button type="submit">File as texture</button>
+            {{ ui.button("File as texture", type="submit") }}
           </form>
           {% endif %}
         </td>
