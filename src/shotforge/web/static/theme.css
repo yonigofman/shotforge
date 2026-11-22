@@ -282,7 +282,7 @@ html[data-rail="shut"] {
 .rail-label {
   margin: 0 0 var(--space-1);
   padding-inline: var(--space-2_5);
-  color: var(--color-ink-disabled);
+  color: var(--color-ink-subtle);
   font-size: var(--type-caption-size);
   line-height: var(--type-caption-line);
   font-weight: var(--type-caption-weight);
