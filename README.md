@@ -23,13 +23,14 @@ being written by hand.
 | Code-level QA: aspect ratio, clip duration, camera motion, speech timing, cut continuity | done |
 | Visual continuity across approved cuts via Claude Code | done |
 | Last-frame extraction feeding the next shot | done |
-| Cockpit: Scenes, Storyboard, Shot card, Takes, Bible, Skills, Log | done |
+| Cockpit: Scenes, Breakdown, Storyboard, Shot card, Takes, Bible, Skills, Log | done |
 | Engine layer (`Engine.run_skill`) with a Claude Code implementation | done |
 | Blender blockout with named shot cameras and a 180° axis check | done |
 | Per-character masks and automatic face crops | done |
 | Video vision QA: unplanned lens contact in sampled frames | done |
 | Frame vision QA (identity, eyeline, continuity, AI look) | done |
-| Breakdown, design and cinematography skills | not yet (Phase 4) |
+| Chapter breakdown and scene-to-shots skills | done |
+| Design and cinematography skills | not yet (Phase 4) |
 | Rough cut and assembly | not yet (Phase 5) |
 
 ## Install
@@ -59,12 +60,8 @@ shotforge new "My film"
 cd my_film
 ```
 
-Fill `01_bible/style.yaml` and add a character, a location and a scene (copy the
-shapes from `examples/ulybka_vavilony/`), then:
-
-```bash
-shotforge validate
-```
+Put your chapter in `00_source/ch01.md` and fill in `01_bible/style.yaml`. Then
+start the cockpit.
 
 ```bash
 shotforge serve
@@ -72,6 +69,28 @@ shotforge serve
 
 The cockpit opens on `http://127.0.0.1:8765`. Everything it does is available in
 the terminal too, so a scene never depends on a browser being open.
+
+## Start from a chapter
+
+Put the chapter text in `00_source/` as Markdown or plain text. With Claude
+Code signed in, open **Breakdown** in the cockpit, choose the chapter and
+generate a proposal. Read the chapter alongside the proposed scenes, bible
+entries and shots. Edit the timed beats in place, then use **Approve and save**
+to create the reviewed files.
+
+From the terminal, run the two steps separately. Use the scene ID shown in the
+first diff for the second command.
+
+```bash
+shotforge breakdown ch01
+shotforge shots s02_waiting_room
+```
+
+Both commands show a YAML diff and ask before saving. Existing IDs are listed
+as collisions and skipped. Generated scenes remember their chapter. For a
+hand-written scene in a project with multiple chapters, use
+`shotforge shots s02_waiting_room --chapter ch01`. New shots start in
+`breakdown` and follow the usual approval workflow.
 
 ## How a shot moves
 

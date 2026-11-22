@@ -70,7 +70,7 @@ class FramedCharacter(SFModel):
 class Beat(SFModel):
     """A slice of the shot's timeline: an action, a line, or a deliberate silence."""
 
-    t: tuple[float, float]
+    t: tuple[FiniteFloat, FiniteFloat]
     action: str | None = None
     speaker: str | None = None
     line: str | None = None
@@ -131,7 +131,7 @@ class Sound(SFModel):
 
 class Shot(SFModel):
     id: str
-    duration_s: float
+    duration_s: FiniteFloat
     size: str | None = None
     summary: str | None = None
     camera: Camera = Camera()
