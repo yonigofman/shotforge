@@ -14,6 +14,7 @@ something to render. Replace it with the real design before using it for a film.
 The pub includes a generated example location sheet and a plaster texture
 derived from its swatch. The sheet illustrates the written design for this
 sample project. Use your own approved location sheet for production.
+In a Git checkout, use `git lfs pull` to download the example images.
 Generate all three blockout PNGs and a shared Blender scene with the
 blockout command below. Character sheets and references can be added during
 production.
