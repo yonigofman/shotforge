@@ -121,6 +121,11 @@ html[data-rail="shut"] {
   --rail: 56px;
 }
 
+.shell.no-rail {
+  --rail: 0px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .icon {
   flex: none;
   width: 16px;
@@ -414,6 +419,10 @@ html[data-rail="shut"] .rail-group {
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+
+.workbar .brand {
+  font-size: var(--type-title-size);
 }
 
 .workbar {
@@ -1922,4 +1931,15 @@ button.rail-item {
   color: var(--color-ink-muted);
   font-size: var(--type-ui-size);
   line-height: var(--type-ui-line);
+}
+
+/* A project whose folder is gone: still listed, plainly not openable. */
+.gone strong,
+.gone .mono {
+  color: var(--color-ink-disabled);
+}
+
+/* Anchors land below the bar, not under it. */
+[id] {
+  scroll-margin-top: calc(var(--size-topbar-height) + var(--space-4));
 }
