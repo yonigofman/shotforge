@@ -10,9 +10,11 @@ import asyncio
 import json
 import os
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -27,7 +29,7 @@ from shotforge.project import Project, ProjectError
 from shotforge.skills import find_skill, latest_prompt
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
-from shotforge.takes import Take, TakeKind, add_take, approved_take_number, get_take, list_takes
+from shotforge.takes import Take, TakeKind, approved_take_number, get_take, list_takes
 from shotforge.yamlio import ProjectFileError
 
 HERE = Path(__file__).resolve().parent
@@ -94,19 +96,31 @@ def create_app(project_root: Path) -> FastAPI:
         )
         frame_takes = list_takes(shot_paths, TakeKind.frame)
         video_takes = list_takes(shot_paths, TakeKind.video)
-        use_video = bool(video_takes) and (
-            not frame_takes or shot.status.stage in (Stage.video, Stage.done)
-        )
-        takes = video_takes if use_video else frame_takes
-        latest = takes[-1] if takes else None
-        report = checks.read_report(latest.qa_report(shot_paths)) if latest else None
-        qa = (
-            _qa_context(latest, report)
-            if latest and report is not None
-            else {"findings": checks.check_spec(project, scene_id, shot)}
-        )
         scene = project.scene(scene_id)
         previous = project.previous_shot(scene_id, shot_id)
+        frame_reports = {
+            take.number: report
+            for take in frame_takes
+            if (report := actions.read_qa_report(take.qa_report(shot_paths))) is not None
+        }
+        video_reports = {
+            take.number: report
+            for take in video_takes
+            if (report := actions.read_qa_report(take.qa_report(shot_paths))) is not None
+        }
+        qa_takes = video_takes or frame_takes
+        if frame_takes and shot.status.stage is Stage.frame:
+            qa_takes = frame_takes
+        report_context = {}
+        if qa_takes:
+            latest = qa_takes[-1]
+            report_context["qa_kind"] = latest.kind.value
+            reports = frame_reports if latest.kind is TakeKind.frame else video_reports
+            report = reports.get(latest.number)
+            if report is not None:
+                report_context.update(_qa_context(latest, report))
+        if "findings" not in report_context:
+            report_context["findings"] = checks.check_spec(project, scene_id, shot)
         return {
             "request": request,
             "project": project,
@@ -120,17 +134,19 @@ def create_app(project_root: Path) -> FastAPI:
             "prompt_text": prompt_path.read_text(encoding="utf-8") if prompt_path else None,
             "prompt_path": prompt_path,
             "frame_takes": frame_takes,
+            "frame_verdicts": {n: checks.summarise(report) for n, report in frame_reports.items()},
             "video_takes": video_takes,
-            "qa_kind": "video" if use_video else "frame",
+            "video_reports": video_reports,
+            "video_verdicts": {n: checks.summarise(report) for n, report in video_reports.items()},
             "approved_frame": approved_take_number(shot_paths, TakeKind.frame),
             "approved_video": approved_take_number(shot_paths, TakeKind.video),
-            **qa,
             "rule_offers": fixes.rule_offers(project, state, scene_id, shot),
             "cut_findings": continuity.shot_findings(project, scene, shot, previous),
             "previous": previous,
             "active": state.active == (scene_id, shot_id),
             "stage_label": STAGE_LABEL,
             "label": actions.stage_label(shot),
+            **report_context,
         }
 
     # ---- pages -----------------------------------------------------------
@@ -291,7 +307,7 @@ def create_app(project_root: Path) -> FastAPI:
             source = get_take(shot_paths, TakeKind.frame, take)
         except (FileNotFoundError, ValueError, SkillError) as exc:
             raise HTTPException(400, str(exc)) from exc
-        report = checks.read_report(source.qa_report(shot_paths))
+        report = actions.read_qa_report(source.qa_report(shot_paths))
         if report is not None:
             context.update(_qa_context(source, report))
         return render(request, "partials/_card.html", context)
@@ -377,16 +393,17 @@ def create_app(project_root: Path) -> FastAPI:
         shot_id: str,
         kind: TakeKind = Form(TakeKind.frame),
         take: int | None = Form(None),
+        vision: bool | None = Form(None),
     ) -> HTMLResponse:
         project, state = load()
         number = take if take is not None else _latest(project, scene_id, shot_id, kind)
         try:
-            findings = actions.run_qa(project, scene_id, shot_id, kind, number)
+            findings = actions.run_qa(project, scene_id, shot_id, kind, number, vision=vision)
             source = get_take(project.paths.shot(scene_id, shot_id), kind, number)
         except FileNotFoundError as exc:
             raise HTTPException(400, str(exc)) from exc
         shot = project.shot(scene_id, shot_id)
-        return render(
+        response = render(
             request,
             "partials/_findings.html",
             {
@@ -397,6 +414,9 @@ def create_app(project_root: Path) -> FastAPI:
                 "rule_offers": fixes.rule_offers(project, state, scene_id, shot),
             },
         )
+        if take is None:
+            response.headers["HX-Trigger-After-Swap"] = "card-changed"
+        return response
 
     @app.post("/shot/{scene_id}/{shot_id}/active", response_class=HTMLResponse)
     def set_active(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
@@ -415,15 +435,17 @@ def create_app(project_root: Path) -> FastAPI:
             raise HTTPException(404, f"no shot {shot_id} in {scene_id}")
         staging = project.paths.inbox
         staging.mkdir(parents=True, exist_ok=True)
-        for upload_file in files:
-            name = Path(upload_file.filename or "upload.bin").name
-            temporary = staging / name
-            temporary.write_bytes(await upload_file.read())
-            kind = inbox_mod.classify(temporary)
-            if kind is None:
-                temporary.unlink(missing_ok=True)
-                raise HTTPException(400, f"{name} is not an image or a video Shotforge files")
-            add_take(shot_paths, kind, temporary, move=True)
+        with TemporaryDirectory(dir=staging, prefix=".upload-") as folder:
+            for upload_file in files:
+                name = Path(upload_file.filename or "upload.bin").name
+                temporary = Path(folder) / name
+                kind = inbox_mod.classify(temporary)
+                if kind is None:
+                    raise HTTPException(400, f"{name} is not an image or a video Shotforge files")
+                temporary.write_bytes(await upload_file.read())
+                await run_in_threadpool(
+                    inbox_mod.file_to_shot, project, temporary, scene_id, shot_id, kind
+                )
         context = shot_card_context(request, scene_id, shot_id)
         return render(request, "partials/_takes.html", context)
 

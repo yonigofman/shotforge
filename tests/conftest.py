@@ -66,9 +66,10 @@ def mp4(tmp_path):
 
 
 @pytest.fixture
-def project(tmp_path) -> Project:
+def project(tmp_path, monkeypatch) -> Project:
     """A two-shot scene with the files the frame stage attaches."""
     project = Project.create(tmp_path / "proj", name="Test film", language="ru")
+    monkeypatch.setenv("SHOTFORGE_CLAUDE", str(tmp_path / "missing-claude"))
     paths = project.paths
     project.save_entity("character", Character(id="dima", tag="@Dima"))
     project.save_entity("character", Character(id="durik", tag="@Durik"))

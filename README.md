@@ -20,14 +20,15 @@ being written by hand.
 | Numbered takes, approval copying to the fixed name, approval log | done |
 | `_inbox` routing, drag-and-drop onto the shot card | done |
 | Prompt skills: `chatgpt-first-frame`, `chatgpt-identity-pass`, `grok-video` | done |
-| Code-level QA: aspect ratio, clip duration, continuity between cuts | done |
+| Code-level QA: aspect ratio, clip duration, camera motion, speech timing, cut continuity | done |
 | Visual continuity across approved cuts via Claude Code | done |
 | Last-frame extraction feeding the next shot | done |
 | Cockpit: Scenes, Storyboard, Shot card, Takes, Bible, Skills, Log | done |
 | Engine layer (`Engine.run_skill`) with a Claude Code implementation | done |
 | Blender blockout with named shot cameras and a 180° axis check | done |
 | Per-character masks and automatic face crops | done |
-| Vision QA (identity, eyeline, AI look) | not yet (Phase 3) |
+| Video vision QA: unplanned lens contact in sampled frames | done |
+| Frame vision QA (identity, eyeline, continuity, AI look) | done |
 | Breakdown, design and cinematography skills | not yet (Phase 4) |
 | Rough cut and assembly | not yet (Phase 5) |
 
@@ -100,13 +101,32 @@ shotforge approve s01_pub sh07                       # blockout
 shotforge begin   s01_pub sh07                       # → frame
 shotforge prompt  s01_pub sh07                       # pass 1 prompt, saved next to the shot
 shotforge inbox file chatgpt_result.png              # becomes frames/first_v1.png
-shotforge qa      s01_pub sh07 --kind frame
+shotforge qa      s01_pub sh07 --kind frame          # rerun the report if needed
 shotforge approve s01_pub sh07 --take 1              # copies to frames/first.png
 shotforge begin   s01_pub sh07                       # → video
 shotforge prompt  s01_pub sh07                       # Grok prompt with timecodes
 shotforge inbox file grok_result.mp4                 # becomes video/v1.mp4
 shotforge approve s01_pub sh07                       # → video/shot.mp4 + last_frame.png
 ```
+
+## Review a video take
+
+Install the optional video QA dependencies with `uv pip install -e ".[qa]"`.
+Filing a clip through the inbox or uploading it on the shot card runs QA and
+saves the findings to `qa/video_v<n>.json`. Open the QA details beneath the
+video take in the cockpit, or rerun the checks from the terminal.
+
+```bash
+shotforge qa s01_pub sh07 --kind video --take 1
+shotforge qa s01_pub sh07 --kind video --take 1 --no-vision
+```
+
+Motion QA estimates how far the background moves as a percentage of frame
+width and flags movement of 4% or more on a locked-off shot.
+Speech QA looks for likely speech during beats marked `silence: true`
+and at the end of the clip. Eyeline QA asks Claude Code to review around 12
+frames for unplanned looks into the lens. Missing dependencies appear as
+warnings in the report.
 
 ## Render a scene in Blender
 
@@ -200,6 +220,22 @@ actually went wrong in scene 1:
 
 QA advises; the approval is always yours. Sometimes a `warn` you accept beats
 risking a face that is already locked.
+
+### Frame QA
+
+Filing a frame through the inbox or dropping it on a shot card runs frame QA
+and saves `qa/frame_v<n>.json`. The shot card shows the saved verdict and
+findings. Vision QA uses Claude Code and compares the take with available face
+crops, the Blender blockout, the location reference, and the cut from the
+previous shot. Missing references or an unavailable Claude session can show up
+as warnings. [Frame QA skill](skills/frame-qa/SKILL.md)
+
+Set `vision_qa: false` in `project.yaml` to keep frame and video QA local by default.
+To override that setting for one run, pass `--vision` or `--no-vision` to
+`shotforge qa` or `shotforge inbox file`. Rerunning QA replaces that take's
+report with the checks for the selected mode.
+
+### Cut continuity
 
 Run `shotforge continuity s01_pub` or click **Run continuity check** on the
 storyboard to review gaze, hands and gestures, props, seating and the 180° side.

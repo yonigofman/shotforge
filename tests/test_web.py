@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import re
 import shutil
+from dataclasses import asdict
 
 import pytest
 from fastapi.testclient import TestClient
 
-from shotforge import actions, checks
+from shotforge import actions, checks, frame_qa
+from shotforge.engine import EngineResult
 from shotforge.models.shot import FramedCharacter
 from shotforge.pipeline import approve
 from shotforge.skills import find_skill
@@ -85,6 +88,32 @@ def test_uploading_a_frame_files_it_as_a_take(client, project, state, png):
     assert "v1" in response.text
 
 
+def test_upload_shows_the_saved_vision_failure_and_allows_approval(
+    client, project, state, png, monkeypatch
+):
+    class VisionEngine:
+        def run_skill(self, skill, inputs, *, cwd, files):
+            return EngineResult(
+                text='{"findings":[{"check":"eyeline","level":"fail",'
+                     '"message":"Dima looks into the lens."}]}'
+            )
+
+    monkeypatch.setattr(frame_qa, "get_engine", lambda name: VisionEngine())
+    _to_frame_stage(project, state)
+    url = "/shot/s01_pub/sh01"
+    response = client.post(
+        f"{url}/upload", files={"files": ("drop.png", png().read_bytes(), "image/png")}
+    )
+    assert response.status_code == 200
+    assert "QA fail" in response.text
+    card = client.get(f"{url}/card").text
+    assert "frame v1" in card
+    assert "Dima looks into the lens." in card
+    assert "disabled" not in re.search(r"<button[^>]*data-approve[^>]*>", card)[0]
+    assert client.post(f"{url}/approve", data={"take": 1}).status_code == 200
+    assert project.shot("s01_pub", "sh01").status.value == "frame_approved"
+
+
 def test_uploading_something_else_is_refused(client, project, state):
     _to_frame_stage(project, state)
     response = client.post(
@@ -93,6 +122,17 @@ def test_uploading_something_else_is_refused(client, project, state):
     )
     assert response.status_code == 400
     assert not list(project.paths.inbox.glob("notes.txt"))
+
+
+def test_uploading_a_video_runs_qa_and_shows_its_report(client, project, mp4):
+    clip = mp4(seconds=10)
+    response = client.post(
+        "/shot/s01_pub/sh01/upload",
+        files={"files": ("drop.mp4", clip.read_bytes(), "video/mp4")},
+    )
+    assert response.status_code == 200
+    assert (project.paths.shot("s01_pub", "sh01").qa / "video_v1.json").is_file()
+    assert "10.0s against 10.0s in the spec" in response.text
 
 
 def test_filing_from_the_inbox_needs_an_active_shot(client, project, png):
@@ -144,12 +184,20 @@ def test_identity_fix_and_explicit_rule_promotion(client, project, state, png, m
     original_rules = skill.rules()
     correction = "Match Dima's age to the reference."
     failure = checks.Finding(
-        "identity", checks.FAIL, "Dima looks too old next to Durik.", correction
+        "identity", checks.FAIL, "Dima looks too old next to Durik.", correction, target="dima"
     )
-    monkeypatch.setattr(checks, "check_frame_file", lambda *_: [failure])
+    vision_finding = failure
+
+    class VisionEngine:
+        def run_skill(self, skill, inputs, *, cwd, files):
+            return EngineResult(text="", data={"parsed": {"findings": [asdict(vision_finding)]}})
+
+    monkeypatch.setattr(frame_qa, "get_engine", lambda _: VisionEngine())
     frame = png()
-    add_take(shot_paths, TakeKind.frame, frame)
-    report = client.post(f"{url}/qa")
+    upload = {"files": ("frame.png", frame.read_bytes(), "image/png")}
+    filed = client.post(f"{url}/upload", files=upload)
+    assert filed.status_code == 200 and "QA fail" in filed.text
+    report = client.post(f"{url}/qa", data={"vision": "true"})
     assert f'hx-post="{url}/fix"' in report.text
     assert failure.key in client.get(url).text
 
@@ -165,17 +213,14 @@ def test_identity_fix_and_explicit_rule_promotion(client, project, state, png, m
     assert client.post(f"{url}/fix", data={"take": 1, "finding": failure.key}).status_code == 200
     assert (shot_paths.prompts / "chatgpt-fix_v2.txt").is_file()
 
-    add_take(shot_paths, TakeKind.frame, frame)
-    other = checks.Finding("identity", checks.PASS, "Durik matches.", target="durik")
-    monkeypatch.setattr(checks, "check_frame_file", lambda *_: [other])
-    client.post(f"{url}/qa", data={"take": 2})
+    vision_finding = checks.Finding("identity", checks.PASS, "Durik matches.", target="durik")
+    assert client.post(f"{url}/upload", files=upload).status_code == 200
     approved = client.post(f"{url}/approve", data={"take": 2})
     assert approved.status_code == 200
     assert "Add to skill rules" not in approved.text
 
-    passed = checks.Finding("identity", checks.PASS, "All visible faces match their crops.")
-    monkeypatch.setattr(checks, "check_frame_file", lambda *_: [passed])
-    qa = client.post(f"{url}/qa", data={"take": 2})
+    vision_finding = checks.Finding("identity", checks.PASS, "All visible faces match their crops.")
+    qa = client.post(f"{url}/qa", data={"take": 2, "vision": "true"})
     assert qa.text.count("Add to skill rules") == 1
     assert 'action="/skills/chatgpt-identity-pass/rules"' in qa.text
     assert "Add to skill rules" in client.get(url).text

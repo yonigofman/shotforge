@@ -7,7 +7,7 @@ import re
 from dataclasses import asdict, dataclass
 
 from shotforge import checks
-from shotforge.actions import PromptResult
+from shotforge.actions import PromptResult, read_qa_report
 from shotforge.checks import Finding
 from shotforge.models import Shot, ShotStatus
 from shotforge.pipeline import ORDER, Action, Attachment, face_crop_refs
@@ -67,7 +67,7 @@ def build_fix(
     paths = project.paths
     shot_paths = paths.shot(scene_id, shot_id)
     take = get_take(shot_paths, TakeKind.frame, number)
-    findings = checks.read_report(take.qa_report(shot_paths)) or []
+    findings = read_qa_report(take.qa_report(shot_paths)) or []
     finding = next((row for row in findings if row.failed and row.key == finding_key), None)
     if finding is None:
         raise ValueError("That failed finding is no longer in the take's QA report.")
@@ -172,7 +172,7 @@ def rule_offers(
         take = get_take(shot_paths, TakeKind.frame, number)
     except FileNotFoundError:
         return []
-    findings = checks.read_report(take.qa_report(shot_paths))
+    findings = read_qa_report(take.qa_report(shot_paths))
     if not findings or any(row.failed for row in findings):
         return []
 

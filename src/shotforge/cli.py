@@ -298,13 +298,16 @@ def qa(
     shot_id: str,
     kind: str = typer.Option("frame", help="frame | video"),
     take: int | None = typer.Option(None, "--take", help="Take number (default: the latest)."),
+    vision: bool | None = typer.Option(
+        None, "--vision/--no-vision", help="Override the project's vision QA setting."
+    ),
     project_dir: Path | None = ProjectOption,
 ) -> None:
-    """Run the code-level checks on a take and write its report."""
+    """Run QA on a take and write its report."""
     project, _ = _open(project_dir)
     take_kind = TakeKind(kind)
     number = take or _last_take(project, scene, shot_id, take_kind)
-    findings = actions.run_qa(project, scene, shot_id, take_kind, number)
+    findings = actions.run_qa(project, scene, shot_id, take_kind, number, vision=vision)
     for finding in findings:
         typer.echo(f"{LEVEL_MARK[finding.level]} {finding.check}: {finding.message}")
         if finding.fix and finding.level != "pass":
@@ -352,6 +355,9 @@ def inbox_file(
     name: str = typer.Argument(..., help="File name in _inbox."),
     scene: str | None = typer.Option(None, help="Scene id (default: the active shot)."),
     shot_id: str | None = typer.Option(None, "--shot", help="Shot id."),
+    vision: bool | None = typer.Option(
+        None, "--vision/--no-vision", help="Override the project's vision QA setting."
+    ),
     project_dir: Path | None = ProjectOption,
 ) -> None:
     """File one download as the next take of a shot."""
@@ -360,10 +366,14 @@ def inbox_file(
     if target is None:
         raise typer.BadParameter("no active shot — pass --scene and --shot")
     try:
-        take = inbox_mod.file_to_shot(project, project.paths.inbox / name, target[0], target[1])
+        take = inbox_mod.file_to_shot(project, project.paths.inbox / name, *target, vision=vision)
     except (ValueError, FileNotFoundError) as exc:
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(f"{name} → {project.paths.rel(take.path)}")
+    if take.kind is TakeKind.video:
+        report_path = take.qa_report(project.paths.shot(*target))
+        if (report := actions.read_qa_report(report_path)) is not None:
+            typer.echo(f"QA {checks.summarise(report)} · {project.paths.rel(report_path)}")
 
 
 @app.command()

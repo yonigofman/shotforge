@@ -153,6 +153,9 @@
         <button class="primary" type="submit" data-approve {% if not action.ready %}disabled{% endif %}>
           {{ action.gate }} <kbd>a</kbd>
         </button>
+        {% if shot.status.stage.value == 'frame' and frame_takes and frame_verdicts.get(frame_takes[-1].number) == 'fail' %}
+        {{ ui.pip('fail', 'QA fail') }}
+        {% endif %}
       </form>
       {% if shot.status.stage.value == 'frame' and shot_state.frame_pass == 1 and frame_takes %}
       <button
@@ -169,7 +172,7 @@
 
     <!-- What it produced -->
     <section class="stack">
-      <div id="takes" hx-get="/shot/{{ scene.id }}/{{ shot.id }}/takes" hx-trigger="takes-changed from:body" hx-swap="innerHTML">
+      <div id="takes">
         {% include "partials/_takes.html" %}
       </div>
 
@@ -197,9 +200,9 @@
         <div class="card-header">
           <h3>Checks</h3>
           <span class="spacer"></span>
-          <form hx-post="/shot/{{ scene.id }}/{{ shot.id }}/qa" hx-target="#qa" hx-swap="innerHTML">
-            <input type="hidden" name="kind" value="{{ qa_kind }}" />
-            <button {% if not (frame_takes or video_takes) %}disabled{% endif %}>Run on latest take</button>
+          <form hx-post="/shot/{{ scene.id }}/{{ shot.id }}/qa" hx-target="#qa" hx-swap="innerHTML" hx-disabled-elt="find button">
+            <input type="hidden" name="kind" value="{{ qa_kind | default('frame') }}" />
+            <button {% if not qa_kind %}disabled{% endif %}>Run on latest take <span class="spinner">…</span></button>
           </form>
         </div>
         <div id="qa">{% include "partials/_findings.html" %}</div>
