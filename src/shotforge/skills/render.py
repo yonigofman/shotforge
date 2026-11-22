@@ -110,9 +110,15 @@ def save_prompt(project: Project, scene_id: str, shot_id: str, skill: Skill, tex
     folder = project.paths.shot(scene_id, shot_id).prompts
     folder.mkdir(parents=True, exist_ok=True)
     version = next_prompt_version(folder, skill.name)
-    path = folder / f"{skill.name}_v{version}.txt"
-    path.write_text(text, encoding="utf-8")
-    return path
+    while True:
+        path = folder / f"{skill.name}_v{version}.txt"
+        try:
+            with path.open("x", encoding="utf-8") as prompt:
+                prompt.write(text)
+        except FileExistsError:
+            version += 1
+        else:
+            return path
 
 
 def latest_prompt(project: Project, scene_id: str, shot_id: str, skill_name: str) -> Path | None:

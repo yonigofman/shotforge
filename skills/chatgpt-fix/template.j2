@@ -1,0 +1,55 @@
+{{ project.name }} — {{ scene_id }} / {{ shot.id }} — {{ mode }}
+
+Edit the first attachment. Address only the {{ finding.check }} finding.
+Edit target — {{ target }}
+QA finding — {{ finding.message }}
+{% if finding.fix %}
+Required change — {{ finding.fix }}
+{% elif not crop %}
+Use the shot specification and reference attachments to correct the reported problem.
+{% endif %}
+{% if crop and crop.exists %}
+Match {{ target }}'s face to {{ crop.name }}.
+{% elif crop %}
+The reference face crop {{ crop.name }} is missing. Attach the approved crop before editing {{ target }}'s identity.
+{% endif %}
+
+{% if region %}
+Use the selection tool. Mark {{ region }}.
+{% if mask and mask.exists %}
+Use {{ mask.name }} to locate the selection in the source frame.
+{% elif guide and guide.exists %}
+Use {{ guide.name }} to locate the selection in the source frame.
+{% endif %}
+Keep every pixel outside the selection unchanged.
+{% else %}
+Apply the correction across the full frame. Preserve all visual properties unrelated to the finding.
+{% if style.grade %}
+The project's grade is {{ style.grade }}.
+{% endif %}
+The project's visual treatment is {{ style.art_style }}.
+{% endif %}
+
+{% if region %}
+Freeze the composition, framing, camera angle, perspective and blocking.
+{% else %}
+Preserve the composition, framing, camera angle, perspective and blocking wherever the requested correction allows.
+{% endif %}
+Preserve the pose, wardrobe, background, lighting and continuity except for the specific change requested above.
+{% if framed and framed.eyeline %}
+Keep {{ target }}'s gaze on {{ framed.eyeline }}.
+{% endif %}
+{% if shot.continuity.in_ %}
+Match the shot's incoming continuity.
+{% for key, value in shot.continuity.in_.items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
+{% endif %}
+{% for rule in rules %}
+- {{ rule }}
+{% endfor %}
+
+ATTACH IN THIS ORDER
+{% for attachment in attachments %}
+{{ attachment.order }}. {{ attachment.label }} — {{ rel(attachment.path) }}{{ "  (MISSING)" if not attachment.exists else "" }}
+{% endfor %}

@@ -111,12 +111,19 @@ def _findings(result: EngineResult) -> list[Finding]:
         if len(rows) == 1:
             row = rows[0]
             level, message, fix = row.get("level"), row.get("message"), row.get("fix")
+            target, region = row.get("target"), row.get("region")
             if (
                 level in (PASS, WARN, FAIL)
                 and isinstance(message, str) and message.strip()
                 and (fix is None or isinstance(fix, str))
             ):
-                findings.append(Finding(check, level, message.strip(), fix))
+                findings.append(
+                    Finding(
+                        check, level, message.strip(), fix,
+                        target=target.strip() or None if isinstance(target, str) else None,
+                        region=region.strip() or None if isinstance(region, str) else None,
+                    )
+                )
                 continue
         findings.append(Finding(check, WARN, "The model did not return a usable verdict."))
     return findings

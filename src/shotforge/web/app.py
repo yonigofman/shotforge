@@ -24,7 +24,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.datastructures import FormData
 from starlette.responses import FileResponse
 
-from shotforge import actions, blender, breakdown, checks, continuity, tools
+from shotforge import actions, blender, breakdown, checks, continuity, fixes, tools
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
 from shotforge.models import Scene, Shot, ShotStatus, Stage, as_plain
@@ -33,7 +33,7 @@ from shotforge.project import Project, ProjectError
 from shotforge.skills import find_skill, latest_prompt
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
-from shotforge.takes import TakeKind, approved_take_number, list_takes
+from shotforge.takes import Take, TakeKind, approved_take_number, get_take, list_takes
 from shotforge.yamlio import ProjectFileError
 
 HERE = Path(__file__).resolve().parent
@@ -89,6 +89,15 @@ class BreakdownDraft:
                 entry = replace(entry, spec=shot)
             files.append(entry)
         return breakdown.WritePlan(files, self.plan.collisions)
+
+
+def _qa_context(take: Take, findings: list[checks.Finding]) -> dict[str, Any]:
+    return {
+        "findings": findings,
+        "verdict": checks.summarise(findings),
+        "subject": f"{take.kind.value} v{take.number}",
+        "fix_take": take.number if take.kind is TakeKind.frame else None,
+    }
 
 
 def create_app(project_root: Path) -> FastAPI:
@@ -161,10 +170,9 @@ def create_app(project_root: Path) -> FastAPI:
             reports = frame_reports if latest.kind is TakeKind.frame else video_reports
             report = reports.get(latest.number)
             if report is not None:
-                report_context.update(
-                    findings=report, verdict=checks.summarise(report),
-                    subject=f"{latest.kind.value} v{latest.number}",
-                )
+                report_context.update(_qa_context(latest, report))
+        if "findings" not in report_context:
+            report_context["findings"] = checks.check_spec(project, scene_id, shot)
         return {
             "request": request,
             "project": project,
@@ -184,7 +192,7 @@ def create_app(project_root: Path) -> FastAPI:
             "video_verdicts": {n: checks.summarise(report) for n, report in video_reports.items()},
             "approved_frame": approved_take_number(shot_paths, TakeKind.frame),
             "approved_video": approved_take_number(shot_paths, TakeKind.video),
-            "findings": checks.check_spec(project, scene_id, shot),
+            "rule_offers": fixes.rule_offers(project, state, scene_id, shot),
             "cut_findings": continuity.shot_findings(project, scene, shot, previous),
             "previous": previous,
             "active": state.active == (scene_id, shot_id),
@@ -458,6 +466,27 @@ def create_app(project_root: Path) -> FastAPI:
             raise HTTPException(400, str(exc)) from exc
         return shot_card(request, scene_id, shot_id)
 
+    @app.post("/shot/{scene_id}/{shot_id}/fix", response_class=HTMLResponse)
+    def make_fix(
+        request: Request,
+        scene_id: str,
+        shot_id: str,
+        take: int = Form(...),
+        finding: str = Form(...),
+    ) -> HTMLResponse:
+        context = shot_card_context(request, scene_id, shot_id)
+        project = context["project"]
+        shot_paths = context["shot_paths"]
+        try:
+            context["fix_prompt"] = fixes.build_fix(project, scene_id, shot_id, take, finding)
+            source = get_take(shot_paths, TakeKind.frame, take)
+        except (FileNotFoundError, ValueError, SkillError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        report = actions.read_qa_report(source.qa_report(shot_paths))
+        if report is not None:
+            context.update(_qa_context(source, report))
+        return render(request, "partials/_card.html", context)
+
     @app.post("/shot/{scene_id}/{shot_id}/blockout", response_class=HTMLResponse)
     def render_blockout(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
         project, _ = load()
@@ -537,25 +566,27 @@ def create_app(project_root: Path) -> FastAPI:
         request: Request,
         scene_id: str,
         shot_id: str,
-        kind: str = Form("frame"),
+        kind: TakeKind = Form(TakeKind.frame),
         take: int | None = Form(None),
         vision: bool | None = Form(None),
     ) -> HTMLResponse:
-        project, _ = load()
-        take_kind = TakeKind(kind)
-        number = take or _latest(project, scene_id, shot_id, take_kind)
+        project, state = load()
+        number = take if take is not None else _latest(project, scene_id, shot_id, kind)
         try:
-            findings = actions.run_qa(project, scene_id, shot_id, take_kind, number, vision=vision)
+            findings = actions.run_qa(project, scene_id, shot_id, kind, number, vision=vision)
+            source = get_take(project.paths.shot(scene_id, shot_id), kind, number)
         except FileNotFoundError as exc:
             raise HTTPException(400, str(exc)) from exc
+        shot = project.shot(scene_id, shot_id)
         response = render(
             request,
             "partials/_findings.html",
             {
                 "project": project,
-                "findings": findings,
-                "verdict": checks.summarise(findings),
-                "subject": f"{take_kind.value} v{number}",
+                "scene": project.scene(scene_id),
+                "shot": shot,
+                **_qa_context(source, findings),
+                "rule_offers": fixes.rule_offers(project, state, scene_id, shot),
             },
         )
         if take is None:

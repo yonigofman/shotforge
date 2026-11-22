@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
+from hashlib import sha256
 from math import isfinite
 from pathlib import Path
 
@@ -19,10 +21,17 @@ class Finding:
     level: str
     message: str
     fix: str | None = None
+    target: str | None = None
+    region: str | None = None
 
     @property
     def failed(self) -> bool:
         return self.level == FAIL
+
+    @property
+    def key(self) -> str:
+        """Identify a row even if a new report has reordered its findings."""
+        return sha256(json.dumps(asdict(self), sort_keys=True).encode()).hexdigest()
 
 
 def check_spec(project: Project, scene_id: str, shot: Shot) -> list[Finding]:
