@@ -17,9 +17,9 @@
           <td class="mono faint">{{ entry.ts[0:16].replace('T', ' ') }}</td>
           <td>
             {% if entry.entity_kind %}
-            <a href="/bible/{{ entry.subject }}">{{ entry.subject }}</a>
+            <a href="{{ project_prefix }}/bible/{{ entry.subject }}">{{ entry.subject }}</a>
             {% else %}
-            <a href="/shot/{{ entry.subject }}">{{ entry.subject }}</a>
+            <a href="{{ project_prefix }}/shot/{{ entry.subject }}">{{ entry.subject }}</a>
             {% endif %}
           </td>
           <td>{{ entry.action }}: {{ entry.from_status }} → {{ entry.to_status }}</td>

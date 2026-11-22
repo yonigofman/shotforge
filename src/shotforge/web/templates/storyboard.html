@@ -7,7 +7,7 @@
     <span class="badge">{{ scene.location }}</span>
     {% if scene.time %}<span class="faint">{{ scene.time }}</span>{% endif %}
     <span class="spacer"></span>
-    <a class="button" href="/scene/{{ scene.id }}/cut">Rough cut</a>
+    <a class="button" href="{{ project_prefix }}/scene/{{ scene.id }}/cut">Rough cut</a>
   </div>
   {% if scene.axis_180 %}<p class="muted" dir="auto">180°: {{ scene.axis_180 }}</p>{% endif %}
 
@@ -16,7 +16,7 @@
       <h3>Continuity across the cuts</h3>
       <span class="spacer"></span>
       <button
-        hx-post="/scene/{{ scene.id }}/continuity"
+        hx-post="{{ project_prefix }}/scene/{{ scene.id }}/continuity"
         hx-target="#continuity-findings"
         hx-disabled-elt="this"
       >
@@ -32,7 +32,7 @@
     {% for row in rows %}
     <article class="card raised stack" style="gap:var(--space-3)">
       <div class="row">
-        <strong><a href="/shot/{{ scene.id }}/{{ row.shot.id }}">{{ row.shot.id }}</a></strong>
+        <strong><a href="{{ project_prefix }}/shot/{{ scene.id }}/{{ row.shot.id }}">{{ row.shot.id }}</a></strong>
         <span class="spacer"></span>
         {{ ui.pip(row.verdict) }}
       </div>

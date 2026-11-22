@@ -22,7 +22,7 @@
     <h3>Rules</h3>
     <ul>{% for rule in rules %}<li>{{ rule }}</li>{% endfor %}</ul>
     {% endif %}
-    <form action="/skills/{{ skill.name }}/rules" method="post" class="row">
+    <form action="{{ project_prefix }}/skills/{{ skill.name }}/rules" method="post" class="row">
       <input type="text" name="rule" placeholder="Add a rule that worked" style="flex:1" />
       <button type="submit">Add rule</button>
     </form>

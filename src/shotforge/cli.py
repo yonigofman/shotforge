@@ -6,9 +6,11 @@ never depend on a browser being open.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import typer
+from filelock import Timeout
 from jinja2 import TemplateError
 
 from shotforge import (
@@ -26,8 +28,10 @@ from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
 from shotforge.demo import copy_demo
 from shotforge.models import Stage
+from shotforge.paths import ProjectPaths
 from shotforge.pipeline import TransitionError, next_action, reopen
 from shotforge.project import Project, ProjectError, slugify
+from shotforge.registry import ProjectRegistry
 from shotforge.skills import find_skill, list_skills
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
@@ -594,24 +598,45 @@ def log(
 @app.command()
 def serve(
     project_dir: Path | None = ProjectOption,
-    host: str = typer.Option("127.0.0.1", help="Bind address; localhost by default."),
+    host: str = typer.Option("127.0.0.1", help="Loopback address."),
     port: int = typer.Option(8765, help="Port."),
     reload: bool = typer.Option(False, "--reload", help="Reload on code changes."),
 ) -> None:
     """Open the cockpit in your browser."""
     import uvicorn
 
-    project, _ = _open(project_dir)
     from shotforge.web.app import create_app
+    from shotforge.web.local import is_loopback
 
-    typer.echo(f"{project.name} — cockpit on http://{host}:{port}")
+    if not is_loopback(host):
+        raise typer.BadParameter("The cockpit requires a loopback address.", param_hint="--host")
+    root = None
+    title = "Projects"
+    if project_dir is None and (discovered := ProjectPaths.find()) is not None:
+        project_dir = discovered.root
+    if project_dir is not None:
+        project, _ = _open(project_dir)
+        root = project.paths.root
+        title = project.name
+        try:
+            ProjectRegistry().remember(project)
+        except (OSError, ValueError, ProjectError, Timeout) as exc:
+            typer.echo(f"Could not update the projects registry: {exc}", err=True)
+    if reload:
+        if root is None:
+            os.environ.pop("SHOTFORGE_PROJECT", None)
+        else:
+            os.environ["SHOTFORGE_PROJECT"] = str(root)
+    address = f"[{host}]" if ":" in host else host
+    typer.echo(f"{title} — cockpit on http://{address}:{port}")
     uvicorn.run(
-        create_app(project.paths.root) if not reload else "shotforge.web.app:app_from_env",
+        "shotforge.web.app:app_from_env" if reload else create_app(root, enforce_local=True),
         host=host,
         port=port,
         reload=reload,
         factory=reload,
         log_level="info",
+        proxy_headers=False,
     )
 
 

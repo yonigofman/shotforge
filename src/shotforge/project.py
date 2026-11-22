@@ -113,7 +113,10 @@ class Project:
         for folder in folders:
             folder.mkdir(parents=True, exist_ok=True)
 
-        dump(paths.config, config)
+        try:
+            dump(paths.config, config, create_only=not exist_ok)
+        except FileExistsError as exc:
+            raise ProjectError(f"{root} is already a Shotforge project") from exc
         if not paths.style.exists():
             dump(
                 paths.style,

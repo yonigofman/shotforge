@@ -2,7 +2,7 @@
 {% set prompt_action = fix_prompt.action if fix_prompt else action %}
 {% set prompt_text = fix_prompt.text if fix_prompt else prompt_text %}
 {% set prompt_path = fix_prompt.path if fix_prompt else prompt_path %}
-<div id="shot-card" class="stack" hx-get="/shot/{{ scene.id }}/{{ shot.id }}/card" hx-trigger="card-changed from:body" hx-swap="outerHTML">
+<div id="shot-card" class="stack" hx-get="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/card" hx-trigger="card-changed from:body" hx-swap="outerHTML">
   <div class="row">
     <h1>{{ scene.id }} / {{ shot.id }}</h1>
     <span class="badge">{{ label }}</span>
@@ -12,7 +12,7 @@
     {% if not active %}
     <button
       class="quiet"
-      hx-post="/shot/{{ scene.id }}/{{ shot.id }}/active"
+      hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/active"
       hx-target="#shot-card"
       hx-swap="outerHTML"
       title="The inbox files downloads to this shot"
@@ -22,7 +22,7 @@
     {% else %}
     <span class="pip active">active — inbox files here</span>
     {% endif %}
-    <a class="button quiet" href="/scene/{{ scene.id }}">Storyboard</a>
+    <a class="button quiet" href="{{ project_prefix }}/scene/{{ scene.id }}">Storyboard</a>
   </div>
   {{ ui.progress(stage_index) }}
 
@@ -56,7 +56,7 @@
       <div class="gate">
         <button
           class="primary"
-          hx-post="/shot/{{ scene.id }}/{{ shot.id }}/begin"
+          hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/begin"
           hx-target="#shot-card"
           hx-swap="outerHTML"
         >
@@ -77,7 +77,7 @@
       <div class="row">
         <button
           {% if not action.ready %}class="primary"{% endif %}
-          hx-post="/shot/{{ scene.id }}/{{ shot.id }}/blockout"
+          hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/blockout"
           hx-target="#shot-card"
           hx-swap="outerHTML"
           hx-disabled-elt="this"
@@ -92,12 +92,12 @@
         <span class="faint">skill: <code>{{ prompt_action.skill }}</code></span>
         <span class="spacer"></span>
         {% if fix_prompt %}
-        <button hx-get="/shot/{{ scene.id }}/{{ shot.id }}/card" hx-target="#shot-card" hx-swap="outerHTML">
+        <button hx-get="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/card" hx-target="#shot-card" hx-swap="outerHTML">
           Back to shot prompt
         </button>
         {% else %}
         <button
-          hx-post="/shot/{{ scene.id }}/{{ shot.id }}/prompt"
+          hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/prompt"
           hx-target="#shot-card"
           hx-swap="outerHTML"
         >
@@ -145,7 +145,7 @@
       {% if action.gate %}
       <form
         class="gate"
-        hx-post="/shot/{{ scene.id }}/{{ shot.id }}/approve"
+        hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/approve"
         hx-target="#shot-card"
         hx-swap="outerHTML"
       >
@@ -160,7 +160,7 @@
       {% if shot.status.stage.value == 'frame' and shot_state.frame_pass == 1 and frame_takes %}
       <button
         class="quiet"
-        hx-post="/shot/{{ scene.id }}/{{ shot.id }}/pass2"
+        hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/pass2"
         hx-target="#shot-card"
         hx-swap="outerHTML"
       >
@@ -179,7 +179,7 @@
           {% if shot.status.value == 'breakdown' %}
           <span class="spacer"></span>
           <button
-            hx-post="/shot/{{ scene.id }}/{{ shot.id }}/camera"
+            hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/camera"
             hx-target="#camera-proposal"
             hx-swap="innerHTML"
             hx-disabled-elt="this"
@@ -232,7 +232,7 @@
         <div class="card-header">
           <h3>Checks</h3>
           <span class="spacer"></span>
-          <form hx-post="/shot/{{ scene.id }}/{{ shot.id }}/qa" hx-target="#qa" hx-swap="innerHTML" hx-disabled-elt="find button">
+          <form hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/qa" hx-target="#qa" hx-swap="innerHTML" hx-disabled-elt="find button">
             <input type="hidden" name="kind" value="{{ qa_kind | default('frame') }}" />
             <button {% if not qa_kind %}disabled{% endif %}>Run on latest take <span class="spinner">…</span></button>
           </form>

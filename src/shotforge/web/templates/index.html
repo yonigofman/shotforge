@@ -6,7 +6,7 @@
     <h1>{{ project.name }}</h1>
     <span class="badge">{{ project.config.language }}</span>
     {% if active %}
-    <span class="faint">active shot: <a href="/shot/{{ active[0] }}/{{ active[1] }}">{{ active[0] }}/{{ active[1] }}</a></span>
+    <span class="faint">active shot: <a href="{{ project_prefix }}/shot/{{ active[0] }}/{{ active[1] }}">{{ active[0] }}/{{ active[1] }}</a></span>
     {% endif %}
   </div>
 
@@ -25,7 +25,7 @@
       {% for row in scenes %}
       <article class="card raised">
         <div class="card-header">
-          <h2><a href="/scene/{{ row.scene.id }}">{{ row.scene.id }}</a></h2>
+          <h2><a href="{{ project_prefix }}/scene/{{ row.scene.id }}">{{ row.scene.id }}</a></h2>
           <span class="spacer"></span>
           <span class="faint">{{ row.done }}/{{ row.shots | length }} done</span>
         </div>
@@ -37,7 +37,7 @@
           <tbody>
             {% for shot in row.shots %}
             <tr>
-              <td><a href="/shot/{{ row.scene.id }}/{{ shot.id }}">{{ shot.id }}</a></td>
+              <td><a href="{{ project_prefix }}/shot/{{ row.scene.id }}/{{ shot.id }}">{{ shot.id }}</a></td>
               <td>{{ stage_label[shot.status.stage] }}{% if shot.status.is_approved %} · approved{% endif %}</td>
               <td>{{ ui.pip(row.verdicts[shot.id]) }}</td>
               <td class="mono">{{ shot.duration_s | n }}s</td>
@@ -53,7 +53,7 @@
       <h3>Inbox <span class="badge" data-inbox-count>{{ inbox | length }}</span></h3>
       <div
         id="inbox"
-        hx-get="/inbox"
+        hx-get="{{ project_prefix }}/inbox"
         hx-trigger="inbox-changed from:body"
         hx-swap="innerHTML"
       >
@@ -72,9 +72,9 @@
               <td class="mono faint">{{ entry.ts[5:16].replace('T', ' ') }}</td>
               <td>
                 {% if entry.entity_kind %}
-                <a href="/bible/{{ entry.entity_kind }}/{{ entry.entity_id }}">{{ entry.entity_id }}</a>
+                <a href="{{ project_prefix }}/bible/{{ entry.entity_kind }}/{{ entry.entity_id }}">{{ entry.entity_id }}</a>
                 {% else %}
-                <a href="/shot/{{ entry.scene }}/{{ entry.shot }}">{{ entry.shot }}</a>
+                <a href="{{ project_prefix }}/shot/{{ entry.scene }}/{{ entry.shot }}">{{ entry.shot }}</a>
                 {% endif %}
               </td>
               <td>{{ entry.to_status }}</td>

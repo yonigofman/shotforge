@@ -1,6 +1,6 @@
 """The scene timeline and rough-cut handoff."""
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import ValidationError
@@ -8,12 +8,13 @@ from starlette.responses import FileResponse
 
 from shotforge import edit, tools
 from shotforge.project import ProjectError
+from shotforge.web.projects import project_prefix
 from shotforge.yamlio import ProjectFileError
 
 
-def register_edit(app: FastAPI, load, render) -> None:
+def register_edit(app: APIRouter, load, render) -> None:
     def cut_page(request: Request, scene_id: str, *, form=None, error=None, status=200):
-        project, _ = load()
+        project, _ = load(request)
         try:
             shots = edit.timeline(project, scene_id)
             settings = edit.read_settings(project, scene_id)
@@ -59,7 +60,7 @@ def register_edit(app: FastAPI, load, render) -> None:
 
     @app.post("/scene/{scene_id}/cut", response_class=HTMLResponse)
     async def assemble_cut(request: Request, scene_id: str):
-        project, _ = load()
+        project, _ = load(request)
         form = await request.form()
         try:
             settings = edit.EditSettings(
@@ -76,13 +77,13 @@ def register_edit(app: FastAPI, load, render) -> None:
             return cut_page(request, scene_id, form=form, error=" ".join(errors), status=400)
         except (edit.EditError, ProjectError, ProjectFileError, tools.ToolError, OSError) as exc:
             return cut_page(request, scene_id, form=form, error=str(exc), status=400)
-        return RedirectResponse(f"/scene/{scene_id}/cut", status_code=303)
+        return RedirectResponse(f"{project_prefix(request)}/scene/{scene_id}/cut", status_code=303)
 
     @app.get("/scene/{scene_id}/cut/{filename}")
-    def cut_file(scene_id: str, filename: str) -> FileResponse:
+    def cut_file(request: Request, scene_id: str, filename: str) -> FileResponse:
         if filename not in {edit.VIDEO, edit.EDL, edit.EXPORT}:
             raise HTTPException(404, "Unknown rough cut file.")
-        project, _ = load()
+        project, _ = load(request)
         try:
             shots = edit.timeline(project, scene_id)
             settings = edit.read_settings(project, scene_id)

@@ -23,7 +23,7 @@ being written by hand.
 | Code-level QA: aspect ratio, clip duration, camera motion, speech timing, cut continuity | done |
 | Visual continuity across approved cuts via Claude Code | done |
 | Last-frame extraction feeding the next shot | done |
-| Cockpit: Scenes, Breakdown, Storyboard, Shot card, Takes, Bible, Skills, Log | done |
+| Cockpit: Projects, Scenes, Breakdown, Storyboard, Shot card, Takes, Bible, Skills, Log | done |
 | Engine layer (`Engine.run_skill`) with a Claude Code implementation | done |
 | Blender blockout with named shot cameras and a 180° axis check | done |
 | Per-character masks and automatic face crops | done |
@@ -81,15 +81,27 @@ takes let you do the whole walkthrough without signing in to a generator.
 ## Start your own project
 
 ```sh
+shotforge serve
+```
+
+Open [the cockpit](http://127.0.0.1:8765) and choose **New project**. Fill in
+the name, language, aspect ratio, frame rate, and storage. To open an
+existing project, enter the folder containing its `project.yaml`. Use the
+**Projects** tab to switch between projects. The recent list at
+`~/.shotforge/projects.json` stores each project's name and path.
+Shotforge reads progress from the project folder.
+
+To create and open a project directly from the terminal:
+
+```sh
 shotforge new "My film"
 cd my_film
 shotforge serve
 ```
 
-Open [the cockpit](http://127.0.0.1:8765), put your chapter in
-`00_source/ch01.md`, and fill in `01_bible/style.yaml`. Use `shotforge doctor`
-to check available tools and `tool_paths` in `project.yaml` to override their
-locations.
+Put your chapter in `00_source/ch01.md` and fill in `01_bible/style.yaml`.
+Use `shotforge doctor` to check available tools and `tool_paths` in
+`project.yaml` to override their locations.
 
 ## Design an entity
 
