@@ -339,7 +339,10 @@ def check_video_file(
             Finding("duration", PASS, f"{duration:.1f}s against {shot.duration_s}s in the spec")
         )
 
-    install_qa = 'install the video QA extra with pip install "shotforge[qa]"'
+    install_qa = (
+        "install shotforge[qa] in the environment running Shotforge. "
+        "See Review a video take in the README for uvx and checkout commands."
+    )
     try:
         from shotforge.qa.motion import check_motion
     except (ImportError, OSError):

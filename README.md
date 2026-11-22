@@ -202,7 +202,14 @@ shotforge approve s01_pub sh07                       # → video/shot.mp4 + last
 
 ## Review a video take
 
-Install the optional video QA dependencies with `uv pip install -e ".[qa]"`.
+Camera motion and speech checks use the optional `qa` extra. If you launch
+Shotforge from GitHub, include it in the `uvx` command.
+
+```sh
+uvx --isolated --from "shotforge[qa] @ git+https://github.com/yonigofman/shotforge.git" shotforge serve
+```
+
+From a local checkout, use `uv run --extra qa shotforge serve`.
 Filing a clip through the inbox or uploading it on the shot card runs QA and
 saves the findings to `qa/video_v<n>.json`. Open the QA details beneath the
 video take in the cockpit, or rerun the checks from the terminal.
