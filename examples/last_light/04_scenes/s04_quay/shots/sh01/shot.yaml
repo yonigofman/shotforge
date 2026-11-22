@@ -1,0 +1,38 @@
+id: sh01
+duration_s: 5.0
+size: wide
+summary: Night quay in the rain, close enough to the watch room to be heard from it.
+camera:
+  blender_cam: CAM_SH01
+  move: static
+technique: []
+in_frame: []
+beats:
+- t:
+  - 0.0
+  - 2.5
+  action: Rain pocks the black water along the stone quay. No boat, no lamp, no figure on the whole length
+    of it.
+  silence: false
+- t:
+  - 2.5
+  - 5.0
+  action: Somewhere low in frame, iron knocks once against stone. Nothing on the quay moves in answer.
+  silence: false
+continuity:
+  in:
+    rain: steady
+    quay_stone: wet and dark
+    mooring_ring: unmoored, no rope
+    boat_at_quay: none
+  out:
+    rain: steady
+    quay_stone: wet and dark
+    mooring_ring: unmoored, no rope
+    boat_at_quay: none
+refs:
+  from_shots: []
+  face_crops: []
+  extra: []
+sound: {}
+status: breakdown

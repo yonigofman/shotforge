@@ -1,0 +1,13 @@
+id: quay
+names:
+  en: The quay
+from_book:
+- '''Down at the quay, a mooring ring knocked against the stone.'''
+- Stone-built, with mooring rings set into it.
+- Lies below and within earshot of the watch room.
+design_choices:
+- Night exterior, wet stone and black water, lit only by spill from the watch room window above.
+- Keep the quay empty of boats and people so the chapter ends on the same absence as the room.
+assets: {}
+set_dressing: []
+fixed_props: []

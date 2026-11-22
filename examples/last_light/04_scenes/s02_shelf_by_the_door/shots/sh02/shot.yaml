@@ -1,0 +1,38 @@
+id: sh02
+duration_s: 4.0
+size: close-up
+summary: The watch book's brass clasp is fastened shut.
+camera:
+  blender_cam: CAM_SH02
+  move: static
+technique: []
+in_frame: []
+beats:
+- t:
+  - 0.0
+  - 2.5
+  action: The watch book lies closed, its brass clasp hooked home over the fore-edge. A greasy sheen of
+    lamp oil films the glass of the shelf lamp beside it.
+  silence: false
+- t:
+  - 2.5
+  - 4.0
+  action: Hold on the fastened clasp; no hand comes for it.
+  silence: true
+continuity:
+  in:
+    watch_book: shut on the shelf, brass clasp fastened
+    empty_hook: bare, hanging still
+    wall_stain: damp patch on the wall under the hook
+    lamp_glow: distant warm wash from the desk lantern, screen left
+  out:
+    watch_book: shut on the shelf, brass clasp fastened
+    empty_hook: bare, hanging still
+    wall_stain: damp patch on the wall under the hook
+    lamp_glow: distant warm wash from the desk lantern, screen left
+refs:
+  from_shots: []
+  face_crops: []
+  extra: []
+sound: {}
+status: breakdown

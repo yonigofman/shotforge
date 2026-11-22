@@ -1,0 +1,38 @@
+id: sh01
+duration_s: 5.0
+size: medium wide
+summary: 'The shelf by the door, far from the desk: watch book shut, bare hook above it.'
+camera:
+  blender_cam: CAM_SH01
+  move: static
+technique: []
+in_frame: []
+beats:
+- t:
+  - 0.0
+  - 3.0
+  action: Across the room from the desk, the shelf by the door holds the watch book, shut. Above it an
+    iron hook hangs bare and still; the lantern's light reaches this far only as a thin wash.
+  silence: false
+- t:
+  - 3.0
+  - 5.0
+  action: Rain carries on outside the frame. Nothing in the room moves.
+  silence: false
+continuity:
+  in:
+    watch_book: shut on the shelf, brass clasp fastened
+    empty_hook: bare, hanging still
+    wall_stain: damp patch on the wall under the hook
+    lamp_glow: distant warm wash from the desk lantern, screen left
+  out:
+    watch_book: shut on the shelf, brass clasp fastened
+    empty_hook: bare, hanging still
+    wall_stain: damp patch on the wall under the hook
+    lamp_glow: distant warm wash from the desk lantern, screen left
+refs:
+  from_shots: []
+  face_crops: []
+  extra: []
+sound: {}
+status: breakdown

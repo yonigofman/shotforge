@@ -1,0 +1,20 @@
+{
+  "active": {
+    "scene": "s01_last_light",
+    "shot": "sh01",
+    "since": "2026-11-22T11:26:27+00:00"
+  },
+  "shots": {
+    "s01_last_light/sh01": {
+      "frame_pass": 1,
+      "active_take": {},
+      "updated": "2026-11-22T12:22:50+00:00"
+    }
+  },
+  "designs": {
+    "location/watch_room": {
+      "designed": true,
+      "revision": "87cb84bc17a6c4b994c26fe9c49f0188309f42eb7be1ef8c3f998ee0308d465e"
+    }
+  }
+}

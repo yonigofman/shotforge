@@ -1,0 +1,14 @@
+id: letter
+names:
+  en: The sealed letter
+from_book:
+- '''Beside it, someone had left a sealed letter.'''
+- One corner is darkened by a fallen drop; the rest of the envelope is dry.
+- Red wax bears the crooked outline of a little fish, pressed hard enough to split the edge of the stamp;
+  the seal itself is whole.
+design_choices:
+- Pale envelope stock so the red wax and the single damp corner read clearly against the oak.
+- Cut the fish seal slightly off-centre and uneven, as a hand-made or worn stamp rather than an official
+  crest.
+assets: {}
+states: []

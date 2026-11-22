@@ -1,0 +1,47 @@
+id: sh03
+duration_s: 6.0
+size: close-up
+summary: The empty hook swings once in a draught and settles above the damp stain.
+camera:
+  blender_cam: CAM_SH03
+  move: static
+technique: []
+in_frame: []
+beats:
+- t:
+  - 0.0
+  - 1.5
+  action: The hook, bare. Below it a damp stain has dried into the wall in the shape of a coat shoulder.
+  silence: false
+- t:
+  - 1.5
+  - 3.0
+  action: A draught from the door takes the hook; it swings once with a single creak.
+  silence: false
+- t:
+  - 3.0
+  - 4.5
+  action: The swing shortens and the hook comes to rest, still empty.
+  silence: false
+- t:
+  - 4.5
+  - 6.0
+  action: Hold on the settled hook and the stain; only rain outside.
+  silence: true
+continuity:
+  in:
+    watch_book: shut on the shelf, brass clasp fastened
+    empty_hook: bare, hanging still
+    wall_stain: damp patch on the wall under the hook
+    lamp_glow: distant warm wash from the desk lantern, screen left
+  out:
+    watch_book: shut on the shelf, brass clasp fastened
+    empty_hook: bare, settled still after one swing
+    wall_stain: damp patch on the wall under the hook
+    lamp_glow: distant warm wash from the desk lantern, screen left
+refs:
+  from_shots: []
+  face_crops: []
+  extra: []
+sound: {}
+status: breakdown

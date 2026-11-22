@@ -1,0 +1,41 @@
+id: sh01
+duration_s: 5.0
+size: close-up
+summary: The sealed envelope sits alone in the lantern's warm circle on the oak desk.
+camera:
+  blender_cam: CAM_SH01
+  move: static
+technique: []
+in_frame: []
+beats:
+- t:
+  - 0.0
+  - 2.0
+  action: Raking lantern light lies across the oak; the envelope rests inside the warm circle, red wax
+    turned toward the flame.
+  silence: false
+- t:
+  - 2.0
+  - 5.0
+  action: Nothing moves but the light's faint tremor on the paper. Off at the quay, a mooring ring knocks
+    against stone, and rain fills the pause after it.
+  silence: false
+continuity:
+  in:
+    letter: sealed, flat on the oak in the lantern circle
+    wax_seal: whole, red, fish impression
+    envelope_corner: one corner darkened by a fallen drop
+    lantern: lit, low flame
+    desk_surface: dry except the darkened corner
+  out:
+    letter: sealed, flat on the oak in the lantern circle
+    wax_seal: whole, red, fish impression
+    envelope_corner: one corner darkened by a fallen drop
+    lantern: lit, low flame
+    desk_surface: dry except the darkened corner
+refs:
+  from_shots: []
+  face_crops: []
+  extra: []
+sound: {}
+status: breakdown

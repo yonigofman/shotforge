@@ -1,0 +1,47 @@
+id: sh03
+duration_s: 6.0
+size: extreme close-up
+summary: The crooked little fish in the red wax, its tail splitting the edge of the stamp, the seal itself
+  unbroken.
+camera:
+  blender_cam: CAM_SH03
+  move: static
+technique: []
+in_frame: []
+beats:
+- t:
+  - 0.0
+  - 2.0
+  action: Lantern light rakes low across the wax and lifts a crooked little fish out of the red — a blunt
+    head, a scratch of an eye, scales hinted and abandoned.
+  silence: false
+- t:
+  - 2.0
+  - 4.0
+  action: At the tail the impression runs out past the stamp's rim, pressed so hard that the edge of the
+    mark has split and a thin ridge of wax stands up beside it.
+  silence: false
+- t:
+  - 4.0
+  - 6.0
+  action: The frame holds on the whole, unbroken dome of the seal while the rain goes on against the window.
+  silence: false
+continuity:
+  in:
+    letter: sealed, flat on the oak in the lantern circle
+    wax_seal: whole, red, fish impression
+    envelope_corner: one corner darkened by a fallen drop, edge beginning to dry
+    lantern: lit, low flame
+    desk_surface: dry except the darkened corner
+  out:
+    letter: sealed, flat on the oak in the lantern circle
+    wax_seal: whole, red, fish impression, tail split at the stamp edge
+    envelope_corner: one corner darkened by a fallen drop, edge beginning to dry
+    lantern: lit, low flame
+    desk_surface: dry except the darkened corner
+refs:
+  from_shots: []
+  face_crops: []
+  extra: []
+sound: {}
+status: breakdown

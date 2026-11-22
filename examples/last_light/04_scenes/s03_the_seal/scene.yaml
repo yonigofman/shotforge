@@ -1,0 +1,24 @@
+id: s03_the_seal
+location: watch_room
+time: night
+summary: 'Close on the envelope in the lantern''s warm circle: one corner darkened by a fallen drop, and
+  a crooked little fish pressed into red wax, its tail splitting the edge of the stamp.'
+characters: []
+seating: []
+lighting: Raking lantern light across the wax to pick up the fish impression
+sound: {}
+chapter: ch01.md
+props:
+- letter
+from_book:
+- '''The envelope sat in the warm circle on the oak.'''
+- '''One corner had darkened where a drop had fallen from somebody''s sleeve. The rest was dry.'''
+- '''In the red wax was the crooked outline of a little fish, pressed so hard that its tail had split
+  the edge of the stamp. The seal itself was whole.'''
+design_choices:
+- Shoot as a detail insert on the desk, tighter than s01_last_light, so the chapter's title image lands
+  on the fish.
+- Keep the wax unbroken and the split confined to the stamp edge — the chapter is explicit that the seal
+  is whole.
+- The single dark corner implies a wet sleeve passed over the desk moments ago; keep the rest of the paper
+  clean to date the visit.

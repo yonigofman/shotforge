@@ -1,0 +1,32 @@
+Last Light — s01_last_light / sh01 — video, 3s
+
+Animate the attached frame. It is the first frame of the clip.
+
+Camera: completely static, locked off, 49mm. No pans, no push-ins, no handheld.
+Duration: 3 seconds.
+
+TIMELINE
+0–3s — Hold on the lantern and letter, with rain behind them.
+
+HOLD
+
+SOUND
+Ambience: rain outside the window.
+No music.
+
+MUST HOLD
+- The camera is completely static and locked off; camera movement is done in the edit
+- The action describes only what happens after the frame, never how the pose was reached
+- Gaze direction is given in frame terms, anchored to something visible
+- Nobody drinks while speaking; a sip comes at the end of the shot
+- The beer stays calm: no spilling, no foam, no refilling
+- No subtitles and no on-screen text
+- In exterior shots with small or no characters, no character tags and no interior location tag
+- Every beat carries a timecode
+
+DO NOT
+- subtitles
+- watermarks
+
+ATTACH IN THIS ORDER
+1. Approved first frame — 04_scenes/s01_last_light/shots/sh01/frames/first.png

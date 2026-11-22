@@ -1,0 +1,44 @@
+Last Light — s01_last_light / sh01 — first frame, pass 1
+
+STYLE
+Cinematic miniature with physically rendered glass, wax and wood
+Palette: amber, midnight blue, dark oak
+Grade: Warm practical light against a cool window
+Aspect ratio: 16:9. A single still frame, no text of any kind.
+
+SHOT
+Shot size: wide.
+Lens: 49mm.
+Camera is completely static and locked off.
+Rain behind the lantern and the untouched letter.
+Match the composition of the attached blockout render exactly: positions, head
+sizes, perspective, and what is behind each character.
+
+SET
+
+Dressing: oak desk, rain-lit window, brass lantern, wax-sealed letter.
+Time: night.
+
+IN FRAME
+
+STATE AT THIS MOMENT
+The frame is the moment just before the first beat: Hold on the lantern and letter, with rain behind them.
+
+MUST HOLD
+- The frame is exactly the project's aspect ratio
+- Eye level is stated for every gaze, with the face it rests on
+- The wall behind each character is named, with what it is made of
+- The windows are counted and placed relative to each character
+- Head size is given relative to the frame, not only distance
+- No other patrons and no staff unless the blockout has them
+- No signage and no neon beyond what the bible lists
+
+DO NOT
+- subtitles
+- watermarks
+- no camera movement, no motion blur, no depth-of-field haze beyond the lens
+- no AI skin: no plastic smoothness, no embossed pores, no HDR glow, no tilt-shift
+
+ATTACH IN THIS ORDER
+1. Blender blockout — 03_blender/renders/s01_last_light/sh01/blockout.png
+2. watch_room wall reference — 02_design/locations/watch_room/wall_ref.png

@@ -1,0 +1,5 @@
+{"ts": "2026-11-22T12:22:37+00:00", "scene": "s01_last_light", "shot": "sh01", "action": "approve", "from_status": "blockout", "to_status": "blockout_approved", "note": null, "detail": {}}
+{"ts": "2026-11-22T12:22:50+00:00", "scene": "s01_last_light", "shot": "sh01", "action": "begin", "from_status": "blockout_approved", "to_status": "frame", "note": null, "detail": {}}
+{"ts": "2026-11-22T12:27:31+00:00", "scene": null, "shot": null, "action": "approve", "from_status": "design", "to_status": "designed", "note": null, "detail": {}, "entity_kind": "location", "entity_id": "watch_room"}
+{"ts": "2026-11-22T12:47:46+00:00", "scene": "s01_last_light", "shot": "sh01", "action": "approve", "from_status": "frame", "to_status": "frame_approved", "note": null, "detail": {"take": 1, "approved": "04_scenes/s01_last_light/shots/sh01/frames/first.png", "face_crop_skips": {}}}
+{"ts": "2026-11-22T12:49:03+00:00", "scene": "s01_last_light", "shot": "sh01", "action": "begin", "from_status": "frame_approved", "to_status": "video", "note": null, "detail": {}}

@@ -1,0 +1,11 @@
+id: empty_hook
+names:
+  en: Empty coat hook
+from_book:
+- '''An empty hook above it swung once in a draught and settled.'''
+- A coat of wet wool had hung there all winter and is gone.
+design_choices:
+- Iron hook mounted loose enough to swing on a draught from the door.
+- Rub the wall and hook shank bare where the coat hung, to show how long it was there.
+assets: {}
+states: []

@@ -1,0 +1,22 @@
+id: s02_shelf_by_the_door
+location: watch_room
+time: night
+summary: By the door, the watch book lies shut with its clasp fastened, and the empty hook above it swings
+  once in a draught and settles.
+characters: []
+seating: []
+sound:
+  ambience: rain outside, a single creak as the hook swings
+chapter: ch01.md
+props:
+- watch_book
+- empty_hook
+from_book:
+- '''On a shelf by the door, the watch book lay shut, its brass clasp fastened.'''
+- '''An empty hook above it swung once in a draught and settled.'''
+- '''The room smelled of lamp oil and the wet wool of a coat that had hung there all winter.'''
+design_choices:
+- Stage the shelf on the far side of the room from the desk so the cut reads as a change of place.
+- 'Leave the hook bare: the winter coat has been taken, which is the only trace of the person who left.'
+- Translate the lamp-oil and wet-wool smell into visuals — a greasy sheen on the lamp glass and a damp
+  stain on the wall under the hook.

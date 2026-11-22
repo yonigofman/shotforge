@@ -1,0 +1,38 @@
+id: sh03
+duration_s: 5.0
+size: wide
+summary: The rain fills the pause between knocks, and the chapter ends on open water.
+camera:
+  blender_cam: CAM_SH03
+  move: static
+technique: []
+in_frame: []
+beats:
+- t:
+  - 0.0
+  - 3.0
+  action: 'Low on the water: the ring hangs still at the edge of frame while rain fills the whole pause,
+    out past the end of the quay.'
+  silence: false
+- t:
+  - 3.0
+  - 5.0
+  action: One more knock, later than it should be, and then only the rain.
+  silence: false
+continuity:
+  in:
+    rain: steady
+    quay_stone: wet and dark
+    mooring_ring: unmoored, no rope, still swinging
+    boat_at_quay: none
+  out:
+    rain: steady
+    quay_stone: wet and dark
+    mooring_ring: unmoored, no rope, hanging still
+    boat_at_quay: none
+refs:
+  from_shots: []
+  face_crops: []
+  extra: []
+sound: {}
+status: breakdown

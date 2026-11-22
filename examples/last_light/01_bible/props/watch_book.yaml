@@ -1,0 +1,10 @@
+id: watch_book
+names:
+  en: Watch book
+from_book:
+- '''On a shelf by the door, the watch book lay shut, its brass clasp fastened.'''
+design_choices:
+- Heavy ledger with a worn cover and a brass clasp echoing the lantern's metal, so the shut book reads
+  as a finished shift.
+assets: {}
+states: []

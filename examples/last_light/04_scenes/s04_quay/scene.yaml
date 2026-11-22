@@ -1,0 +1,22 @@
+id: s04_quay
+location: quay
+time: night
+summary: Outside on the quay, a mooring ring knocks against the stone, and the rain fills the pause between
+  knocks.
+characters: []
+seating: []
+sound:
+  ambience: rain on water and stone
+  spot: iron mooring ring knocking against the quay stone at irregular intervals
+chapter: ch01.md
+props:
+- mooring_ring
+from_book:
+- 'Closing lines: ''Down at the quay, a mooring ring knocked against the stone. The rain filled the pause
+  between knocks.'''
+- The quay is close enough to the watch room to be heard from it.
+design_choices:
+- Cut outside for the chapter's last beat; the knocking can also be laid under s01_last_light as off-screen
+  sound to tie the two spaces together.
+- Frame the ring low and wet with no boat attached, so the sound reads as something unmoored rather than
+  someone arriving.

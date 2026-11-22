@@ -1,0 +1,9 @@
+id: mooring_ring
+names:
+  en: Mooring ring
+from_book:
+- '''Down at the quay, a mooring ring knocked against the stone.'''
+design_choices:
+- Rusted iron ring set in the quay wall, no rope attached, swinging in the swell.
+assets: {}
+states: []

@@ -1,0 +1,43 @@
+id: sh02
+duration_s: 6.0
+size: close-up
+summary: The mooring ring, low and wet, knocks against the quay stone with nothing attached to it.
+camera:
+  blender_cam: CAM_SH02
+  move: static
+technique: []
+in_frame: []
+beats:
+- t:
+  - 0.0
+  - 2.0
+  action: The iron ring, slick with rain, swings up and knocks against the lip of the stone.
+  silence: false
+- t:
+  - 2.0
+  - 4.0
+  action: 'It falls back, shedding water. The ring is bare: no rope through it, nothing moored on the
+    other end.'
+  silence: false
+- t:
+  - 4.0
+  - 6.0
+  action: A second knock comes, softer, off the rhythm of the first.
+  silence: false
+continuity:
+  in:
+    rain: steady
+    quay_stone: wet and dark
+    mooring_ring: unmoored, no rope
+    boat_at_quay: none
+  out:
+    rain: steady
+    quay_stone: wet and dark
+    mooring_ring: unmoored, no rope, still swinging
+    boat_at_quay: none
+refs:
+  from_shots: []
+  face_crops: []
+  extra: []
+sound: {}
+status: breakdown

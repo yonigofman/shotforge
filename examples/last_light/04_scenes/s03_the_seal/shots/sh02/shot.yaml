@@ -1,0 +1,41 @@
+id: sh02
+duration_s: 4.0
+size: extreme close-up
+summary: The one darkened corner of the envelope, the rest of the paper dry.
+camera:
+  blender_cam: CAM_SH02
+  move: static
+technique: []
+in_frame: []
+beats:
+- t:
+  - 0.0
+  - 2.0
+  action: A single corner of the envelope has gone dark where a drop fell from somebody's sleeve, the
+    fibres swollen and the ink of the rule bled a hair.
+  silence: false
+- t:
+  - 2.0
+  - 4.0
+  action: The stain stops short; beyond it the paper runs clean and dry to the edge of frame, drying inward
+    as the lantern warms it.
+  silence: false
+continuity:
+  in:
+    letter: sealed, flat on the oak in the lantern circle
+    wax_seal: whole, red, fish impression
+    envelope_corner: one corner darkened by a fallen drop
+    lantern: lit, low flame
+    desk_surface: dry except the darkened corner
+  out:
+    letter: sealed, flat on the oak in the lantern circle
+    wax_seal: whole, red, fish impression
+    envelope_corner: one corner darkened by a fallen drop, edge beginning to dry
+    lantern: lit, low flame
+    desk_surface: dry except the darkened corner
+refs:
+  from_shots: []
+  face_crops: []
+  extra: []
+sound: {}
+status: breakdown

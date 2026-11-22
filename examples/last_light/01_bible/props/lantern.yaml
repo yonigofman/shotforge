@@ -1,0 +1,11 @@
+id: lantern
+names:
+  en: Desk lantern
+from_book:
+- '''On the desk, the lantern still burned.'''
+- It casts a 'warm circle on the oak' that the envelope sits in.
+- The room smells of lamp oil.
+design_choices:
+- Brass oil lantern matching the watch room set dressing, burning low as though left rather than lit.
+assets: {}
+states: []
