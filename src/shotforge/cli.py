@@ -10,9 +10,8 @@ from pathlib import Path
 
 import typer
 
-from shotforge import actions, checks, tools
+from shotforge import actions, blender, checks, tools
 from shotforge import inbox as inbox_mod
-from shotforge.blender import render_masks
 from shotforge.console import setup_console
 from shotforge.models import Stage
 from shotforge.pipeline import TransitionError, next_action, reopen
@@ -170,18 +169,6 @@ def shot(
 
 
 @app.command()
-def masks(scene: str, shot_id: str, project_dir: Path | None = ProjectOption) -> None:
-    """Render the character masks from an existing Blender blockout scene."""
-    project, _ = _open(project_dir)
-    try:
-        paths = render_masks(project, scene, shot_id)
-    except (ProjectError, ValueError, tools.ToolError, OSError) as exc:
-        raise typer.BadParameter(str(exc)) from exc
-    for path in paths:
-        typer.echo(project.paths.rel(path))
-
-
-@app.command()
 def prompt(
     scene: str,
     shot_id: str,
@@ -199,6 +186,28 @@ def prompt(
         return
     typer.echo(f"# {result.skill.name} → {project.paths.rel(result.path)}\n")
     typer.echo(result.text)
+
+
+@app.command()
+def blockout(
+    scene: str,
+    shot_id: str | None = typer.Argument(None, metavar="SHOT", help="Omit to render every shot."),
+    project_dir: Path | None = ProjectOption,
+) -> None:
+    """Render one shot or an entire scene in Blender."""
+    project, _ = _open(project_dir)
+    try:
+        paths = (
+            [blender.render(scene, shot_id, project=project)]
+            if shot_id is not None
+            else blender.render_scene(scene, project=project)
+        )
+    except blender.BlockoutError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Scene → {project.paths.rel(project.paths.blend_file(scene))}")
+    for path in paths:
+        typer.echo(f"Rendered → {project.paths.rel(path)}")
 
 
 @app.command()

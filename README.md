@@ -10,8 +10,8 @@ closes only when you approve it, and every approval is logged with your note.
 
 ## What works today
 
-A shot can go from blockout to an approved video without a prompt being
-written by hand.
+A shot can go from a Blender blockout to an approved video without a prompt
+being written by hand.
 
 | Area | State |
 | --- | --- |
@@ -24,16 +24,16 @@ written by hand.
 | Last-frame extraction feeding the next shot | done |
 | Cockpit: Scenes, Storyboard, Shot card, Takes, Bible, Skills, Log | done |
 | Engine layer (`Engine.run_skill`) with a Claude Code implementation | done |
-| Blender blockout scene generation | not yet (Phase 2) |
-| Character masks from an existing blockout, automatic face crops | done |
+| Blender blockout with named shot cameras and a 180° axis check | done |
+| Per-character masks and automatic face crops | done |
 | Vision QA (identity, eyeline, AI look) | not yet (Phase 3) |
 | Breakdown, design and cinematography skills | not yet (Phase 4) |
 | Rough cut and assembly | not yet (Phase 5) |
 
 ## Install
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). ffmpeg is required.
-Install Blender 4.x to render character masks. Claude Code is optional.
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). ffmpeg is required;
+Blender is required for blockout rendering. Claude Code is optional.
 
 ```bash
 uv venv && uv pip install -e ".[dev]"
@@ -84,21 +84,17 @@ why something was decided.
 
 The frame stage runs in two passes: pass 1 locks the composition from the Blender
 blockout, pass 2 fixes identity against the face crops. Approving ends the stage.
-
-To render masks from an existing blockout, save its Blender file as
-`03_blender/<scene>.blend`. Set the `shotforge_character` custom property on each
-mannequin object or its parent to the character ID used in `in_frame`. Save the
-file with the same render resolution and view layer as the blockout.
-Run `shotforge masks s01_pub sh07` to render the shot camera's masks into
-`03_blender/renders/s01_pub/sh07/`. Approving a first frame crops the top third of
-each visible character's mask from the approved image. The shot card reports
-skipped crops, and pass 2 uses the latest available approved crop for each character.
+On frame approval, Shotforge uses each character's mask to crop the head from
+`first.png` and saves it under `02_design/characters/<id>/face_crops/`. The
+shot card shows skipped crops. Pass 2 attaches each character's most recent
+approved crop immediately before the current shot's mask.
 
 A full shot, in the terminal:
 
 ```bash
 shotforge approve s01_pub sh07 --note "beats fine"   # breakdown
 shotforge begin   s01_pub sh07                       # → blockout
+shotforge blockout s01_pub sh07                       # render the blockout
 shotforge approve s01_pub sh07                       # blockout
 shotforge begin   s01_pub sh07                       # → frame
 shotforge prompt  s01_pub sh07                       # pass 1 prompt, saved next to the shot
@@ -110,6 +106,25 @@ shotforge prompt  s01_pub sh07                       # Grok prompt with timecode
 shotforge inbox file grok_result.mp4                 # becomes video/v1.mp4
 shotforge approve s01_pub sh07                       # → video/shot.mp4 + last_frame.png
 ```
+
+## Render a scene in Blender
+
+Run `shotforge blockout s01_pub` from the project to render every shot, or
+pass a shot ID to render just that shot. The shot card offers **Render
+blockout** during the Blockout stage. Shotforge saves the set, figures and
+all shot cameras in `03_blender/<scene>.blend` and the selected PNGs under
+`03_blender/renders/<scene>/<shot>/blockout.png`. Binary character masks named
+`mask_<character>.png` are saved beside the blockout at the same resolution.
+Review and approve each render at its Blockout gate. Each render rebuilds the
+scene file from YAML.
+
+If the Blender MCP add-on is listening locally, Shotforge renders through
+it. Otherwise it starts Blender in background mode using `tool_paths.blender`
+or the auto-detected executable. The add-on defaults to port 9876. Set
+`SHOTFORGE_BLENDER_MCP_PORT` if yours uses another port.
+
+The adapter documents location measurements, camera controls and 180° axis
+formats. [Blender blockout skill](skills/blender-blockout/SKILL.md)
 
 ## The project folder
 
@@ -144,7 +159,8 @@ stages refer to, which is what stops two frames from overwriting each other.
 
 Every prompt comes from a skill: a folder in the
 [Agent Skills](https://code.claude.com/docs/en/skills) shape, with `SKILL.md`,
-`rules.md`, `template.j2` and `examples/`. The MVP skills render from templates
+`rules.md` and a `template.j2` where the skill has a deterministic output.
+The prompt skills render from templates
 and the project's own YAML — no model is called, so a scene does not stop when a
 usage limit is reached.
 

@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 
 from shotforge.media import frame_size
 from shotforge.models import Shot
+from shotforge.models.common import ID_RE
 from shotforge.paths import ProjectPaths
 from shotforge.tools import ToolError, require_tool
 
@@ -15,12 +16,17 @@ from shotforge.tools import ToolError, require_tool
 def extract_face_crops(paths: ProjectPaths, scene_id: str, shot: Shot) -> dict[str, str]:
     """Refresh this shot's crops and return any skips for the approval card."""
     frame = paths.shot(scene_id, shot.id).approved_frame
-    masks = {char: paths.mask(scene_id, shot.id, char) for char in shot.characters}
+    masks: dict[str, Path] = {}
+    skipped: dict[str, str] = {}
+    for char in shot.characters:
+        if ID_RE.fullmatch(char):
+            masks[char] = paths.mask(scene_id, shot.id, char)
+        else:
+            skipped[char] = "invalid character ID"
     try:
         size = frame_size(frame) if any(mask.is_file() for mask in masks.values()) else None
     except OSError:
         size = None
-    skipped = {}
     for char, mask in masks.items():
         target = paths.face_crop(scene_id, shot.id, char)
         try:

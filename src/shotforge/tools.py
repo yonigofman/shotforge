@@ -75,9 +75,10 @@ def _platform_key() -> str:
     return "linux"
 
 
-def find_tool(name: str) -> Path | None:
+def find_tool(name: str, *, overrides: dict[str, str | None] | None = None) -> Path | None:
     """The override, then PATH, then the standard locations for this system."""
-    override = _OVERRIDES.get(name) or os.environ.get(f"SHOTFORGE_{name.upper()}")
+    configured = _OVERRIDES if overrides is None else overrides
+    override = configured.get(name) or os.environ.get(f"SHOTFORGE_{name.upper()}")
     if override:
         candidate = Path(os.path.expandvars(override)).expanduser()
         return candidate if candidate.exists() else None
@@ -91,8 +92,8 @@ def find_tool(name: str) -> Path | None:
     return None
 
 
-def require_tool(name: str) -> Path:
-    found = find_tool(name)
+def require_tool(name: str, *, overrides: dict[str, str | None] | None = None) -> Path:
+    found = find_tool(name, overrides=overrides)
     if found is None:
         raise ToolError(f"{name} not found. {HINTS.get(name, '')}".strip())
     return found

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import field_validator
 
+from shotforge.models.blockout import BlockoutAxis
 from shotforge.models.common import ID_RE, SFModel
 
 
@@ -22,7 +23,7 @@ class Scene(SFModel):
     summary: str | None = None
     characters: list[str] = []
     seating: list[Seat] = []
-    axis_180: str | None = None
+    axis_180: str | BlockoutAxis | None = None
     lighting: str | None = None
     sound: dict[str, str] = {}
 
