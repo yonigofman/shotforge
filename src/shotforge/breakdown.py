@@ -85,7 +85,7 @@ def propose_book(
             "chapter_text": chapter.text,
             "language": project.config.language,
             "existing_bible": bible,
-            "existing_scene_ids": project.scene_ids(),
+            "existing_scenes": as_plain(project.scenes()),
         },
         BookBreakdown,
     )

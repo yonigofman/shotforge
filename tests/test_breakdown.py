@@ -13,7 +13,7 @@ from typer.testing import CliRunner
 
 from shotforge.cli import app
 from shotforge.engine import ClaudeCodeEngine
-from shotforge.models import Beat, Shot, ShotStatus
+from shotforge.models import Beat, Scene, Shot, ShotStatus
 from shotforge.project import Project
 from shotforge.web.app import create_app
 
@@ -89,6 +89,7 @@ def model(monkeypatch, chapter_project):
         SECOND: {"shots": [_shot()]},
     }
     monkeypatch.setattr(ClaudeCodeEngine, "executable", lambda self: Path("claude"))
+    calls = []
 
     def run(command, **kwargs):
         assert command[:2] == ["claude", "-p"]
@@ -98,14 +99,17 @@ def model(monkeypatch, chapter_project):
         prompt = kwargs["input"]
         assert "The bell rings" in prompt and "Звонок" in prompt
         if "skill `book-breakdown`" in prompt:
+            calls.append(("book", prompt))
             value = json.dumps(responses["book"], ensure_ascii=False)
         else:
             assert "skill `scene-to-shots`" in prompt
             scene_id = re.search(r"\nscene:\n  id: (.+)\n", prompt)[1]
+            calls.append((scene_id, prompt))
             value = f"```json\n{json.dumps(responses[scene_id], ensure_ascii=False)}\n```"
         return CompletedProcess(command, 0, json.dumps({"result": value}), "")
 
     monkeypatch.setattr("shotforge.engine.claude_code.subprocess.run", run)
+    responses["calls"] = calls
     return responses
 
 
@@ -200,3 +204,23 @@ def test_invalid_later_shot_disallows_the_entire_cockpit_proposal(chapter_projec
     assert "beats run to" in response.text
     assert not chapter_project.scene_ids()
     assert not chapter_project.characters()
+
+
+def test_cockpit_proposes_scene_two_with_a_hand_written_scene_one(chapter_project, model):
+    project = chapter_project
+    first_scene = Scene(id=FIRST, location="tram_stop", summary="Neta pockets the key at the stop.")
+    existing = project.save_scene(first_scene).read_bytes()
+    client = TestClient(create_app(project.paths.root))
+
+    preview = client.post("/breakdown/propose", data={"chapter": "ch01.md"})
+    assert preview.status_code == 200, preview.text
+    assert "s01_tram_stop/scene.yaml" in preview.text
+    assert [name for name, _ in model["calls"]] == ["book", SECOND]
+    assert "Neta pockets the key at the stop." in model["calls"][0][1]
+
+    token = re.search('name="token" value="([^"]+)"', preview.text)[1]
+    response = client.post("/breakdown/approve", data={"token": token})
+    assert response.status_code == 200, response.text
+    assert project.paths.scene(FIRST).spec.read_bytes() == existing
+    assert project.shot_ids(FIRST) == []
+    assert project.shot(SECOND, "sh01").status is ShotStatus.breakdown

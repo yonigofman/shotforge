@@ -4,7 +4,7 @@ stage: breakdown
 kind: craft
 tool: Claude Code
 description: Break a chapter into scenes and identify the bible entries each scene needs.
-inputs: [chapter filename, chapter text, language, existing bible, existing scene ids]
+inputs: [chapter filename, chapter text, language, existing bible, existing scene specs]
 outputs: [scenes, characters, props, locations]
 ---
 
@@ -21,9 +21,11 @@ have at least one note. Put the chapter's identifying action or lines in each
 scene's notes so a later pass can find the right part of the text.
 
 Reuse IDs from `existing_bible` for established characters, props and
-locations. Return bible records for new entries. Use sortable scene IDs
-(`s01_platform`, `s02_waiting_room`), starting after existing scene IDs for new
-scenes. All IDs use lowercase ASCII letters, digits and underscores. Scene
+locations. Return bible records for new entries. Compare each scene to
+`existing_scenes` and keep the ID of any scene that already covers the same
+passage, including hand-written scenes with no chapter filename. Give new
+scenes sortable IDs (`s01_platform`, `s02_waiting_room`) after the existing
+IDs. All IDs use lowercase ASCII letters, digits and underscores. Scene
 `location`, `characters`, `props` and any `seating[].char` value refer to IDs
 in the existing bible or in this proposal. Use the source language for names
 as appropriate.
