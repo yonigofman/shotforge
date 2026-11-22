@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from jinja2 import TemplateError
 
 from shotforge import design, inbox
+from shotforge.models.materials import Materials
 from shotforge.pipeline import TransitionError
 from shotforge.project import KINDS, Project, ProjectError
 from shotforge.skills.registry import SkillError
@@ -41,6 +42,13 @@ def _entity_url(kind: str, entity_id: str) -> str:
     return f"/bible/{kind}/{entity_id}"
 
 
+def materials_for_page(project: Project) -> tuple[Materials, str]:
+    try:
+        return project.materials(), ""
+    except ProjectFileError as exc:
+        return Materials({}), str(exc)
+
+
 def register_bible(
     app: FastAPI,
     load: Callable[[], tuple[Project, ProjectState]],
@@ -49,6 +57,13 @@ def register_bible(
     @app.get("/bible", response_class=HTMLResponse)
     def bible(request: Request) -> HTMLResponse:
         project, state = load()
+        materials, material_error = materials_for_page(project)
+        textures: dict[tuple[str, str], list[tuple[str, Path]]] = {}
+        for surface, material in materials.root.items():
+            origin = materials.source_for(surface)
+            textures.setdefault((origin.kind, origin.id), []).append(
+                (surface, project.paths.textures / material.texture)
+            )
         groups = []
         for kind in KINDS:
             items = []
@@ -59,6 +74,7 @@ def register_bible(
                         "id": entity_id,
                         "entity": entity,
                         "sheet": project.paths.sheet(kind, entity_id),
+                        "textures": textures.get((kind, entity_id), []),
                         "designed": bool(
                             approved
                             and approved == design.revision(project, kind, entity_id, entity)
@@ -69,7 +85,13 @@ def register_bible(
         return render(
             request,
             "bible.html",
-            {"project": project, "kinds": groups, "style": project.style(), "page": "bible"},
+            {
+                "project": project,
+                "kinds": groups,
+                "style": project.style(),
+                "material_error": material_error,
+                "page": "bible",
+            },
         )
 
     def editor(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass
+from hashlib import file_digest
 
 from jinja2 import TemplateError
 from pydantic import ValidationError
@@ -199,6 +200,33 @@ def _camera(shot: Shot, set_: BlockoutSet, seats: dict[str, Point]) -> ShotCamer
     return ShotCamera(name, lens, (x, y, z), (target_x, target_y, target_z), shift)
 
 
+def _materials(project: Project, location: str, characters: set[str]) -> dict:
+    textures = project.paths.textures
+    materials = {}
+    hashes = {}
+    for surface, assignment in project.materials().root.items():
+        kind, entity_id, part = surface.split(".")
+        if (kind == "location" and entity_id != location) or (
+            kind == "character" and entity_id not in characters
+        ):
+            continue
+        path = textures / assignment.texture
+        if not path.is_file():
+            continue
+        if not path.resolve().is_relative_to(textures):
+            raise BlockoutError(f"{path}: texture must be inside the project's textures folder")
+        if path not in hashes:
+            with path.open("rb") as image:
+                hashes[path] = file_digest(image, "sha256").hexdigest()
+        key = part if kind == "location" else f"{entity_id}.{part}"
+        materials[key] = {
+            "texture": str(path),
+            "uv_scale": assignment.uv_scale,
+            "sha256": hashes[path],
+        }
+    return materials
+
+
 def build_spec(project: Project, scene: Scene, shots: list[Shot]) -> dict:
     description = _describe_set(project, scene)
     set_ = description.set
@@ -222,4 +250,5 @@ def build_spec(project: Project, scene: Scene, shots: list[Shot]) -> dict:
         "cameras": {shot: asdict(camera) for shot, camera in cameras.items()},
         "axis": as_plain(_axis(scene, set_, row)),
         "resolution": (max(4, width * scale), max(4, height * scale)),
+        "materials": _materials(project, scene.location, set(seats)),
     }

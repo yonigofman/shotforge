@@ -209,6 +209,10 @@ class ProjectPaths:
     def textures(self) -> Path:
         return self.blender / "textures"
 
+    @property
+    def materials(self) -> Path:
+        return self.textures / "materials.yaml"
+
     # -- scenes ------------------------------------------------------------
     @property
     def scenes(self) -> Path:

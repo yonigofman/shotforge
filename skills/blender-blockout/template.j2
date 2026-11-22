@@ -1,4 +1,4 @@
 {
-  "set": {{ (location.blockout or default_set) | tojson }},
+  "set": {{ location.blockout | default(default_set, true) | tojson }},
   "seating": {{ scene.seating | tojson }}
 }
