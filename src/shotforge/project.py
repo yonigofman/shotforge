@@ -10,6 +10,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from shotforge.claude_settings import ClaudeSettings, read_claude_settings
 from shotforge.models import (
     Character,
     Location,
@@ -158,6 +159,9 @@ class Project:
     def name(self) -> str:
         return self.config.name
 
+    def claude_settings(self) -> ClaudeSettings:
+        return read_claude_settings(self.paths.claude_settings)
+
     def style(self) -> Style:
         return load(self.paths.style, Style)
 
@@ -287,7 +291,7 @@ class Project:
     def validate(self) -> list[str]:
         """Load every file in the project and collect the schema errors."""
         problems: list[str] = []
-        for loader in (self.style, self.materials):
+        for loader in (self.claude_settings, self.style, self.materials):
             try:
                 loader()
             except ProjectFileError as exc:

@@ -112,6 +112,10 @@ class ProjectPaths:
         return self.root / PROJECT_FILE
 
     @property
+    def claude_settings(self) -> Path:
+        return self.root / "claude.yaml"
+
+    @property
     def state_dir(self) -> Path:
         return self.root / STATE_DIR
 

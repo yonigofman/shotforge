@@ -18,6 +18,7 @@ from shotforge.models.common import SFModel
 from shotforge.project import Project
 from shotforge.skills import SkillError, find_skill
 from shotforge.tools import ToolError, find_tool, require_tool
+from shotforge.yamlio import ProjectFileError
 
 SAMPLES = 12
 CHECK = "looking into the lens"
@@ -54,7 +55,10 @@ def check_eyeline(project: Project, shot: Shot, video: Path, duration: float) ->
 
     try:
         skill = find_skill("eyeline-qa", project.paths.skills)
-        engine = ClaudeCodeEngine(executable=executable, timeout_s=120)
+        settings = project.claude_settings()
+        engine = ClaudeCodeEngine(
+            executable=executable, timeout_s=settings.timeout_s or 120, settings=settings,
+        )
         with TemporaryDirectory(prefix="shotforge-eyeline-") as directory:
             root = Path(directory)
             frames = _sample_frames(video, duration, root)
@@ -69,7 +73,10 @@ def check_eyeline(project: Project, shot: Shot, video: Path, duration: float) ->
                 "frames": {index: path.name for index, path in enumerate(frames, 1)},
             }
             result = engine.run_skill(skill, inputs, cwd=root, files=frames)
-    except (EngineError, ToolError, SkillError, OSError, subprocess.SubprocessError, YAMLError):
+    except (
+        EngineError, ToolError, SkillError, ProjectFileError, OSError,
+        subprocess.SubprocessError, YAMLError,
+    ):
         return Finding(CHECK, WARN, "could not complete the eyeline review with Claude Code")
 
     if result.data.get("is_error") or result.data.get("permission_denials"):

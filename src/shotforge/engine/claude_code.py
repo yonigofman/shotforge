@@ -13,11 +13,13 @@ from typing import Any
 
 import yaml
 
+from shotforge.claude_settings import ClaudeSettings, read_claude_settings
 from shotforge.engine.base import Engine, EngineError, EngineProgress, EngineResult
+from shotforge.paths import ProjectPaths
 from shotforge.skills.registry import Skill
 from shotforge.tools import ToolError, find_tool
+from shotforge.yamlio import ProjectFileError
 
-#: Headless runs are bounded so a stuck call cannot hold up a scene.
 DEFAULT_TIMEOUT_S = 600
 TEXT_ONLY_ARGS = ("--tools", "", "--strict-mcp-config", "--setting-sources", "")
 
@@ -27,8 +29,12 @@ class ClaudeCodeEngine(Engine):
 
     name = "claude-code"
 
-    def __init__(self, executable: Path | None = None, timeout_s: int = DEFAULT_TIMEOUT_S):
+    def __init__(
+        self, executable: Path | None = None, timeout_s: int | None = None,
+        *, settings: ClaudeSettings | None = None,
+    ):
         self._executable = executable
+        self._settings = settings
         self.timeout_s = timeout_s
 
     # -- plumbing ----------------------------------------------------------
@@ -47,6 +53,29 @@ class ClaudeCodeEngine(Engine):
         except ToolError:
             return False
         return True
+
+    def _run_options(self, cwd: Path | None) -> tuple[list[str], int]:
+        settings = self._settings
+        if settings is None:
+            try:
+                settings = (
+                    read_claude_settings(ProjectPaths(cwd).claude_settings)
+                    if cwd is not None else ClaudeSettings()
+                )
+            except (ProjectFileError, OSError) as exc:
+                raise EngineError(str(exc)) from exc
+        args = []
+        for flag, value in (
+            ("--model", settings.model),
+            ("--effort", settings.effort),
+            ("--fallback-model", ",".join(settings.fallback_models)),
+        ):
+            if value:
+                args.extend([flag, value])
+        timeout_s = self.timeout_s if self.timeout_s is not None else (
+            settings.timeout_s or DEFAULT_TIMEOUT_S
+        )
+        return args, timeout_s
 
     def build_prompt(self, skill: Skill, inputs: dict[str, Any], files: list[Path] | None) -> str:
         """SKILL.md is the instruction; the inputs go in as YAML."""
@@ -85,10 +114,11 @@ class ClaudeCodeEngine(Engine):
         files: list[Path] | None = None,
     ) -> EngineResult:
         prompt = self.build_prompt(skill, inputs, files)
+        model_args, timeout_s = self._run_options(cwd)
         command = [str(self.executable()), "-p"]
         if files:
             command.append(prompt)
-        command.extend(["--output-format", "json"])
+        command.extend(["--output-format", "json", *model_args])
         options = {}
         if files:
             # Headless reviews need to open the images listed in the prompt.
@@ -103,12 +133,12 @@ class ClaudeCodeEngine(Engine):
                 capture_output=True,
                 encoding="utf-8",
                 cwd=str(cwd) if cwd else None,
-                timeout=self.timeout_s,
+                timeout=timeout_s,
                 **options,
             )
         except subprocess.TimeoutExpired as exc:
             raise EngineError(
-                f"claude -p did not finish within {self.timeout_s}s for skill {skill.name}"
+                f"claude -p did not finish within {timeout_s}s for skill {skill.name}"
             ) from exc
         except OSError as exc:
             raise EngineError(f"could not start Claude Code for skill {skill.name}: {exc}") from exc
@@ -125,12 +155,12 @@ class ClaudeCodeEngine(Engine):
     ) -> EngineResult:
         if progress.cancelled.is_set():
             raise EngineError("Proposal generation was cancelled.")
+        model_args, timeout_s = self._run_options(cwd)
         command = [
             str(self.executable()), "-p", "--output-format", "stream-json", "--verbose",
-            "--include-partial-messages", *TEXT_ONLY_ARGS,
+            "--include-partial-messages", *model_args, *TEXT_ONLY_ARGS,
         ]
         prompt = self.build_prompt(skill, inputs, None)
-        deadline = monotonic() + self.timeout_s
         try:
             # File-backed stdin and stderr avoid blocking on a long prompt or error.
             with TemporaryFile() as source, TemporaryFile() as errors:
@@ -140,7 +170,7 @@ class ClaudeCodeEngine(Engine):
                     command, cwd=cwd, stdin=source, stderr=errors, stdout=subprocess.PIPE,
                     encoding="utf-8", errors="replace",
                 ) as process:
-                    result = self._read_stream(process, skill, progress, deadline)
+                    result = self._read_stream(process, skill, progress, timeout_s)
                     errors.seek(0)
                     detail = errors.read(2000).decode("utf-8", errors="replace").strip()
                     if process.returncode:
@@ -160,7 +190,7 @@ class ClaudeCodeEngine(Engine):
 
     def _read_stream(
         self, process: subprocess.Popen[str], skill: Skill, progress: EngineProgress,
-        deadline: float,
+        timeout_s: int,
     ) -> EngineResult | None:
         stdout = process.stdout
         assert stdout is not None
@@ -175,6 +205,7 @@ class ClaudeCodeEngine(Engine):
 
         reader = Thread(target=read_lines, daemon=True)
         reader.start()
+        deadline = monotonic() + timeout_s
         result = None
         reported = False
         eof = False
@@ -185,7 +216,7 @@ class ClaudeCodeEngine(Engine):
                 remaining = deadline - monotonic()
                 if remaining <= 0:
                     raise EngineError(
-                        f"claude -p did not finish within {self.timeout_s}s for skill {skill.name}"
+                        f"claude -p did not finish within {timeout_s}s for skill {skill.name}"
                     )
                 interval = min(0.2, remaining)
                 if eof:

@@ -140,6 +140,24 @@ hand-written scene in a project with multiple chapters, use
 `shotforge shots s02_waiting_room --chapter ch01`. New shots start in
 `breakdown` and follow the usual approval workflow.
 
+## Configure Claude Code
+
+In the cockpit, open **Settings** to choose the model, thinking effort,
+fallback models, and timeout per skill. Shotforge saves the preferences in
+`claude.yaml` at the project root. They also apply to CLI commands that run
+Claude Code in that project.
+
+```yaml
+model: opus
+effort: high
+fallback_models: [sonnet, haiku]
+timeout_s: 900
+```
+
+Omit a model option to use Claude Code's default. The available effort levels
+depend on the model. With the timeout unset, Shotforge allows 600 seconds per
+skill and 120 seconds for video eyeline review.
+
 ## How a shot moves
 
 ```

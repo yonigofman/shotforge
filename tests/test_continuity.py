@@ -82,7 +82,7 @@ def test_storyboard_runs_the_skill_and_the_shot_card_and_cli_reuse_it(
     assert len(calls) == 1
 
 
-def test_clean_verdict_is_cached_and_a_changed_last_frame_or_spec_invalidates_it(
+def test_cache_tracks_inputs_and_claude_model(
     project, approved_frames, png, monkeypatch
 ):
     calls = []
@@ -108,6 +108,11 @@ def test_clean_verdict_is_cached_and_a_changed_last_frame_or_spec_invalidates_it
     project.save_shot(SCENE, incoming)
     assert continuity.scene_findings(project, scene, run=True) == first
     assert len(calls) == 3
+
+    project.paths.claude_settings.write_text("model: sonnet\neffort: high\n", encoding="utf-8")
+    assert continuity.scene_findings(project, scene)[0].level == "warn"
+    assert continuity.scene_findings(project, scene, run=True) == first
+    assert len(calls) == 4
 
 
 def test_invalid_reviews_are_retried_and_missing_frames_skip_a_cut(

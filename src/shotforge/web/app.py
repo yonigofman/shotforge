@@ -39,6 +39,7 @@ from shotforge.web.edit import register_edit
 from shotforge.web.local import LocalOnlyMiddleware
 from shotforge.web.projects import project_prefix, register_projects
 from shotforge.web.proposals import ProposalProgress, accepts_proposal_stream, stream_proposal
+from shotforge.web.settings import register_settings
 from shotforge.yamlio import ProjectFileError
 
 HERE = Path(__file__).resolve().parent
@@ -490,6 +491,7 @@ def create_app(
 
     register_bible(routes, load, render)
     register_edit(routes, load, render)
+    register_settings(routes, load, render)
 
     @routes.get("/log", response_class=HTMLResponse)
     def log_page(request: Request) -> HTMLResponse:

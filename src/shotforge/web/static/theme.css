@@ -848,6 +848,10 @@ tr:last-child td {
   align-self: start;
 }
 
+.claude-settings {
+  max-width: 42rem;
+}
+
 @media (max-width: 800px) {
   .project-columns {
     grid-template-columns: minmax(0, 1fr);

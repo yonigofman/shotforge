@@ -22,7 +22,7 @@ def fake_claude(tmp_path, monkeypatch):
         assert command[command.index("--output-format") + 1] == "stream-json"
         assert "--include-partial-messages" in command
         assert command[command.index("--tools") + 1] == ""
-        process = popen([sys.executable, str(script)], **kwargs)
+        process = popen([sys.executable, str(script), *command[2:]], **kwargs)
         processes.append(process)
         return process
 
@@ -33,11 +33,18 @@ def fake_claude(tmp_path, monkeypatch):
 def test_streams_before_the_result_and_parses_final_fenced_json(fake_claude, tmp_path):
     script, _ = fake_claude
     marker = tmp_path / "progress"
+    (tmp_path / "claude.yaml").write_text(
+        "model: opus\neffort: high\nfallback_models: [sonnet, haiku]\n",
+        encoding="utf-8",
+    )
     script.write_text(
         r"""import json, sys, time
 from pathlib import Path
 
 assert 'chapter_text' in sys.stdin.read()
+expected = {'--model': 'opus', '--effort': 'high', '--fallback-model': 'sonnet,haiku'}
+for flag, value in expected.items():
+    assert sys.argv[sys.argv.index(flag) + 1] == value
 print('{"type":"system","subtype":"init"}', flush=True)
 print(json.dumps({"type": "stream_event", "event": {
     "type": "content_block_delta", "delta": {"type": "text_delta", "text": "partial"},
@@ -71,7 +78,10 @@ time.sleep(30)
     )
     cancelled = Event()
     started = cancelled.set if cancel else lambda: None
-    engine = ClaudeCodeEngine(executable=Path("claude"), timeout_s=5 if cancel else 1)
+    (tmp_path / "claude.yaml").write_text(
+        f"timeout_s: {5 if cancel else 1}\n", encoding="utf-8"
+    )
+    engine = ClaudeCodeEngine(executable=Path("claude"))
     expected = "generation was cancelled" if cancel else "did not finish within 1s"
     with pytest.raises(EngineError, match=expected):
         engine.run_skill_with_progress(

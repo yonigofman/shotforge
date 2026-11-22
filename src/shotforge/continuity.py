@@ -19,6 +19,7 @@ from shotforge.project import Project
 from shotforge.skills import find_skill
 from shotforge.skills.registry import SkillError
 from shotforge.tools import ToolError
+from shotforge.yamlio import ProjectFileError
 
 SKILL_NAME = "continuity-check"
 ENGINE_NAME = "claude-code"
@@ -84,9 +85,12 @@ def _review_cut(
         }
         files = list(frames.values())
         digests = _frame_digests(files)
-        content = json.dumps(
-            [ENGINE_NAME, skill.body, skill.rules(), inputs, digests], sort_keys=True
-        )
+        settings = project.claude_settings()
+        options = settings.model_dump(exclude_defaults=True, exclude={"timeout_s"})
+        cache_inputs = [ENGINE_NAME, skill.body, skill.rules(), inputs, digests]
+        if options:
+            cache_inputs.append(options)
+        content = json.dumps(cache_inputs, sort_keys=True)
         key = hashlib.sha256(content.encode("utf-8")).hexdigest()
         cache = project.paths.cache / SKILL_NAME / f"{key}.json"
         findings = _read_cache(cache)
@@ -97,8 +101,10 @@ def _review_cut(
             findings = _parse_result(result)
             if _frame_digests(files) != digests:
                 raise EngineError("the frames changed during the review. Run the check again.")
+            if project.claude_settings() != settings:
+                raise EngineError("Claude settings changed during the review. Run the check again.")
             _write_cache(cache, findings)
-    except (EngineError, OSError, SkillError, ToolError) as exc:
+    except (EngineError, OSError, ProjectFileError, SkillError, ToolError) as exc:
         return _CutReview(status=Finding(REVIEW, FAIL, f"Review failed. {exc}"))
 
     status = None if findings else Finding(REVIEW, PASS, "No visual continuity gaps found.")
