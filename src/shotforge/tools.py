@@ -8,6 +8,7 @@ about it.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -21,11 +22,6 @@ _OVERRIDES: ContextVar[dict[str, str] | None] = ContextVar("tool_paths", default
 CANDIDATES: dict[str, dict[str, tuple[str, ...]]] = {
     "blender": {
         "darwin": ("/Applications/Blender.app/Contents/MacOS/Blender",),
-        "win32": (
-            r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
-            r"C:\Program Files\Blender Foundation\Blender 4.1\blender.exe",
-            r"C:\Program Files\Blender Foundation\Blender 4.0\blender.exe",
-        ),
         "linux": ("/usr/bin/blender", "/snap/bin/blender"),
     },
     "ffmpeg": {
@@ -73,6 +69,26 @@ def _platform_key() -> str:
     return "linux"
 
 
+def _windows_blender() -> Path | None:
+    roots = [Path(os.environ.get("ProgramFiles") or r"C:\Program Files")]
+    for variable in ("ProgramW6432", "ProgramFiles(x86)"):
+        if directory := os.environ.get(variable):
+            roots.append(Path(directory))
+    if directory := os.environ.get("LOCALAPPDATA"):
+        roots.append(Path(directory) / "Programs")
+
+    installs: list[tuple[tuple[int, ...], Path]] = []
+    for root in dict.fromkeys(roots):
+        for executable in (root / "Blender Foundation").glob("Blender */blender.exe"):
+            version = re.fullmatch(r"Blender (\d+(?:\.\d+)*)", executable.parent.name, re.I)
+            if version and executable.is_file():
+                number = tuple(int(part) for part in version[1].split("."))
+                installs.append((number, executable))
+    if installs:
+        return max(installs, key=lambda install: install[0])[1]
+    return None
+
+
 def find_tool(name: str, *, overrides: dict[str, str | None] | None = None) -> Path | None:
     """The override, then PATH, then the standard locations for this system."""
     configured = (_OVERRIDES.get() or {}) if overrides is None else overrides
@@ -83,7 +99,10 @@ def find_tool(name: str, *, overrides: dict[str, str | None] | None = None) -> P
     on_path = shutil.which(name)
     if on_path:
         return Path(on_path)
-    for raw in CANDIDATES.get(name, {}).get(_platform_key(), ()):
+    platform = _platform_key()
+    if name == "blender" and platform == "win32":
+        return _windows_blender()
+    for raw in CANDIDATES.get(name, {}).get(platform, ()):
         candidate = Path(os.path.expandvars(raw)).expanduser()
         if candidate.exists():
             return candidate

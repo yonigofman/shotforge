@@ -98,8 +98,10 @@ def demo(
 
 
 @app.command()
-def doctor() -> None:
+def doctor(project_dir: Path | None = ProjectOption) -> None:
     """Check the tools Shotforge needs, and say what is missing."""
+    if project_dir is not None or ProjectPaths.find() is not None:
+        _open(project_dir)
     missing_required = False
     for status in tools.doctor():
         tag = "required" if status.required else "optional"
