@@ -60,8 +60,8 @@
         </a>
         {% endif %}
         <form method="post" action="{{ url }}/{{ asset }}/file" enctype="multipart/form-data"
-          class="dropzone stack" data-design-drop>
-          <label for="upload-{{ asset }}">Drop {{ 'a replacement image' if path.is_file() else 'an image' }} here or choose a file</label>
+          class="dropzone stack" data-file-upload="design" tabindex="0" aria-label="Upload {{ title | lower }}">
+          <label for="upload-{{ asset }}">Drop an image here, focus here and paste, or choose a file.</label>
           <input id="upload-{{ asset }}" name="file" type="file" accept=".png,.jpg,.jpeg,.webp" required />
           <button type="submit">File {{ title | lower }}</button>
         </form>

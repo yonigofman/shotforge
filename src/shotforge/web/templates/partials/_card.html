@@ -126,7 +126,7 @@
         {% for attachment in prompt_action.attachments %}
         <li>
           <span class="order">{{ attachment.order }}.</span>
-          <span>
+          <span class="attachment-description">
             {{ attachment.label }}
             <br />
             {% if attachment.exists %}
@@ -135,6 +135,10 @@
             <span class="mono missing">{{ rel(attachment.path) }} — missing</span>
             {% endif %}
           </span>
+          {% if attachment.exists and attachment.is_image %}
+          <button class="quiet" type="button" data-copy-image="{{ media_url(attachment.path) }}"
+                  aria-label="Copy image for {{ attachment.label }}">Copy image</button>
+          {% endif %}
         </li>
         {% endfor %}
       </ul>

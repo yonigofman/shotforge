@@ -525,6 +525,16 @@ kbd {
   flex: none;
 }
 
+.attachment-description {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.attachments [data-copy-image] {
+  flex: none;
+}
+
 .attachments .missing {
   color: var(--color-danger);
 }
@@ -610,6 +620,14 @@ kbd {
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
   color: var(--color-ink);
+}
+
+.dropzone:focus-within {
+  border-color: var(--color-accent);
+}
+
+.dropzone p {
+  margin: 0 0 var(--space-2);
 }
 
 /* --- tables and lists -------------------------------------------------- */
@@ -751,13 +769,13 @@ tr:last-child td {
   white-space: pre-wrap;
 }
 
-[data-design-drop] {
+[data-file-upload="design"] {
   display: flex;
   align-items: center;
   overflow-wrap: anywhere;
 }
 
-[data-design-drop] input {
+[data-file-upload="design"] input {
   max-width: 100%;
 }
 

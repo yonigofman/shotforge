@@ -63,6 +63,10 @@ class Attachment:
     def name(self) -> str:
         return self.path.name
 
+    @property
+    def is_image(self) -> bool:
+        return self.path.suffix.lower() in TakeKind.frame.extensions
+
 
 @dataclass
 class Action:

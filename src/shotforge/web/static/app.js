@@ -13,29 +13,6 @@ document.addEventListener("alpine:init", () => {
       setTimeout(() => (this.copied = false), 2000);
     },
   }));
-
-  Alpine.data("dropzone", () => ({
-    over: false,
-    uploading: false,
-    async upload(event, url) {
-      this.over = false;
-      const files = event.dataTransfer ? event.dataTransfer.files : event.target.files;
-      if (this.uploading || !files || !files.length) return;
-      const body = new FormData();
-      for (const file of files) body.append("files", file);
-      this.uploading = true;
-      try {
-        const response = await fetch(url, { method: "POST", body });
-        if (!response.ok) throw new Error("Upload failed");
-        toast("Filed takes.");
-      } catch {
-        toast("Upload failed.", "fail");
-      } finally {
-        this.uploading = false;
-        if (window.htmx) htmx.trigger(document.body, "card-changed");
-      }
-    },
-  }));
 });
 
 async function copyPrompt(node) {
@@ -70,7 +47,8 @@ function toast(message, level = "") {
 }
 
 document.addEventListener("keydown", (event) => {
-  if (event.target.matches("input, textarea, select")) return;
+  if (event.ctrlKey || event.metaKey || event.altKey || event.target.isContentEditable ||
+      event.target.matches("input, textarea, select")) return;
   if (event.key === "c") {
     const button = document.querySelector("[data-copy-prompt]");
     if (button) button.click();
@@ -92,21 +70,157 @@ document.querySelectorAll("[data-design-copy]").forEach((button) => {
   });
 });
 
-document.querySelectorAll("[data-design-drop]").forEach((form) => {
-  form.addEventListener("dragover", (event) => {
-    event.preventDefault();
+const uploadSelector = "form[data-file-upload]";
+
+document.addEventListener("dragover", (event) => {
+  if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+  const form = event.target.closest(uploadSelector);
+  if (!form && !document.querySelector(uploadSelector)) return;
+  event.preventDefault();
+  if (form && form.getAttribute("aria-busy") !== "true") {
+    event.dataTransfer.dropEffect = "copy";
     form.classList.add("over");
-  });
-  form.addEventListener("dragleave", () => form.classList.remove("over"));
-  form.addEventListener("drop", (event) => {
-    event.preventDefault();
+  } else {
+    event.dataTransfer.dropEffect = "none";
+  }
+});
+
+document.addEventListener("dragleave", (event) => {
+  const form = event.target.closest(uploadSelector);
+  if (form && !form.contains(event.relatedTarget)) form.classList.remove("over");
+});
+
+document.addEventListener("drop", (event) => {
+  const form = event.target.closest(uploadSelector);
+  const files = Array.from(event.dataTransfer.files);
+  if (!form && (!files.length || !document.querySelector(uploadSelector))) return;
+  event.preventDefault();
+  if (form) {
     form.classList.remove("over");
-    const files = event.dataTransfer.files;
-    if (files.length !== 1) {
-      toast("Drop one image at a time.", "fail");
+    if (files.length) uploadFiles(form, files);
+  }
+});
+
+document.addEventListener("paste", (event) => {
+  const form = event.target.closest(uploadSelector);
+  if (!form || !event.clipboardData) return;
+  const images = Array.from(event.clipboardData.files).filter(file => file.type.startsWith("image/"));
+  if (!images.length) {
+    for (const item of event.clipboardData.items) {
+      if (item.kind !== "file" || !item.type.startsWith("image/")) continue;
+      const file = item.getAsFile();
+      if (file) images.push(file);
+    }
+  }
+  if (!images.length) return;
+  event.preventDefault();
+  uploadFiles(form, images, true);
+});
+
+document.addEventListener("change", (event) => {
+  const input = event.target;
+  const form = input.form;
+  if (input.type !== "file" || form?.dataset.fileUpload !== "takes") return;
+  const files = Array.from(input.files);
+  input.value = "";
+  if (files.length) uploadFiles(form, files);
+});
+
+document.addEventListener("click", (event) => {
+  const chooser = event.target.closest("[data-choose-files]");
+  if (chooser) chooser.form.querySelector('input[type="file"]').click();
+  const button = event.target.closest("[data-copy-image]");
+  if (button) copyImage(button.dataset.copyImage);
+});
+
+async function uploadFiles(form, files, pasted = false) {
+  if (form.getAttribute("aria-busy") === "true") return;
+  const input = form.querySelector('input[type="file"]');
+  if (!input.multiple && files.length !== 1) {
+    toast("File one image at a time.", "fail");
+    return;
+  }
+
+  const keepFocus = form.contains(document.activeElement);
+  const controls = form.querySelector("[data-upload-controls]");
+  const status = form.querySelector("[data-upload-status]");
+  form.setAttribute("aria-busy", "true");
+  if (controls) controls.hidden = true;
+  if (status) status.hidden = false;
+  let posted = false;
+  try {
+    if (pasted) {
+      files = await Promise.all(files.map(async (file) => new File(
+        [await imageAsPng(file)], "clipboard.png", {type: "image/png"}
+      )));
+    }
+    if (form.dataset.fileUpload === "design") {
+      const transfer = new DataTransfer();
+      transfer.items.add(files[0]);
+      input.files = transfer.files;
+      form.requestSubmit();
       return;
     }
-    form.querySelector('input[type="file"]').files = files;
-    form.requestSubmit();
-  });
-});
+
+    const body = new FormData();
+    for (const file of files) body.append(input.name, file);
+    posted = true;
+    const response = await fetch(form.action, {method: "POST", body});
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      throw new Error(typeof error?.detail === "string" ? error.detail : "Upload failed.");
+    }
+    toast("Filed takes.");
+  } catch (error) {
+    toast(error.message || "Upload failed.", "fail");
+  } finally {
+    const card = form.closest("#shot-card");
+    if (posted && card && window.htmx) {
+      try {
+        await htmx.ajax("GET", card.getAttribute("hx-get"), {target: card, swap: "outerHTML"});
+        if (keepFocus && document.activeElement === document.body) {
+          document.querySelector('#shot-card [data-file-upload="takes"]')?.focus({preventScroll: true});
+        }
+      } catch {
+        toast("Refresh the shot card to see the latest takes.", "fail");
+      }
+    }
+    form.removeAttribute("aria-busy");
+    if (controls) controls.hidden = false;
+    if (status) status.hidden = true;
+  }
+}
+
+async function imageAsPng(image) {
+  if (image.type === "image/png") return image;
+  const bitmap = await createImageBitmap(image);
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0);
+    return await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (png) => png ? resolve(png) : reject(new Error("Could not convert the image to PNG.")),
+        "image/png"
+      );
+    });
+  } finally {
+    bitmap.close();
+  }
+}
+
+async function copyImage(url) {
+  try {
+    if (!navigator.clipboard?.write || !window.ClipboardItem) throw new Error();
+    // Start the clipboard write during the click gesture, even if fetching takes time.
+    const png = fetch(url, {cache: "no-cache"}).then((response) => {
+      if (!response.ok) throw new Error();
+      return response.blob().then(imageAsPng);
+    });
+    await navigator.clipboard.write([new ClipboardItem({"image/png": png})]);
+    toast("Image copied.");
+  } catch {
+    toast("Could not copy the image. Open the attachment to copy it.", "fail");
+  }
+}
