@@ -33,6 +33,7 @@ from shotforge import (
     continuity,
     fixes,
     now,
+    sets,
     tools,
     undo,
 )
@@ -621,6 +622,28 @@ def create_app(
     register_bible(routes, load, render)
     register_edit(routes, load, render)
     register_settings(routes, load, render)
+
+    @routes.get("/sets", response_class=HTMLResponse)
+    def sets_page(request: Request) -> HTMLResponse:
+        project, _ = load(request)
+        return render(
+            request, "sets.html",
+            {"project": project, "page": "sets", "rows": sets.every(project)},
+        )
+
+    @routes.post("/set/{location_id}/build", response_class=HTMLResponse)
+    def build_set(request: Request, location_id: str, rebuild: bool = Form(False)):
+        """Build or rebuild a place by rendering the scenes shot in it."""
+        project, _ = load(request)
+        status = sets.status(project, location_id)
+        if not status.scenes:
+            raise HTTPException(400, f"No scene is shot in {location_id} yet.")
+        try:
+            for scene_id in status.scenes:
+                blender.render_scene(scene_id, project=project, rebuild=rebuild)
+        except blender.BlockoutError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return RedirectResponse(f"{project_prefix(request)}/sets", status_code=303)
 
     @routes.get("/log", response_class=HTMLResponse)
     def log_page(request: Request) -> HTMLResponse:

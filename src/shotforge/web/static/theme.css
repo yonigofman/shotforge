@@ -2189,3 +2189,12 @@ button.rail-item {
   font-size: var(--type-ui-size);
   line-height: var(--type-ui-line);
 }
+
+/* Label and value, read as a pair rather than across a room. */
+.facts td:first-child {
+  width: 9rem;
+}
+
+.facts td:last-child {
+  width: auto;
+}

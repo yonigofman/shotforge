@@ -44,6 +44,7 @@ KIND_LABEL = {"character": "Characters", "location": "Locations", "prop": "Props
 SECTIONS = {
     "breakdown": "Breakdown",
     "bible": "Bible",
+    "sets": "Sets",
     "skills": "Skills",
     "log": "Log",
     "settings": "Settings",
@@ -72,6 +73,7 @@ def navigation(prefix: str, scene: str | None = None) -> list[NavGroup]:
         NavGroup("Work", tuple(work)),
         NavGroup("World", (
             NavItem("bible", "Bible", f"{prefix}/bible", "book", "w"),
+            NavItem("sets", "Sets", f"{prefix}/sets", "box", "e"),
             NavItem("skills", "Skills", f"{prefix}/skills", "sparkle", "k"),
         )),
         NavGroup("Project", (

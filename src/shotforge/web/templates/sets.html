@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% import "partials/_macros.html" as ui %}
+{% block content %}
+<div class="stack">
+  <p class="muted">
+    A set is the place, not the scene. Every shot in a location is shot in one
+    Blender file, so the room cannot drift between them — and anything you put
+    in it yourself stays there.
+  </p>
+
+  {% if not rows %}
+  {{ ui.empty_state("No locations in the bible yet",
+                    "Add one, or let the breakdown name the places a scene needs.") }}
+  {% endif %}
+
+  {% for row in rows %}
+  {% set url = project_prefix ~ "/set/" ~ row.location %}
+  <article class="card stack">
+    <div class="card-header">
+      <h2>{{ row.location }}</h2>
+      {% if row.name != row.location %}<span class="faint" dir="auto">{{ row.name }}</span>{% endif %}
+      <span class="spacer"></span>
+      {% if row.state == 'built' %}{{ ui.pip('pass', 'Built') }}
+      {% elif row.state == 'behind' %}{{ ui.pip('warn', 'Behind the bible') }}
+      {% elif row.state == 'error' %}{{ ui.pip('fail', 'Cannot be described') }}
+      {% else %}{{ ui.pip('none', 'Not built') }}{% endif %}
+    </div>
+
+    {% if row.error %}
+    <p class="muted" role="alert">{{ row.error }}</p>
+    {% endif %}
+
+    <table class="facts">
+      <tbody>
+        <tr>
+          <td class="faint">Shot in</td>
+          <td>
+            {% if row.scenes %}
+            {% for scene_id in row.scenes %}
+            <a href="{{ project_prefix }}/scene/{{ scene_id }}">{{ scene_id }}</a>{{ ", " if not loop.last }}
+            {% endfor %}
+            {% else %}<span class="faint">no scene yet</span>{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td class="faint">Blockouts</td>
+          <td class="mono">{{ row.rendered }} / {{ row.shots }}</td>
+        </tr>
+        {% if row.exists %}
+        <tr>
+          <td class="faint">File</td>
+          <td class="mono">{{ rel(row.path) }}</td>
+        </tr>
+        <tr>
+          <td class="faint">Your dressing</td>
+          <td>
+            {% if row.dressing %}kept in the set{% else %}
+            <span class="faint">nothing of yours in it yet — put it in the Dressing collection</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    {% if row.blocked %}
+    <p class="muted">
+      The location’s geometry has changed since this set was built, and the set
+      carries work of your own. Rebuilding takes the new room and keeps your
+      dressing — but the dressing will not have moved with the walls.
+    </p>
+    {% endif %}
+
+    {% if row.scenes %}
+    <form method="post" action="{{ url }}/build" class="row">
+      {% if row.state == 'behind' %}<input type="hidden" name="rebuild" value="true" />{% endif %}
+      {{ ui.button(
+           "Build the set" if row.state == 'none' else
+           "Rebuild for the new room" if row.state == 'behind' else "Render again",
+           variant="primary" if row.state != 'built' else "quiet",
+           type="submit", disabled=row.state == 'error') }}
+      <span class="faint">Renders every shot in {{ row.scenes | join(', ') }}.</span>
+    </form>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% endblock %}

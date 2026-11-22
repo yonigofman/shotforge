@@ -48,21 +48,47 @@ class _CameraLayout:
     axis: BlockoutAxis
 
 
-def _describe_set(project: Project, scene: Scene) -> SetDescription:
-    location = project.location(scene.location)
+def _describe(project: Project, location_id: str, scene: Scene | None) -> SetDescription:
+    """Ask the skill what the place is, and who is sitting in it.
+
+    A set has to be describable without a scene — a location's geometry is
+    the same whoever is standing in the room — so the scene is optional and
+    only its seating is read.
+    """
+    location = project.location(location_id)
     try:
         skill = find_skill("blender-blockout", project.paths.skills)
         description = render_prompt(
             skill,
             {
                 "location": as_plain(location),
-                "scene": as_plain(scene),
+                "scene": as_plain(scene) if scene is not None else {"seating": []},
                 "default_set": as_plain(BlockoutSet()),
             },
         )
         return SetDescription.model_validate_json(description)
     except (SkillError, TemplateError, ValidationError) as exc:
         raise BlockoutError(f"blender-blockout skill: {exc}") from exc
+
+
+def _describe_set(project: Project, scene: Scene) -> SetDescription:
+    return _describe(project, scene.location, scene)
+
+
+def set_spec(project: Project, location_id: str) -> dict:
+    """The place, on its own: what every scene shot there is shot in.
+
+    One definition, used by the renderer and by anything that wants to know
+    whether a saved set is still the set the bible describes.
+    """
+    description = _describe(project, location_id, None)
+    materials = _materials(project, location_id, set())
+    return {
+        "location": location_id,
+        "variant": "base",
+        "geometry": as_plain(description.set),
+        "materials": {key: value for key, value in materials.items() if "." not in key},
+    }
 
 
 def _window_position(set_: BlockoutSet) -> Point | None:
@@ -288,18 +314,11 @@ def build_spec(project: Project, scene: Scene, shots: list[Shot]) -> dict:
     if len({camera.name for camera in cameras.values()}) != len(cameras):
         raise BlockoutError(f"{scene.id}: camera.blender_cam names must be unique in the scene")
 
+    # A character's garment travels with the character, so it belongs to the
+    # scene; the room's own surfaces belong to the place.
     materials = _materials(project, scene.location, set(layout.seats))
     return {
-        "set": {
-            "location": scene.location,
-            "variant": "base",
-            "geometry": as_plain(layout.set),
-            # The place's own surfaces. A character's garment travels with the
-            # character, so it belongs to the scene, not to the room.
-            "materials": {
-                key: value for key, value in materials.items() if "." not in key
-            },
-        },
+        "set": set_spec(project, scene.location),
         "scene": scene.id,
         "mannequins": [asdict(figure) for figure in layout.mannequins],
         "cameras": {shot: asdict(camera) for shot, camera in cameras.items()},

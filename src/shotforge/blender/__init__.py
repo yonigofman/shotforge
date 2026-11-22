@@ -15,7 +15,7 @@ from shotforge.models.common import ID_RE
 from shotforge.project import Project, ProjectError
 from shotforge.yamlio import ProjectFileError
 
-__all__ = ["BlockoutError", "render", "render_scene"]
+__all__ = ["BlockoutError", "render", "render_scene", "set_signature"]
 
 _SCRIPT = Path(__file__).resolve().parent / "scripts" / "blockout.py"
 
@@ -60,7 +60,7 @@ def _render(
                 if not ID_RE.fullmatch(char):
                     raise BlockoutError(f"{shot}: invalid character id {char!r}")
         location = spec["set"]["location"]
-        set_key = _signature([_hash_file(_SCRIPT), spec["set"]])
+        set_key = set_signature(project, spec["set"])
         state = _set_state(project, location)
         born = project.paths.set_file(location).is_file() and state is not None
         fresh = born and state["key"] == set_key
@@ -92,6 +92,11 @@ def _render(
         )
     except (OSError, ProjectError, ProjectFileError) as exc:
         raise BlockoutError(str(exc)) from exc
+
+
+def set_signature(project: Project, set_spec: dict) -> str:
+    """What a built set is compared against to know whether it is current."""
+    return _signature([_hash_file(_SCRIPT), set_spec])
 
 
 def _set_state(project: Project, location: str) -> dict | None:

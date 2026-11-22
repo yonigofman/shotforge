@@ -228,3 +228,23 @@ def test_a_dressed_set_is_not_rebuilt_when_the_room_changes(example_project, mcp
     assert blender.render_scene(SCENE, project=project, rebuild=True)
     assert mcp_jobs[-1]["spec"]["set"]["geometry"]["room"] == [9.0, 5.0, 3.2]
     assert mcp_jobs[-1]["set_blend"], "the rebuild still opens the dressed set"
+
+
+def test_the_cockpit_shows_each_location_set_and_builds_it(example_project, mcp_jobs):
+    project = example_project
+    client = TestClient(create_app(project.paths.root))
+
+    page = client.get("/sets").text
+    assert "pub" in page and "Not built" in page
+    assert "Build the set" in page
+
+    assert client.post("/set/pub/build", follow_redirects=False).status_code == 303
+    assert project.paths.set_file("pub").is_file()
+    assert len(mcp_jobs) == 1
+    assert "Built" in client.get("/sets").text
+
+    # A location nothing is shot in cannot be built into anything.
+    project.save_entity("location", Location(id="street"))
+    page = client.get("/sets").text
+    assert "street" in page and "no scene yet" in page
+    assert client.post("/set/street/build").status_code == 400
