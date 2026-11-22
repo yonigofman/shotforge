@@ -13,6 +13,7 @@ from tempfile import TemporaryDirectory
 
 from shotforge import checks, frame_qa
 from shotforge.crops import extract_face_crops
+from shotforge.engine import EngineProgress
 from shotforge.media import extract_last_frame
 from shotforge.models import Shot, ShotStatus
 from shotforge.pipeline import Action, TransitionError, approve, begin_next_stage, next_action
@@ -61,19 +62,28 @@ def run_qa(
     number: int,
     *,
     vision: bool | None = None,
+    progress: EngineProgress | None = None,
 ) -> list[checks.Finding]:
     """Run spec and take checks, including vision when enabled."""
     shot = project.shot(scene_id, shot_id)
     shot_paths = project.paths.shot(scene_id, shot_id)
     take = get_take(shot_paths, kind, number)
+    if progress:
+        progress.status(f"Checking the shot spec for {take.path.name}…")
     findings = checks.check_spec(project, scene_id, shot)
     use_vision = project.config.vision_qa if vision is None else vision
     if kind is TakeKind.frame:
+        if progress:
+            progress.status("Checking frame size…")
         findings += checks.check_frame_file(project, take.path)
         if use_vision:
-            findings += frame_qa.review(project, scene_id, shot, take.path)
+            findings += frame_qa.review(project, scene_id, shot, take.path, progress=progress)
     else:
-        findings += checks.check_video_file(project, scene_id, shot, take.path, vision=use_vision)
+        findings += checks.check_video_file(
+            project, scene_id, shot, take.path, vision=use_vision, progress=progress,
+        )
+    if progress:
+        progress.status("Saving the findings…")
     _write_report(take.qa_report(shot_paths), findings)
     return findings
 

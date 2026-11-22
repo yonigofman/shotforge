@@ -402,6 +402,10 @@ actually went wrong in scene 1:
 QA advises; the approval is always yours. Sometimes a `warn` you accept beats
 risking a face that is already locked.
 
+**Run on latest take** streams progress through the local checks and any
+Claude review. Cancel to return to the previous report. **Run continuity
+check** shows which cut is being reviewed.
+
 ### Frame QA
 
 Filing a frame through the inbox or dropping it on a shot card runs frame QA
@@ -426,8 +430,9 @@ need. The command exits with status 1 for a failed finding or review error.
 
 The check uses a signed-in Claude Code installation and caches successful
 reviews in `.shotforge/cache/continuity-check/`. Reopening the storyboard or
-the incoming shot card shows cached findings. If the frames, specs or skill
-rules change, run the check again to review the affected cuts.
+the incoming shot card shows cached findings. If the frames, specs, skill
+rules, or Claude model settings change, run the check again to review the
+affected cuts.
 
 ## Theme
 

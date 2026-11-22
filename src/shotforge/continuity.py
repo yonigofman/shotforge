@@ -12,7 +12,14 @@ from tempfile import NamedTemporaryFile
 from pydantic import TypeAdapter
 
 from shotforge.checks import FAIL, PASS, WARN, Finding
-from shotforge.engine import Engine, EngineError, EngineResult, get_engine
+from shotforge.engine import (
+    Engine,
+    EngineCancelled,
+    EngineError,
+    EngineProgress,
+    EngineResult,
+    get_engine,
+)
 from shotforge.models import Scene, Shot
 from shotforge.models.common import as_plain
 from shotforge.project import Project
@@ -33,12 +40,16 @@ class _CutReview:
     status: Finding | None = None
 
 
-def scene_findings(project: Project, scene: Scene, *, run: bool = False) -> list[Finding]:
+def scene_findings(
+    project: Project, scene: Scene, *, run: bool = False, progress: EngineProgress | None = None,
+) -> list[Finding]:
     """Read cached reviews, or run the missing reviews when explicitly requested."""
     engine = get_engine(ENGINE_NAME) if run else None
     findings = []
     for earlier, later in pairwise(project.shots(scene.id)):
-        review = _review_cut(project, scene, earlier, later, engine)
+        if progress:
+            progress.status(f"Checking cut {earlier.id} → {later.id}…")
+        review = _review_cut(project, scene, earlier, later, engine, progress=progress)
         entries = review.findings
         if review.status is not None:
             entries = [*entries, review.status]
@@ -61,7 +72,8 @@ def _label_cut(earlier: Shot, later: Shot, findings: list[Finding]) -> list[Find
 
 
 def _review_cut(
-    project: Project, scene: Scene, earlier: Shot, later: Shot, engine: Engine | None
+    project: Project, scene: Scene, earlier: Shot, later: Shot, engine: Engine | None, *,
+    progress: EngineProgress | None = None,
 ) -> _CutReview:
     before = project.paths.shot(scene.id, earlier.id)
     after = project.paths.shot(scene.id, later.id)
@@ -97,13 +109,23 @@ def _review_cut(
         if findings is None:
             if engine is None:
                 return _CutReview(status=Finding(REVIEW, WARN, "Ready for a continuity check."))
-            result = engine.run_skill(skill, inputs, cwd=project.paths.root, files=files)
+            if progress:
+                progress.status("Waiting for Claude to review the cut…")
+                result = engine.run_skill_with_progress(
+                    skill, inputs, cwd=project.paths.root, files=files, progress=progress,
+                )
+            else:
+                result = engine.run_skill(skill, inputs, cwd=project.paths.root, files=files)
             findings = _parse_result(result)
             if _frame_digests(files) != digests:
                 raise EngineError("the frames changed during the review. Run the check again.")
             if project.claude_settings() != settings:
                 raise EngineError("Claude settings changed during the review. Run the check again.")
+            if progress:
+                progress.check_cancelled()
             _write_cache(cache, findings)
+    except EngineCancelled:
+        raise
     except (EngineError, OSError, ProjectFileError, SkillError, ToolError) as exc:
         return _CutReview(status=Finding(REVIEW, FAIL, f"Review failed. {exc}"))
 

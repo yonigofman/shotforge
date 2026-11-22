@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Breakdown — {{ project.name }}{% endblock %}
 
-{% import "partials/_proposal_loading.html" as proposal %}
+{% import "partials/_stream_loading.html" as stream %}
 
 {% block content %}
 <div class="stack">
@@ -30,7 +30,7 @@
       <div id="breakdown-proposal" class="stack" tabindex="-1">
         {% include "partials/_breakdown_proposal.html" %}
       </div>
-      {{ proposal.loading("Starting the chapter proposal…") }}
+      {{ stream.loading("Starting the chapter proposal…") }}
     </section>
   </div>
 </div>

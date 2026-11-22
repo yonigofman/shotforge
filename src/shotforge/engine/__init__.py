@@ -5,13 +5,21 @@ The backend never calls Claude Code directly. It calls one interface —
 added later without touching the pipeline or the skills.
 """
 
-from shotforge.engine.base import Engine, EngineError, EngineProgress, EngineResult, get_engine
+from shotforge.engine.base import (
+    Engine,
+    EngineCancelled,
+    EngineError,
+    EngineProgress,
+    EngineResult,
+    get_engine,
+)
 from shotforge.engine.claude_code import ClaudeCodeEngine
 from shotforge.engine.template import TemplateEngine
 
 __all__ = [
     "ClaudeCodeEngine",
     "Engine",
+    "EngineCancelled",
     "EngineError",
     "EngineProgress",
     "EngineResult",

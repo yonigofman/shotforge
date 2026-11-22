@@ -143,3 +143,24 @@ def test_invalid_reviews_are_retried_and_missing_frames_skip_a_cut(
     first, second = continuity.scene_findings(project, scene, run=True)
     assert first.level == "pass"
     assert second.level == "warn"
+
+
+def test_continuity_stream_reports_each_cut_and_returns_findings(
+    project, approved_frames, monkeypatch,
+):
+    def review(self, skill, inputs, *, cwd, files, progress):
+        assert files == approved_frames
+        progress.on_output()
+        return EngineResult(text=json.dumps({"findings": [
+            {"check": "prop continuity", "level": "warn", "message": GAP},
+        ]}))
+
+    monkeypatch.setattr(ClaudeCodeEngine, "run_skill_with_progress", review)
+    client = TestClient(create_app(project.paths.root))
+    response = client.post(f"/scene/{SCENE}/continuity",
+                           headers={"Accept": "application/x-ndjson"})
+    events = [json.loads(line) for line in response.text.splitlines() if line.strip()]
+    assert {"type": "status", "message": f"Checking cut {CUT}…"} in events
+    assert {"type": "status", "message": "Claude is reviewing the cut…"} in events
+    assert f"{CUT}: {GAP}" in events[-1]["html"]
+    assert GAP in client.get(f"/shot/{SCENE}/sh02").text

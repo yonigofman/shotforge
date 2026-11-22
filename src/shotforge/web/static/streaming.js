@@ -1,17 +1,17 @@
 // Keep the existing forms as a fallback when browser streaming is unavailable.
 document.addEventListener("submit", (event) => {
   const form = event.target;
-  if (!form.matches("form[data-proposal-target]") || !window.ReadableStream ||
+  if (!form.matches("form[data-stream-target]") || !window.ReadableStream ||
       !window.TextDecoder || !window.AbortController) return;
-  const target = document.getElementById(form.dataset.proposalTarget);
-  const template = target?.parentElement.querySelector("template[data-proposal-loading]");
+  const target = document.getElementById(form.dataset.streamTarget);
+  const template = target?.parentElement.querySelector("template[data-stream-loading]");
   if (!template) return;
   event.preventDefault();
   event.stopImmediatePropagation();
-  if (!target.dataset.generating) generateProposal(form, target, template);
+  if (!target.dataset.generating) streamAction(form, target, template);
 }, true);
 
-async function* proposalEvents(stream) {
+async function* readEvents(stream) {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let pending = "";
@@ -35,21 +35,22 @@ async function* proposalEvents(stream) {
   }
 }
 
-async function generateProposal(form, target, template) {
+async function streamAction(form, target, template) {
   const mediaType = "application/x-ndjson";
+  const task = form.dataset.streamTask || "Proposal";
   const controller = new AbortController();
   const abort = () => controller.abort();
   const button = form.querySelector('button[type="submit"]');
   const fields = new FormData(form);
-  target.querySelector("[data-proposal-error]")?.remove();
+  target.querySelector("[data-stream-error]")?.remove();
   const previous = document.createDocumentFragment();
   previous.append(...target.childNodes);
   target.append(template.content.cloneNode(true));
   target.dataset.generating = "true";
   button.disabled = true;
 
-  const status = target.querySelector("[data-proposal-status]");
-  const cancel = target.querySelector("[data-proposal-cancel]");
+  const status = target.querySelector("[data-stream-status]");
+  const cancel = target.querySelector("[data-stream-cancel]");
   const scenes = target.querySelector("[data-proposal-scenes]");
   const sceneTemplate = target.querySelector("template[data-proposal-scene]");
   const sceneRows = new Map();
@@ -65,10 +66,15 @@ async function generateProposal(form, target, template) {
       body: new URLSearchParams(fields),
       signal: controller.signal,
     });
-    if (!response.ok || !response.body || !response.headers.get("Content-Type")?.includes(mediaType)) {
-      throw new Error("Could not start the proposal. Try again.");
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      throw new Error(typeof error?.detail === "string"
+        ? error.detail : `Could not start the ${task.toLowerCase()}. Try again.`);
     }
-    for await (const event of proposalEvents(response.body)) {
+    if (!response.body || !response.headers.get("Content-Type")?.includes(mediaType)) {
+      throw new Error(`Could not start the ${task.toLowerCase()}. Try again.`);
+    }
+    for await (const event of readEvents(response.body)) {
       if (!target.isConnected) {
         abort();
         return;
@@ -88,7 +94,7 @@ async function generateProposal(form, target, template) {
         if (row) {
           const label = event.shots === 1 ? "shot" : "shots";
           row.querySelector("[data-proposal-scene-status]").textContent = `${event.shots} ${label} drafted`;
-          row.querySelector(".proposal-skeleton").remove();
+          row.querySelector(".stream-skeleton").remove();
         }
       } else if (event.type === "error") {
         throw new Error(event.message);
@@ -96,19 +102,20 @@ async function generateProposal(form, target, template) {
         const focused = document.activeElement === cancel;
         target.innerHTML = event.html;
         window.htmx?.process(target);
+        if (event.trigger) window.htmx?.trigger(document.body, event.trigger);
         if (focused) target.focus({preventScroll: true});
         return;
       }
     }
-    throw new Error("The proposal stream ended early. Try again.");
+    throw new Error("The stream ended early. Try again.");
   } catch (error) {
     restoreFocus = document.activeElement === cancel;
     target.replaceChildren(previous);
     const note = document.createElement("p");
-    note.dataset.proposalError = "";
+    note.dataset.streamError = "";
     note.setAttribute("role", controller.signal.aborted ? "status" : "alert");
     note.className = controller.signal.aborted ? "muted" : "form-error";
-    note.textContent = controller.signal.aborted ? "Proposal cancelled." : error.message;
+    note.textContent = controller.signal.aborted ? `${task} cancelled.` : error.message;
     target.prepend(note);
   } finally {
     delete target.dataset.generating;

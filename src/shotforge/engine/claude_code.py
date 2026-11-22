@@ -22,6 +22,7 @@ from shotforge.yamlio import ProjectFileError
 
 DEFAULT_TIMEOUT_S = 600
 TEXT_ONLY_ARGS = ("--tools", "", "--strict-mcp-config", "--setting-sources", "")
+VISION_ARGS = ("--tools", "Read", "--allowedTools", "Read")
 
 
 class ClaudeCodeEngine(Engine):
@@ -122,7 +123,7 @@ class ClaudeCodeEngine(Engine):
         options = {}
         if files:
             # Headless reviews need to open the images listed in the prompt.
-            command.extend(["--tools", "Read", "--allowedTools", "Read"])
+            command.extend(VISION_ARGS)
         else:
             # A whole chapter can exceed the OS argument limit. Text skills need no tools.
             options["input"] = prompt
@@ -152,15 +153,16 @@ class ClaudeCodeEngine(Engine):
 
     def run_skill_with_progress(
         self, skill: Skill, inputs: dict[str, Any], *, cwd: Path, progress: EngineProgress,
+        files: list[Path] | None = None,
     ) -> EngineResult:
-        if progress.cancelled.is_set():
-            raise EngineError("Proposal generation was cancelled.")
+        progress.check_cancelled()
         model_args, timeout_s = self._run_options(cwd)
+        tool_args = VISION_ARGS if files else TEXT_ONLY_ARGS
         command = [
             str(self.executable()), "-p", "--output-format", "stream-json", "--verbose",
-            "--include-partial-messages", *model_args, *TEXT_ONLY_ARGS,
+            "--include-partial-messages", *model_args, *tool_args,
         ]
-        prompt = self.build_prompt(skill, inputs, None)
+        prompt = self.build_prompt(skill, inputs, files)
         try:
             # File-backed stdin and stderr avoid blocking on a long prompt or error.
             with TemporaryFile() as source, TemporaryFile() as errors:
@@ -211,8 +213,7 @@ class ClaudeCodeEngine(Engine):
         eof = False
         try:
             while True:
-                if progress.cancelled.is_set():
-                    raise EngineError("Proposal generation was cancelled.")
+                progress.check_cancelled()
                 remaining = deadline - monotonic()
                 if remaining <= 0:
                     raise EngineError(

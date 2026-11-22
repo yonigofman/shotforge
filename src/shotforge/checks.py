@@ -10,6 +10,7 @@ from pathlib import Path
 
 from shotforge.blender.errors import BlockoutError
 from shotforge.blender.spec import camera_axis_positions
+from shotforge.engine import EngineProgress
 from shotforge.media import frame_size, probe_duration
 from shotforge.models import Scene, Shot
 from shotforge.models.blockout import signed_distance
@@ -300,10 +301,13 @@ def check_frame_file(project: Project, image: Path) -> list[Finding]:
 
 
 def check_video_file(
-    project: Project, scene_id: str, shot: Shot, video: Path, *, vision: bool = True
+    project: Project, scene_id: str, shot: Shot, video: Path, *, vision: bool = True,
+    progress: EngineProgress | None = None,
 ) -> list[Finding]:
     """Check the clip's duration, camera motion, speech and eyeline."""
     findings: list[Finding] = []
+    if progress:
+        progress.status("Checking video duration…")
     duration = probe_duration(video)
     if duration is None or not isfinite(duration) or duration <= 0:
         return [Finding("video readable", WARN, f"could not read the duration of {video.name}")]
@@ -330,6 +334,8 @@ def check_video_file(
             Finding("camera motion", WARN, "OpenCV and NumPy are needed", fix=install_qa)
         )
     else:
+        if progress:
+            progress.status("Checking camera motion…")
         findings.append(check_motion(video, shot))
 
     try:
@@ -337,12 +343,14 @@ def check_video_file(
     except (ImportError, OSError):
         findings.append(Finding("speech", WARN, "NumPy is needed", fix=install_qa))
     else:
+        if progress:
+            progress.status("Checking speech timing…")
         findings.extend(check_speech(video, shot, duration))
 
     if vision:
         from shotforge.qa.eyeline import check_eyeline
 
-        findings.append(check_eyeline(project, shot, video, duration))
+        findings.append(check_eyeline(project, shot, video, duration, progress=progress))
     return findings
 
 

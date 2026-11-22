@@ -1,4 +1,4 @@
-"""Stream proposal progress and finish with the server-rendered review."""
+"""Stream action progress and finish with server-rendered HTML."""
 
 from __future__ import annotations
 
@@ -12,16 +12,16 @@ from typing import Any
 
 from fastapi import HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 
-from shotforge.engine import EngineProgress
+from shotforge.engine import EngineCancelled, EngineProgress
 
 MEDIA_TYPE = "application/x-ndjson"
 logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class ProposalProgress:
+class StreamProgress:
     send: Callable[[dict[str, Any]], None]
     cancelled: Event
 
@@ -29,17 +29,22 @@ class ProposalProgress:
         self.send({"type": "status", "message": message})
 
     def engine(self, message: str) -> EngineProgress:
-        return EngineProgress(lambda: self.status(message), self.cancelled)
+        return EngineProgress(lambda: self.status(message), self.cancelled, self.status)
 
 
-def accepts_proposal_stream(request: Request) -> bool:
-    return any(
+async def render_with_progress(
+    request: Request, generate: Callable[[StreamProgress | None], HTMLResponse],
+) -> Response:
+    accepts_stream = any(
         item.strip().split(";", 1)[0] == MEDIA_TYPE
         for item in request.headers.get("accept", "").split(",")
     )
+    if accepts_stream:
+        return _stream_html(generate)
+    return await run_in_threadpool(generate, None)
 
 
-def stream_proposal(generate: Callable[[ProposalProgress], HTMLResponse]) -> StreamingResponse:
+def _stream_html(generate: Callable[[StreamProgress], HTMLResponse]) -> StreamingResponse:
     async def events() -> AsyncIterator[str]:
         loop = asyncio.get_running_loop()
         pending: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
@@ -51,14 +56,19 @@ def stream_proposal(generate: Callable[[ProposalProgress], HTMLResponse]) -> Str
 
         async def run() -> None:
             try:
-                response = await run_in_threadpool(generate, ProposalProgress(send, cancelled))
+                response = await run_in_threadpool(generate, StreamProgress(send, cancelled))
             except HTTPException as exc:
                 send({"type": "error", "message": str(exc.detail)})
+            except EngineCancelled as exc:
+                send({"type": "error", "message": str(exc)})
             except Exception:
-                logger.exception("Proposal generation failed")
-                send({"type": "error", "message": "Proposal generation failed. Try again."})
+                logger.exception("Streamed cockpit action failed")
+                send({"type": "error", "message": "Could not complete the request. Try again."})
             else:
-                send({"type": "complete", "html": response.body.decode("utf-8")})
+                result = {"type": "complete", "html": response.body.decode("utf-8")}
+                if trigger := response.headers.get("HX-Trigger-After-Swap"):
+                    result["trigger"] = trigger
+                send(result)
 
         task = asyncio.create_task(run())
         try:

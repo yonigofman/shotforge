@@ -38,8 +38,8 @@ from shotforge.web.bible import materials_for_page, register_bible
 from shotforge.web.edit import register_edit
 from shotforge.web.local import LocalOnlyMiddleware
 from shotforge.web.projects import project_prefix, register_projects
-from shotforge.web.proposals import ProposalProgress, accepts_proposal_stream, stream_proposal
 from shotforge.web.settings import register_settings
+from shotforge.web.streaming import StreamProgress, render_with_progress
 from shotforge.yamlio import ProjectFileError
 
 HERE = Path(__file__).resolve().parent
@@ -305,7 +305,7 @@ def create_app(
     async def generate_breakdown(request: Request, chapter: str = Form(...)) -> Response:
         project, _ = load(request)
 
-        def generate(progress: ProposalProgress | None) -> HTMLResponse:
+        def generate(progress: StreamProgress | None) -> HTMLResponse:
             source = None
             try:
                 if progress:
@@ -355,9 +355,7 @@ def create_app(
                     drafts.popitem(last=False)
             return review_breakdown(request, project, token, draft, fragment=progress is not None)
 
-        if accepts_proposal_stream(request):
-            return stream_proposal(generate)
-        return await run_in_threadpool(generate, None)
+        return await render_with_progress(request, generate)
 
     def review_breakdown(
         request: Request, project: Project, token: str, draft: BreakdownDraft, **context: Any
@@ -462,17 +460,26 @@ def create_app(
         )
 
     @routes.post("/scene/{scene_id}/continuity", response_class=HTMLResponse)
-    def review_continuity(request: Request, scene_id: str) -> HTMLResponse:
+    async def review_continuity(request: Request, scene_id: str) -> Response:
         project, _ = load(request)
         try:
             scene = project.scene(scene_id)
         except ProjectError as exc:
             raise HTTPException(404, str(exc)) from exc
-        findings = checks.check_scene_chain(project, scene_id)
-        findings += continuity.scene_findings(project, scene, run=True)
-        return render(
-            request, "partials/_findings.html", {"project": project, "findings": findings}
-        )
+
+        def generate(progress: StreamProgress | None) -> HTMLResponse:
+            if progress:
+                progress.status("Checking scene continuity…")
+            findings = checks.check_scene_chain(project, scene_id)
+            findings += continuity.scene_findings(
+                project, scene, run=True,
+                progress=progress.engine("Claude is reviewing the cut…") if progress else None,
+            )
+            return render(
+                request, "partials/_findings.html", {"project": project, "findings": findings}
+            )
+
+        return await render_with_progress(request, generate)
 
     @routes.get("/shot/{scene_id}/{shot_id}", response_class=HTMLResponse)
     def shot_page(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
@@ -516,7 +523,7 @@ def create_app(
     async def propose_camera(request: Request, scene_id: str, shot_id: str) -> Response:
         project, _ = load(request)
 
-        def generate(progress: ProposalProgress | None) -> HTMLResponse:
+        def generate(progress: StreamProgress | None) -> HTMLResponse:
             try:
                 if progress:
                     progress.status("Reviewing the scene and neighbouring shots…")
@@ -550,9 +557,7 @@ def create_app(
                 },
             )
 
-        if accepts_proposal_stream(request):
-            return stream_proposal(generate)
-        return await run_in_threadpool(generate, None)
+        return await render_with_progress(request, generate)
 
     @routes.post("/shot/{scene_id}/{shot_id}/camera/apply", response_class=HTMLResponse)
     def apply_camera(
@@ -678,36 +683,45 @@ def create_app(
         return shot_card(request, scene_id, shot_id)
 
     @routes.post("/shot/{scene_id}/{shot_id}/qa", response_class=HTMLResponse)
-    def run_qa(
+    async def run_qa(
         request: Request,
         scene_id: str,
         shot_id: str,
         kind: TakeKind = Form(TakeKind.frame),
         take: int | None = Form(None),
         vision: bool | None = Form(None),
-    ) -> HTMLResponse:
+    ) -> Response:
         project, state = load(request)
-        number = take if take is not None else _latest(project, scene_id, shot_id, kind)
-        try:
-            findings = actions.run_qa(project, scene_id, shot_id, kind, number, vision=vision)
-            source = get_take(project.paths.shot(scene_id, shot_id), kind, number)
-        except FileNotFoundError as exc:
-            raise HTTPException(400, str(exc)) from exc
-        shot = project.shot(scene_id, shot_id)
-        response = render(
-            request,
-            "partials/_findings.html",
-            {
-                "project": project,
-                "scene": project.scene(scene_id),
-                "shot": shot,
-                **_qa_context(source, findings),
-                "rule_offers": fixes.rule_offers(project, state, scene_id, shot),
-            },
-        )
-        if take is None:
-            response.headers["HX-Trigger-After-Swap"] = "card-changed"
-        return response
+
+        def generate(progress: StreamProgress | None) -> HTMLResponse:
+            number = take if take is not None else _latest(project, scene_id, shot_id, kind)
+            model_subject = "the frame" if kind is TakeKind.frame else "the eyelines"
+            try:
+                findings = actions.run_qa(
+                    project, scene_id, shot_id, kind, number, vision=vision,
+                    progress=progress.engine(f"Claude is reviewing {model_subject}…")
+                    if progress else None,
+                )
+                source = get_take(project.paths.shot(scene_id, shot_id), kind, number)
+            except FileNotFoundError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            shot = project.shot(scene_id, shot_id)
+            response = render(
+                request,
+                "partials/_findings.html",
+                {
+                    "project": project,
+                    "scene": project.scene(scene_id),
+                    "shot": shot,
+                    **_qa_context(source, findings),
+                    "rule_offers": fixes.rule_offers(project, state, scene_id, shot),
+                },
+            )
+            if take is None:
+                response.headers["HX-Trigger-After-Swap"] = "card-changed"
+            return response
+
+        return await render_with_progress(request, generate)
 
     @routes.post("/shot/{scene_id}/{shot_id}/active", response_class=HTMLResponse)
     def set_active(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:

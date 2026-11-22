@@ -12,7 +12,7 @@ from pydantic import Field, TypeAdapter
 from yaml import YAMLError
 
 from shotforge.checks import FAIL, PASS, WARN, Finding
-from shotforge.engine import ClaudeCodeEngine, EngineError
+from shotforge.engine import ClaudeCodeEngine, EngineCancelled, EngineError, EngineProgress
 from shotforge.models import Shot
 from shotforge.models.common import SFModel
 from shotforge.project import Project
@@ -45,7 +45,10 @@ def _sample_frames(video: Path, duration: float, target: Path) -> list[Path]:
     return sorted(target.glob("frame_*.png"))
 
 
-def check_eyeline(project: Project, shot: Shot, video: Path, duration: float) -> Finding:
+def check_eyeline(
+    project: Project, shot: Shot, video: Path, duration: float, *,
+    progress: EngineProgress | None = None,
+) -> Finding:
     executable = find_tool("claude", overrides=project.config.tool_paths.model_dump())
     if executable is None:
         return Finding(
@@ -60,6 +63,8 @@ def check_eyeline(project: Project, shot: Shot, video: Path, duration: float) ->
             executable=executable, timeout_s=settings.timeout_s or 120, settings=settings,
         )
         with TemporaryDirectory(prefix="shotforge-eyeline-") as directory:
+            if progress:
+                progress.status("Sampling frames for the eyeline check…")
             root = Path(directory)
             frames = _sample_frames(video, duration, root)
             if not frames:
@@ -72,7 +77,15 @@ def check_eyeline(project: Project, shot: Shot, video: Path, duration: float) ->
                 "technique": shot.technique,
                 "frames": {index: path.name for index, path in enumerate(frames, 1)},
             }
-            result = engine.run_skill(skill, inputs, cwd=root, files=frames)
+            if progress:
+                progress.status("Waiting for Claude to review the eyelines…")
+                result = engine.run_skill_with_progress(
+                    skill, inputs, cwd=root, files=frames, progress=progress,
+                )
+            else:
+                result = engine.run_skill(skill, inputs, cwd=root, files=frames)
+    except EngineCancelled:
+        raise
     except (
         EngineError, ToolError, SkillError, ProjectFileError, OSError,
         subprocess.SubprocessError, YAMLError,

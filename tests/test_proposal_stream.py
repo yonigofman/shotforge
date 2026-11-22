@@ -82,7 +82,7 @@ time.sleep(30)
         f"timeout_s: {5 if cancel else 1}\n", encoding="utf-8"
     )
     engine = ClaudeCodeEngine(executable=Path("claude"))
-    expected = "generation was cancelled" if cancel else "did not finish within 1s"
+    expected = "skill run was cancelled" if cancel else "did not finish within 1s"
     with pytest.raises(EngineError, match=expected):
         engine.run_skill_with_progress(
             find_skill("book-breakdown"), {}, cwd=tmp_path,

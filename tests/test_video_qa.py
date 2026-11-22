@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from shotforge import actions, checks
@@ -16,6 +17,8 @@ from shotforge.engine import EngineResult
 from shotforge.models import Shot
 from shotforge.models.shot import Beat
 from shotforge.qa import eyeline
+from shotforge.takes import TakeKind, add_take
+from shotforge.web.app import create_app
 from shotforge.yamlio import dump
 
 
@@ -64,11 +67,40 @@ def test_eyeline_reviews_a_dozen_frames_in_one_call(project, mp4, monkeypatch, d
     assert ("8" if direct else "12") in finding.message
 
 
+def test_video_stream_reports_local_checks_and_preview_frames(project, mp4, monkeypatch):
+    scene, shot = "s01_pub", "sh01"
+    paths = project.paths.shot(scene, shot)
+    take = add_take(paths, TakeKind.video, mp4(seconds=3))
+    monkeypatch.setattr(eyeline, "find_tool", lambda *args, **kwargs: Path("fake-claude"))
+
+    def review(self, skill, inputs, *, cwd, files, progress):
+        assert skill.name == "eyeline-qa"
+        assert len(files) == 12 and all(path.is_file() for path in files)
+        progress.on_output()
+        return EngineResult(text=json.dumps({"frames": [
+            {"frame": i, "status": "clear", "evidence": "Looking to the right."}
+            for i in range(1, 13)
+        ]}))
+
+    monkeypatch.setattr(eyeline.ClaudeCodeEngine, "run_skill_with_progress", review)
+    client = TestClient(create_app(project.paths.root))
+    response = client.post(f"/shot/{scene}/{shot}/qa", data={"kind": "video"},
+                           headers={"Accept": "application/x-ndjson"})
+    events = [json.loads(line) for line in response.text.splitlines() if line.strip()]
+    messages = [event["message"] for event in events if event["type"] == "status"]
+    assert messages.index("Checking video duration…") < messages.index(
+        "Sampling frames for the eyeline check…"
+    ) < messages.index("Claude is reviewing the eyelines…")
+    assert "no unplanned lens contact in 12 sampled frames" in events[-1]["html"]
+    assert take.qa_report(paths).is_file()
+
+
 def test_video_filing_and_reruns_share_the_project_vision_setting(project, mp4, monkeypatch):
     project.config.vision_qa = False
     dump(project.paths.config, project.config)
     monkeypatch.setattr(
-        eyeline, "check_eyeline", lambda *args: checks.Finding(eyeline.CHECK, checks.PASS, "Clear")
+        eyeline, "check_eyeline",
+        lambda *args, **kwargs: checks.Finding(eyeline.CHECK, checks.PASS, "Clear"),
     )
     scene, shot = "s01_pub", "sh01"
     clip = mp4(seconds=10)

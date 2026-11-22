@@ -1,5 +1,5 @@
 {% import "partials/_macros.html" as ui %}
-{% import "partials/_proposal_loading.html" as proposal %}
+{% import "partials/_stream_loading.html" as stream %}
 {% set prompt_action = fix_prompt.action if fix_prompt else action %}
 {% set prompt_text = fix_prompt.text if fix_prompt else prompt_text %}
 {% set prompt_path = fix_prompt.path if fix_prompt else prompt_path %}
@@ -180,7 +180,7 @@
           {% if shot.status.value == 'breakdown' %}
           <span class="spacer"></span>
           {% set camera_url = project_prefix ~ "/shot/" ~ scene.id ~ "/" ~ shot.id ~ "/camera" %}
-          <form method="post" action="{{ camera_url }}" data-proposal-target="camera-proposal"
+          <form method="post" action="{{ camera_url }}" data-stream-target="camera-proposal"
                 hx-post="{{ camera_url }}" hx-target="#camera-proposal" hx-swap="innerHTML"
                 hx-disabled-elt="find button">
             <button type="submit">Propose camera <span class="spinner">…</span></button>
@@ -202,7 +202,7 @@
         {% endif %}
         {% if shot.status.value == 'breakdown' %}
         <div id="camera-proposal" class="stack" tabindex="-1"></div>
-        {{ proposal.loading("Starting the camera proposal…") }}
+        {{ stream.loading("Starting the camera proposal…") }}
         {% endif %}
       </article>
       {% endif %}
@@ -234,12 +234,16 @@
         <div class="card-header">
           <h3>Checks</h3>
           <span class="spacer"></span>
-          <form hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/qa" hx-target="#qa" hx-swap="innerHTML" hx-disabled-elt="find button">
+          {% set qa_url = project_prefix ~ "/shot/" ~ scene.id ~ "/" ~ shot.id ~ "/qa" %}
+          <form method="post" action="{{ qa_url }}" data-stream-target="qa" data-stream-task="Check"
+                hx-post="{{ qa_url }}" hx-target="#qa" hx-swap="innerHTML"
+                hx-disabled-elt="find button">
             <input type="hidden" name="kind" value="{{ qa_kind | default('frame') }}" />
-            <button {% if not qa_kind %}disabled{% endif %}>Run on latest take <span class="spinner">…</span></button>
+            <button type="submit" {% if not qa_kind %}disabled{% endif %}>Run on latest take <span class="spinner">…</span></button>
           </form>
         </div>
-        <div id="qa">{% include "partials/_findings.html" %}</div>
+        <div id="qa" tabindex="-1">{% include "partials/_findings.html" %}</div>
+        {{ stream.loading("Starting checks…") }}
       </article>
 
       {% if previous %}

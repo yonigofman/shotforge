@@ -17,12 +17,26 @@ class EngineError(Exception):
     pass
 
 
+class EngineCancelled(EngineError):
+    pass
+
+
 @dataclass(frozen=True)
 class EngineProgress:
-    """Report the first model output and let the caller cancel a proposal."""
+    """Report stages and the first model output, with optional cancellation."""
 
     on_output: Callable[[], None]
     cancelled: Event
+    on_status: Callable[[str], None] | None = None
+
+    def check_cancelled(self) -> None:
+        if self.cancelled.is_set():
+            raise EngineCancelled("The skill run was cancelled.")
+
+    def status(self, message: str) -> None:
+        self.check_cancelled()
+        if self.on_status:
+            self.on_status(message)
 
 
 @dataclass
@@ -72,11 +86,11 @@ class Engine(abc.ABC):
         *,
         cwd: Path,
         progress: EngineProgress,
+        files: list[Path] | None = None,
     ) -> EngineResult:
-        """Run a text proposal, falling back to a single result on other engines."""
-        if progress.cancelled.is_set():
-            raise EngineError("Proposal generation was cancelled.")
-        return self.run_skill(skill, inputs, cwd=cwd)
+        """Stream a skill run, falling back to a single result on other engines."""
+        progress.check_cancelled()
+        return self.run_skill(skill, inputs, cwd=cwd, files=files)
 
 
 def get_engine(name: str) -> Engine:

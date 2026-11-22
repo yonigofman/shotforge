@@ -109,7 +109,7 @@
 </form>
 {% elif source %}
 <form method="post" action="{{ project_prefix }}/breakdown/propose"
-      data-proposal-target="breakdown-proposal">
+      data-stream-target="breakdown-proposal">
   <input type="hidden" name="chapter" value="{{ source.name }}">
   <button class="primary" type="submit">Generate proposal</button>
 </form>

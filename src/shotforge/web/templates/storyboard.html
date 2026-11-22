@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "partials/_macros.html" as ui %}
+{% import "partials/_stream_loading.html" as stream %}
 {% block content %}
 <div class="stack">
   <div class="row">
@@ -15,17 +16,17 @@
     <div class="card-header">
       <h3>Continuity across the cuts</h3>
       <span class="spacer"></span>
-      <button
-        hx-post="{{ project_prefix }}/scene/{{ scene.id }}/continuity"
-        hx-target="#continuity-findings"
-        hx-disabled-elt="this"
-      >
-        Run continuity check <span class="spinner">…</span>
-      </button>
+      {% set continuity_url = project_prefix ~ "/scene/" ~ scene.id ~ "/continuity" %}
+      <form method="post" action="{{ continuity_url }}" data-stream-target="continuity-findings"
+            data-stream-task="Continuity check" hx-post="{{ continuity_url }}"
+            hx-target="#continuity-findings" hx-disabled-elt="find button">
+        <button type="submit">Run continuity check <span class="spinner">…</span></button>
+      </form>
     </div>
-    <div id="continuity-findings" aria-live="polite">
+    <div id="continuity-findings" tabindex="-1">
       {% include "partials/_findings.html" %}
     </div>
+    {{ stream.loading("Starting the continuity check…") }}
   </section>
 
   <div class="strip">

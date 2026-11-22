@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 
+import pytest
+from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from shotforge import actions, frame_qa
 from shotforge.cli import app
-from shotforge.engine import ClaudeCodeEngine
+from shotforge.engine import ClaudeCodeEngine, EngineCancelled, EngineProgress, EngineResult
 from shotforge.engine import claude_code as claude_mod
 from shotforge.takes import TakeKind, add_take
+from shotforge.web.app import create_app
 from shotforge.yamlio import dump
 
 SCENE, SHOT = "s01_pub", "sh02"
@@ -57,7 +61,7 @@ def test_cli_vision_switch_overrides_project_default(project, png, monkeypatch):
     take = add_take(shot, TakeKind.frame, png())
     calls = []
 
-    def review(*args):
+    def review(*args, **kwargs):
         calls.append(args)
         return []
 
@@ -82,3 +86,34 @@ def test_missing_claude_keeps_code_findings_and_writes_an_advisory_report(projec
     ]
     assert "Claude Code not found" in findings[-1].message
     assert actions.read_qa_report(take.qa_report(shot)) == findings
+
+
+def test_frame_check_streams_review_and_cancel_preserves_report(project, png, monkeypatch):
+    paths = project.paths.shot(SCENE, SHOT)
+    take = add_take(paths, TakeKind.frame, png())
+    payload = {"findings": [{"check": "identity", "level": "pass", "message": "Matches the take."}]}
+
+    def review(self, skill, inputs, *, cwd, files, progress):
+        assert take.path in files
+        progress.on_output()
+        return EngineResult(text=json.dumps(payload))
+
+    monkeypatch.setattr(ClaudeCodeEngine, "run_skill_with_progress", review)
+    client = TestClient(create_app(project.paths.root))
+    response = client.post(f"/shot/{SCENE}/{SHOT}/qa", data={"kind": "frame"},
+                           headers={"Accept": "application/x-ndjson"})
+    events = [json.loads(line) for line in response.text.splitlines() if line.strip()]
+    assert {"type": "status", "message": "Checking frame size…"} in events
+    assert {"type": "status", "message": "Claude is reviewing the frame…"} in events
+    assert events[-1]["trigger"] == "card-changed"
+    assert "Matches the take." in events[-1]["html"]
+    report = take.qa_report(paths)
+    previous = report.read_bytes()
+    payload["findings"][0]["message"] = "A cancelled result."
+    cancelled = Event()
+    with pytest.raises(EngineCancelled):
+        actions.run_qa(
+            project, SCENE, SHOT, TakeKind.frame, take.number,
+            progress=EngineProgress(cancelled.set, cancelled),
+        )
+    assert report.read_bytes() == previous

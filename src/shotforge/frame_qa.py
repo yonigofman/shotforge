@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 
 from shotforge.checks import FAIL, PASS, WARN, Finding
-from shotforge.engine import EngineError, EngineResult, get_engine
+from shotforge.engine import EngineCancelled, EngineError, EngineProgress, EngineResult, get_engine
 from shotforge.models import Shot
 from shotforge.models.common import as_plain
 from shotforge.pipeline import face_crop_refs
@@ -34,14 +34,25 @@ ROWS = (
 )
 
 
-def review(project: Project, scene_id: str, shot: Shot, frame: Path) -> list[Finding]:
+def review(
+    project: Project, scene_id: str, shot: Shot, frame: Path, *,
+    progress: EngineProgress | None = None,
+) -> list[Finding]:
     """Return advisory findings, or a warning if the vision run is unavailable."""
     try:
         engine = get_engine(project.config.engine)
         skill = find_skill("frame-qa", project.paths.skills)
         inputs, files = _inputs(project, scene_id, shot, frame)
-        result = engine.run_skill(skill, inputs, cwd=project.paths.root, files=files)
+        if progress:
+            progress.status("Waiting for Claude to review the frame…")
+            result = engine.run_skill_with_progress(
+                skill, inputs, cwd=project.paths.root, files=files, progress=progress,
+            )
+        else:
+            result = engine.run_skill(skill, inputs, cwd=project.paths.root, files=files)
         return _findings(result)
+    except EngineCancelled:
+        raise
     except (
         EngineError, ToolError, SkillError, ProjectError, ProjectFileError, OSError, yaml.YAMLError
     ) as exc:

@@ -864,11 +864,11 @@ tr:last-child td {
   }
 }
 
-.proposal-skeleton {
+.stream-skeleton {
   gap: var(--space-2);
 }
 
-.proposal-skeleton i {
+.stream-skeleton i {
   display: block;
   width: 100%;
   height: .65rem;
@@ -877,18 +877,18 @@ tr:last-child td {
   animation: pulse var(--duration-pulse) var(--ease-in-out) infinite;
 }
 
-.proposal-skeleton i:first-child {
+.stream-skeleton i:first-child {
   width: 35%;
   height: .9rem;
   margin-bottom: var(--space-1);
 }
 
-.proposal-skeleton i:last-child {
+.stream-skeleton i:last-child {
   width: 68%;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .proposal-skeleton i {
+  .stream-skeleton i {
     animation: none;
   }
 }

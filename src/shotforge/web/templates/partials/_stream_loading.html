@@ -1,16 +1,16 @@
 {% macro skeleton() %}
-<div class="proposal-skeleton stack" aria-hidden="true">
+<div class="stream-skeleton stack" aria-hidden="true">
   <i></i><i></i><i></i>
 </div>
 {% endmacro %}
 
 {% macro loading(message) %}
-<template data-proposal-loading>
+<template data-stream-loading>
   <div class="stack">
     <div class="row">
-      <p class="muted" data-proposal-status role="status">{{ message }}</p>
+      <p class="muted" data-stream-status role="status">{{ message }}</p>
       <span class="spacer"></span>
-      <button type="button" class="quiet" data-proposal-cancel>Cancel</button>
+      <button type="button" class="quiet" data-stream-cancel>Cancel</button>
     </div>
     <div class="stack" data-proposal-scenes>
       <div class="card">{{ skeleton() }}</div>
