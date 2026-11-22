@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from PIL import Image
+
 from shotforge import checks
 from shotforge.models.shot import Beat, Continuity, FramedCharacter
 
@@ -70,8 +72,11 @@ def test_the_wrong_aspect_ratio_fails_like_s11(project, png):
     assert checks.summarise(findings) == "fail"
 
 
-def test_the_right_aspect_ratio_passes(project, png):
-    findings = checks.check_frame_file(project, png("right.png", 1920, 1080))
+def test_the_right_aspect_ratio_passes_without_ffprobe(project, tmp_path, monkeypatch):
+    monkeypatch.setenv("SHOTFORGE_FFPROBE", str(tmp_path / "missing-ffprobe"))
+    frame = tmp_path / "first_v1.png"
+    Image.new("RGB", (1920, 1080)).save(frame)
+    findings = checks.check_frame_file(project, frame)
     assert _levels(findings, "aspect ratio") == ["pass"]
 
 

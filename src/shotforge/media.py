@@ -1,7 +1,6 @@
-"""Thin ffmpeg/ffprobe helpers: duration, last frame, rough cut.
+"""Media helpers for video probing and still images.
 
-Shotforge never ships a codec of its own; it calls the ffmpeg that is already
-installed, and says so plainly when it is missing.
+Video operations use the installed FFmpeg tools. Still dimensions use Pillow.
 """
 
 from __future__ import annotations
@@ -10,6 +9,8 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
+
+from PIL import Image
 
 from shotforge.tools import ToolError, require_tool
 
@@ -94,31 +95,9 @@ def extract_last_frame(video: Path, target: Path) -> Path:
 
 
 def frame_size(image: Path) -> tuple[int, int] | None:
-    """Pixel size of an image, via ffprobe (no image library needed)."""
+    """Return an image's pixel dimensions if Pillow can read them."""
     try:
-        ffprobe = require_tool("ffprobe")
-    except ToolError:
-        return None
-    result = subprocess.run(
-        [
-            str(ffprobe),
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "stream=width,height",
-            "-of",
-            "json",
-            str(image),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return None
-    try:
-        stream = json.loads(result.stdout)["streams"][0]
-        return int(stream["width"]), int(stream["height"])
-    except (KeyError, IndexError, ValueError, json.JSONDecodeError):
+        with Image.open(image) as still:
+            return still.size
+    except (OSError, ValueError, Image.DecompressionBombError):
         return None

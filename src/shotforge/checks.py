@@ -278,7 +278,10 @@ def check_frame_file(project: Project, image: Path) -> list[Finding]:
     findings: list[Finding] = []
     size = frame_size(image)
     if size is None:
-        return [Finding("frame readable", WARN, f"could not read the size of {image.name}")]
+        return [Finding(
+            "frame readable", WARN, f"could not read the image dimensions of {image.name}",
+            fix="export a fresh PNG and file it as a new take",
+        )]
     width, height = size
     want_w, want_h = project.config.aspect_tuple
     actual = width / height
