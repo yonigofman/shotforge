@@ -93,6 +93,11 @@ def create_app(project_root: Path) -> FastAPI:
             for take in frame_takes
             if (report := actions.read_qa_report(take.qa_report(shot_paths))) is not None
         }
+        video_reports = {
+            take.number: report
+            for take in video_takes
+            if (report := actions.read_qa_report(take.qa_report(shot_paths))) is not None
+        }
         qa_takes = video_takes or frame_takes
         if frame_takes and shot.status.stage is Stage.frame:
             qa_takes = frame_takes
@@ -100,10 +105,8 @@ def create_app(project_root: Path) -> FastAPI:
         if qa_takes:
             latest = qa_takes[-1]
             report_context["qa_kind"] = latest.kind.value
-            report = (
-                frame_reports.get(latest.number) if latest.kind is TakeKind.frame
-                else actions.read_qa_report(latest.qa_report(shot_paths))
-            )
+            reports = frame_reports if latest.kind is TakeKind.frame else video_reports
+            report = reports.get(latest.number)
             if report is not None:
                 report_context.update(
                     findings=report, verdict=checks.summarise(report),
@@ -124,6 +127,8 @@ def create_app(project_root: Path) -> FastAPI:
             "frame_takes": frame_takes,
             "frame_verdicts": {n: checks.summarise(report) for n, report in frame_reports.items()},
             "video_takes": video_takes,
+            "video_reports": video_reports,
+            "video_verdicts": {n: checks.summarise(report) for n, report in video_reports.items()},
             "approved_frame": approved_take_number(shot_paths, TakeKind.frame),
             "approved_video": approved_take_number(shot_paths, TakeKind.video),
             "findings": checks.check_spec(project, scene_id, shot),
@@ -358,7 +363,7 @@ def create_app(project_root: Path) -> FastAPI:
                 "subject": f"{take_kind.value} v{number}",
             },
         )
-        if take_kind is TakeKind.frame and take is None:
+        if take is None:
             response.headers["HX-Trigger-After-Swap"] = "card-changed"
         return response
 

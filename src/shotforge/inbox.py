@@ -7,13 +7,16 @@ shot, and then the file becomes the next numbered take in the right folder.
 from __future__ import annotations
 
 import shutil
+import stat
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from os import stat_result
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Lock
 from typing import BinaryIO
 
 from shotforge import actions
@@ -24,6 +27,7 @@ from shotforge.takes import Take, TakeKind, add_take
 
 IGNORED_NAMES = {".gitkeep", ".DS_Store", "Thumbs.db"}
 PARTIAL_SUFFIXES = (".part", ".crdownload", ".download", ".tmp")
+_FILING_LOCK = Lock()
 
 
 class DesignAsset(StrEnum):
@@ -40,6 +44,7 @@ class DesignAsset(StrEnum):
 class InboxFile:
     path: Path
     kind: TakeKind | None
+    stat: stat_result
 
     @property
     def name(self) -> str:
@@ -47,11 +52,11 @@ class InboxFile:
 
     @property
     def size_kb(self) -> int:
-        return max(1, round(self.path.stat().st_size / 1024))
+        return max(1, round(self.stat.st_size / 1024))
 
     @property
     def modified(self) -> datetime:
-        return datetime.fromtimestamp(self.path.stat().st_mtime, tz=UTC)
+        return datetime.fromtimestamp(self.stat.st_mtime, tz=UTC)
 
     @property
     def filed_as(self) -> str:
@@ -74,12 +79,17 @@ def scan(project: Project) -> list[InboxFile]:
         return []
     found: list[InboxFile] = []
     for path in inbox.iterdir():
-        if not path.is_file() or path.name in IGNORED_NAMES or path.name.startswith("."):
+        if path.name in IGNORED_NAMES or path.name.startswith("."):
             continue
         if path.suffix.lower() in PARTIAL_SUFFIXES:
             continue
-        found.append(InboxFile(path=path, kind=classify(path)))
-    return sorted(found, key=lambda f: f.path.stat().st_mtime, reverse=True)
+        try:
+            info = path.stat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISREG(info.st_mode):
+            found.append(InboxFile(path=path, kind=classify(path), stat=info))
+    return sorted(found, key=lambda item: item.stat.st_mtime_ns, reverse=True)
 
 
 @contextmanager
@@ -103,22 +113,22 @@ def file_to_design(
     """File one inbox image under its fixed design filename."""
     project.entity(kind, entity_id)
     inbox_file = Path(inbox_file)
-    if (
-        not inbox_file.is_file()
-        or inbox_file.is_symlink()
-        or not inbox_file.resolve().is_relative_to(project.paths.inbox.resolve())
-    ):
-        raise FileNotFoundError(f"{inbox_file.name} is not a file in the inbox")
-    if classify(inbox_file) is not TakeKind.frame:
-        raise ValueError("choose a PNG, JPEG or WebP image")
-
     target = asset.path(project.paths, kind, entity_id)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with TemporaryDirectory(prefix=".filing-", dir=target.parent) as directory:
-        staged = Path(directory) / target.name
-        write_design_png(inbox_file, staged)
-        staged.replace(target)
-    inbox_file.unlink()
+    with _FILING_LOCK:
+        if (
+            not inbox_file.is_file()
+            or inbox_file.is_symlink()
+            or not inbox_file.resolve().is_relative_to(project.paths.inbox.resolve())
+        ):
+            raise FileNotFoundError(f"{inbox_file.name} is not a file in the inbox")
+        if classify(inbox_file) is not TakeKind.frame:
+            raise ValueError("choose a PNG, JPEG or WebP image")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(prefix=".filing-", dir=target.parent) as directory:
+            staged = Path(directory) / target.name
+            write_design_png(inbox_file, staged)
+            staged.replace(target)
+        inbox_file.unlink()
     return target
 
 
@@ -131,7 +141,7 @@ def file_to_shot(
     *,
     vision: bool | None = None,
 ) -> Take:
-    """Move one inbox file in as the next take and run QA on new frames."""
+    """File an inbox item as the next numbered take and run its QA."""
     inbox_file = Path(inbox_file)
     if not inbox_file.is_file():
         raise FileNotFoundError(inbox_file)
@@ -144,9 +154,10 @@ def file_to_shot(
     shot_paths = project.paths.shot(scene_id, shot_id)
     if not shot_paths.spec.is_file():
         raise FileNotFoundError(f"no shot {shot_id} in scene {scene_id}")
-    take = add_take(shot_paths, kind, inbox_file, move=True)
-    if kind is TakeKind.frame:
-        actions.run_qa(project, scene_id, shot_id, kind, take.number, vision=vision)
+    # Allocate and file the take before another request can pick the same number.
+    with _FILING_LOCK:
+        take = add_take(shot_paths, kind, inbox_file, move=True)
+    actions.run_qa(project, scene_id, shot_id, kind, take.number, vision=vision)
     return take
 
 

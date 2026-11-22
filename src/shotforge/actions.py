@@ -62,18 +62,18 @@ def run_qa(
     *,
     vision: bool | None = None,
 ) -> list[checks.Finding]:
-    """Run spec and take checks, including vision for frames when enabled."""
+    """Run spec and take checks, including vision when enabled."""
     shot = project.shot(scene_id, shot_id)
     shot_paths = project.paths.shot(scene_id, shot_id)
     take = get_take(shot_paths, kind, number)
     findings = checks.check_spec(project, scene_id, shot)
+    use_vision = project.config.vision_qa if vision is None else vision
     if kind is TakeKind.frame:
         findings += checks.check_frame_file(project, take.path)
-        use_vision = project.config.vision_qa if vision is None else vision
         if use_vision:
             findings += frame_qa.review(project, scene_id, shot, take.path)
     else:
-        findings += checks.check_video_file(project, scene_id, shot, take.path)
+        findings += checks.check_video_file(project, scene_id, shot, take.path, vision=use_vision)
     _write_report(take.qa_report(shot_paths), findings)
     return findings
 

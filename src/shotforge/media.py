@@ -28,7 +28,10 @@ def write_design_png(source: Path, target: Path) -> None:
         command += ["-f", "null", "-"]
     else:
         command += ["-update", "1", str(target)]
-    result = subprocess.run(command, capture_output=True)
+    try:
+        result = subprocess.run(command, capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ToolError(f"ffmpeg could not process {source.name}: {exc}") from exc
     if result.returncode or (codec != "png" and not target.is_file()):
         raise ValueError(f"{source.name} is not a readable {source.suffix} image")
     if codec == "png":
@@ -39,22 +42,23 @@ def probe_duration(video: Path) -> float | None:
     """Length of a video in seconds, or None when ffprobe cannot read it."""
     try:
         ffprobe = require_tool("ffprobe")
-    except ToolError:
+        result = subprocess.run(
+            [
+                str(ffprobe),
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "json",
+                str(video),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (ToolError, OSError, subprocess.SubprocessError):
         return None
-    result = subprocess.run(
-        [
-            str(ffprobe),
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "json",
-            str(video),
-        ],
-        capture_output=True,
-        text=True,
-    )
     if result.returncode != 0:
         return None
     try:
