@@ -20,6 +20,7 @@ from starlette.responses import FileResponse
 
 from shotforge import actions, checks, tools
 from shotforge import inbox as inbox_mod
+from shotforge.console import setup_console
 from shotforge.models import Stage
 from shotforge.pipeline import ORDER, STAGE_LABEL, TransitionError, next_action, reopen
 from shotforge.project import Project, ProjectError
@@ -41,6 +42,7 @@ STAGES: tuple[Stage, ...] = (Stage.breakdown, Stage.blockout, Stage.frame, Stage
 
 
 def create_app(project_root: Path) -> FastAPI:
+    setup_console()
     project_root = Path(project_root).resolve()
     app = FastAPI(title="Shotforge cockpit", docs_url=None, redoc_url=None)
     templates = Jinja2Templates(directory=str(HERE / "templates"))

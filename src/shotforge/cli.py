@@ -12,6 +12,7 @@ import typer
 
 from shotforge import actions, checks, tools
 from shotforge import inbox as inbox_mod
+from shotforge.console import setup_console
 from shotforge.models import Stage
 from shotforge.pipeline import TransitionError, next_action, reopen
 from shotforge.project import Project, ProjectError, slugify
@@ -395,6 +396,7 @@ def serve(
 
 
 def main() -> None:
+    setup_console()
     app()
 
 
