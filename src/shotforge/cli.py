@@ -9,14 +9,25 @@ from __future__ import annotations
 from pathlib import Path
 
 import typer
+from jinja2 import TemplateError
 
-from shotforge import actions, blender, breakdown, checks, cinematography, continuity, tools
+from shotforge import (
+    actions,
+    blender,
+    breakdown,
+    checks,
+    cinematography,
+    continuity,
+    texture,
+    tools,
+)
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
 from shotforge.models import Stage
 from shotforge.pipeline import TransitionError, next_action, reopen
 from shotforge.project import Project, ProjectError, slugify
 from shotforge.skills import find_skill, list_skills
+from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
 from shotforge.takes import TakeKind, list_takes
 from shotforge.yamlio import ProjectFileError
@@ -302,22 +313,45 @@ def camera(
 def blockout(
     scene: str,
     shot_id: str | None = typer.Argument(None, metavar="SHOT", help="Omit to render every shot."),
+    changed: bool = typer.Option(False, "--changed", help="Skip current renders in a scene."),
     project_dir: Path | None = ProjectOption,
 ) -> None:
     """Render one shot or an entire scene in Blender."""
     project, _ = _open(project_dir)
+    if changed and shot_id is not None:
+        raise typer.BadParameter("omit SHOT to use --changed")
     try:
         paths = (
             [blender.render(scene, shot_id, project=project)]
             if shot_id is not None
-            else blender.render_scene(scene, project=project)
+            else blender.render_scene(scene, project=project, changed=changed)
         )
     except blender.BlockoutError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(f"Scene → {project.paths.rel(project.paths.blend_file(scene))}")
+    if not paths:
+        typer.echo("All blockout renders are current.")
     for path in paths:
         typer.echo(f"Rendered → {project.paths.rel(path)}")
+
+
+@app.command()
+def texture_prompt(
+    surface: str = typer.Argument(..., help="E.g. location.pub.wall or character.dima.garment."),
+    name: str = typer.Argument(..., help="Texture name without .png."),
+    uv_scale: float = typer.Option(1.0, help="Texture repeats per metre."),
+    source: str | None = typer.Option(None, help="Source sheet as kind.id (defaults to target)."),
+    project_dir: Path | None = ProjectOption,
+) -> None:
+    """Prepare a texture prompt and a materials.yaml entry from an approved sheet."""
+    project, _ = _open(project_dir)
+    try:
+        sheet, prompt, assignment = texture.build_prompt(project, surface, name, uv_scale, source)
+    except (OSError, ValueError, ProjectError, ProjectFileError, SkillError, TemplateError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"Attach {project.paths.rel(sheet)}\n\n{prompt}")
+    typer.echo(f"Add to {project.paths.rel(project.paths.materials)}\n\n{assignment}")
 
 
 @app.command()
@@ -439,18 +473,30 @@ def inbox_file(
     name: str = typer.Argument(..., help="File name in _inbox."),
     scene: str | None = typer.Option(None, help="Scene id (default: the active shot)."),
     shot_id: str | None = typer.Option(None, "--shot", help="Shot id."),
+    texture_name: str | None = typer.Option(None, "--texture", help="Texture name without .png."),
     vision: bool | None = typer.Option(
         None, "--vision/--no-vision", help="Override the project's vision QA setting."
     ),
     project_dir: Path | None = ProjectOption,
 ) -> None:
-    """File one download as the next take of a shot."""
+    """File one download as the next take of a shot or texture."""
     project, state = _open(project_dir)
+    source = project.paths.inbox / name
+    if texture_name is not None:
+        if scene or shot_id:
+            raise typer.BadParameter("choose a texture or a shot as the inbox destination")
+        try:
+            path = inbox_mod.file_to_texture(project, source, texture_name)
+        except (ValueError, OSError) as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        typer.echo(f"{name} → {project.paths.rel(path)}")
+        return
+
     target = (scene, shot_id) if scene and shot_id else state.active
     if target is None:
         raise typer.BadParameter("no active shot — pass --scene and --shot")
     try:
-        take = inbox_mod.file_to_shot(project, project.paths.inbox / name, *target, vision=vision)
+        take = inbox_mod.file_to_shot(project, source, *target, vision=vision)
     except (ValueError, FileNotFoundError) as exc:
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(f"{name} → {project.paths.rel(take.path)}")

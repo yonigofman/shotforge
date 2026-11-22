@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 
 from shotforge import blender
 from shotforge.cli import app
+from shotforge.models import Location
 from shotforge.models.blockout import BlockoutAxis
 from shotforge.models.shot import ShotStatus
 from shotforge.pipeline import next_action
@@ -30,7 +31,7 @@ def mcp_jobs(monkeypatch):
     def render(_script, job, _timeout):
         payload = json.loads(job.read_text(encoding="utf-8"))
         jobs.append(payload)
-        (job.parent / "s01_pub.blend").write_bytes(b"blend")
+        Path(payload["blend"]).write_bytes(b"blend")
         for path in payload["renders"].values():
             Path(path).write_bytes(PNG)
         for masks in payload["masks"].values():
@@ -66,6 +67,37 @@ def test_render_discovers_the_project(example_project, mcp_jobs, monkeypatch):
     monkeypatch.chdir(example_project.paths.root)
     assert blender.render(SCENE, "sh07") == example_project.paths.blockout(SCENE, "sh07")
     assert set(mcp_jobs[0]["renders"]) == {"sh07"}
+
+
+def test_texture_changes_invalidate_only_scenes_that_use_them(example_project, mcp_jobs, png):
+    project = example_project
+    active = project.paths.textures / "pub_plaster.png"
+    active.unlink()
+    other = project.scene(SCENE).model_copy(update={"id": "s02_other", "location": "other"})
+    project.save_entity("location", Location(id="other"))
+    project.save_scene(other)
+    project.save_shot(other.id, project.shot(SCENE, "sh07"))
+
+    assert len(blender.render_scene(SCENE, project=project, changed=True)) == 3
+    assert len(blender.render_scene(other.id, project=project, changed=True)) == 1
+    assert all(not job["spec"]["materials"] for job in mcp_jobs)
+    assert blender.render_scene(SCENE, project=project, changed=True) == []
+
+    active.write_bytes(png(width=32, height=32).read_bytes())
+    assert blender.render_scene(other.id, project=project, changed=True) == []
+    blender.render(SCENE, "sh07", project=project)
+    assert set(mcp_jobs[-1]["renders"]) == {"sh07"}
+    assert mcp_jobs[-1]["spec"]["materials"]["wall"]["uv_scale"] == 0.85
+
+    assert len(blender.render_scene(SCENE, project=project, changed=True)) == 2
+    assert set(mcp_jobs[-1]["renders"]) == {"sh06", "sh08"}
+    assert blender.render_scene(SCENE, project=project, changed=True) == []
+    assert blender.render_scene(other.id, project=project, changed=True) == []
+
+    project.paths.mask(SCENE, "sh07", "dima").unlink()
+    assert blender.render_scene(SCENE, project=project, changed=True) == [
+        project.paths.blockout(SCENE, "sh07"),
+    ]
 
 
 def test_shot_card_renders_one_png_and_makes_approval_ready(example_project, mcp_jobs):

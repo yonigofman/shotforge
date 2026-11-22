@@ -1,4 +1,5 @@
 <div class="card">
+  {% if material_error %}<p class="muted" role="alert">{{ material_error }}</p>{% endif %}
   {% if not inbox %}
   <p class="faint">
     Empty. Download from ChatGPT or Grok into <code>_inbox/</code> and it shows up here.
@@ -25,8 +26,19 @@
               File to {{ active[1] }}
             </button>
           </form>
-          {% else %}
+          {% elif not texture_targets or item.path.suffix | lower != '.png' %}
           <span class="faint">open a shot card first</span>
+          {% endif %}
+          {% if texture_targets and item.path.suffix | lower == '.png' %}
+          <form hx-post="/inbox/file" hx-target="#inbox" hx-swap="innerHTML" class="row">
+            <input type="hidden" name="name" value="{{ item.name }}" />
+            <select name="texture" aria-label="Texture for {{ item.name }}" required>
+              {% for texture in texture_targets %}
+              <option value="{{ texture }}">{{ texture }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit">File as texture</button>
+          </form>
           {% endif %}
         </td>
       </tr>
