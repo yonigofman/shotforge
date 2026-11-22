@@ -1,0 +1,45 @@
+id: sh08
+duration_s: 10
+size: dirty single
+summary: דימה צוחק ולוקח לגימה; החלון מאחוריו חייב להיות בפריים.
+camera:
+  blender_cam: CAM_S08
+  lens_mm: 40
+  position: room side, past Durik's shoulder
+  move: static
+technique:
+  - matched_reverse
+in_frame:
+  - char: dima
+    role: subject
+    frame_x: left_third
+    eyeline: Durik's face, toward the right edge, eye level
+    notes: the tall window is behind him, rain on the glass
+  - char: durik
+    role: foreground_soft
+    view: right_profile
+beats:
+  - t: [0, 4]
+    action: Dima laughs, shoulders dropping
+  - t: [4, 7]
+    speaker: dima
+    line: "Да ну тебя."
+  - t: [7, 10]
+    action: he lifts the mug and takes one sip at the very end
+continuity:
+  in:
+    beer: half
+    mood: laughing
+  out:
+    beer: low
+    mood: laughing
+refs:
+  from_shots:
+    - sh07
+  face_crops:
+    - dima
+    - durik
+sound:
+  ambience: pub, rain
+  music: none
+status: breakdown

@@ -1,0 +1,37 @@
+{{ project.name }} — {{ scene.id }} / {{ shot.id }} — first frame, pass 2 (identity)
+
+Edit the attached frame. Change faces only.
+
+{% for framed in shot.in_frame %}
+{% set character = characters.get(framed.char) %}
+{{ loop.index }}. {{ framed.char }}{{ (" (" ~ character.names.book ~ ")") if character and character.get('names', {}).get('book') else "" }} — {{ framed.role }}{{ (", " ~ framed.frame_x ~ " of frame") if framed.get('frame_x') else "" }}
+{% if character and character.get('design_choices') %}
+   Must look like: {{ character.design_choices | join('; ') }}.
+{% endif %}
+{% if framed.get('view') %}
+   Keep the view as it is: {{ framed.view }}.
+{% endif %}
+{% if framed.get('eyeline') %}
+   Keep the gaze: {{ framed.eyeline }}.
+{% endif %}
+{% endfor %}
+
+KEEP EXACTLY AS THEY ARE
+- lighting, grade and film grain
+- pose, hands, and head angle
+- framing, composition and camera
+- wardrobe, props and background
+{% for key, value in shot.continuity.get('in', {}).items() %}
+- {{ key }}: {{ value }}
+{% endfor %}
+
+MUST HOLD
+- Use the selection tool with the attached mask as the area to mark.
+{% for rule in rules %}
+- {{ rule }}
+{% endfor %}
+
+ATTACH IN THIS ORDER
+{% for attachment in attachments %}
+{{ attachment.order }}. {{ attachment.label }} — {{ attachment.path }}{{ "  (MISSING)" if not attachment.exists else "" }}
+{% endfor %}

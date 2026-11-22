@@ -1,0 +1,48 @@
+id: sh06
+duration_s: 12
+size: dirty single
+summary: דוריק מתחיל את הסיפור על הסטודנטים; דימה מקשיב מהצד.
+camera:
+  blender_cam: CAM_S06
+  lens_mm: 50
+  position: window end of table
+  move: static
+technique:
+  - dirty_single
+in_frame:
+  - char: durik
+    role: subject
+    frame_x: center
+    eyeline: Dima's face, toward the left edge, eye level
+  - char: dima
+    role: foreground_soft
+    view: left_profile
+  - char: zhmurik
+    role: background
+beats:
+  - t: [0, 3]
+    action: Durik sets his mug down and leans in
+  - t: [3, 10]
+    speaker: durik
+    line: "Я им говорю каждый год одно и то же."
+  - t: [10, 12]
+    action: he waits for Dima to answer
+    silence: true
+continuity:
+  in:
+    beer: half
+    durik_hand: on_mug
+    mood: smile
+  out:
+    beer: half
+    durik_hand: on_table
+    mood: smile
+refs:
+  face_crops:
+    - dima
+    - durik
+    - zhmurik
+sound:
+  ambience: pub, rain
+  music: none
+status: breakdown

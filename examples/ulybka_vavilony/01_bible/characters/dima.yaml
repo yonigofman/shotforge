@@ -1,0 +1,23 @@
+id: dima
+tag: "@Dima"
+names:
+  book: Дима «Сезонное Пальто»
+from_book:
+  - גבוה מהממוצע
+  - קול בס
+  - שרידי ברק
+design_choices:
+  - כ-45
+  - שיער כהה גלי נסוף לאחור, שיבה ברקות
+outfit:
+  coat: long worn camel overcoat, many pockets
+  scarf: burgundy
+voice: deep rolling bass
+continuity_arcs:
+  - attr: face_flush
+    from: slight
+    to: very_red
+    over: s01_pub
+assets:
+  sheet: 02_design/characters/dima/sheet.png
+  ref: 02_design/characters/dima/ref.png

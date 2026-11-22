@@ -1,0 +1,25 @@
+id: s01_pub
+location: pub
+time: evening, rain
+summary: >-
+  דימה, דוריק וז׳מוריק יושבים בפיווניה בערב גשום. דוריק מספר על הסטודנטים,
+  הבירה יורדת, והשיחה נעשית חמה יותר ככל שהפנים מאדימות.
+characters:
+  - dima
+  - durik
+  - zhmurik
+seating:
+  - char: dima
+    seat: hero_table.left
+    faces: room
+  - char: durik
+    seat: hero_table.center
+    faces: room
+  - char: zhmurik
+    seat: hero_table.right
+    faces: room
+axis_180: along the trio; cameras stay on the room side
+lighting: warm tungsten practicals, cold blue window
+sound:
+  ambience: pub, rain
+  music: none

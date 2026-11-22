@@ -1,0 +1,15 @@
+id: zhmurik
+tag: "@Zhmurik"
+names:
+  book: Жмурик
+from_book:
+  - שותק רוב הזמן
+design_choices:
+  - "גיל ושיער: למלא מהעיצוב המאושר — חזר שגוי כל פעם שלא נכתב במפורש"
+  - נמוך וכפוף קדימה
+outfit:
+  jacket: dark quilted jacket
+voice: quiet, two words at a time
+assets:
+  sheet: 02_design/characters/zhmurik/sheet.png
+  ref: 02_design/characters/zhmurik/ref.png

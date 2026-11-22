@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% import "partials/_macros.html" as ui %}
+{% block content %}
+<div class="stack">
+  <div class="row">
+    <h1>{{ scene.id }}</h1>
+    <span class="badge">{{ scene.location }}</span>
+    {% if scene.time %}<span class="faint">{{ scene.time }}</span>{% endif %}
+  </div>
+  {% if scene.axis_180 %}<p class="muted" dir="auto">180°: {{ scene.axis_180 }}</p>{% endif %}
+
+  {% if chain %}
+  <section class="card">
+    <div class="card-header"><h3>Continuity across the cuts</h3></div>
+    <ul class="findings">
+      {% for finding in chain %}
+      <li>
+        {{ ui.pip(finding.level) }}
+        <span>{{ finding.message }}{% if finding.fix %}<br /><span class="fix">{{ finding.fix }}</span>{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <div class="strip">
+    {% for row in rows %}
+    <article class="card raised stack" style="gap:var(--space-3)">
+      <div class="row">
+        <strong><a href="/shot/{{ scene.id }}/{{ row.shot.id }}">{{ row.shot.id }}</a></strong>
+        <span class="spacer"></span>
+        {{ ui.pip(row.verdict) }}
+      </div>
+      {{ ui.progress(row.stage_index) }}
+      {{ ui.media(row.frame if row.frame.is_file() else row.blockout, media_url,
+          'approved frame' if row.frame.is_file() else 'blockout') }}
+      <div class="faint">{{ row.label }} · {{ row.shot.duration_s | n }}s{% if row.shot.size %} · {{ row.shot.size }}{% endif %}</div>
+      <div class="faint">{{ row.action.title }} <span class="badge tool">{{ row.action.tool }}</span></div>
+      {% if row.video.is_file() %}
+      {{ ui.media(row.video, media_url, 'approved video', 'video') }}
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

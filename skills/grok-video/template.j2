@@ -1,0 +1,60 @@
+{{ project.name }} — {{ scene.id }} / {{ shot.id }} — video, {{ shot.duration_s | n }}s
+
+Animate the attached frame. It is the first frame of the clip.
+
+{% if shot.get('technique') %}
+Technique: {{ shot.technique | join(', ') }}.
+{% endif %}
+Camera: completely static, locked off{{ (", " ~ shot.camera.lens_mm ~ "mm") if shot.camera.get('lens_mm') else "" }}. No pans, no push-ins, no handheld.
+Duration: {{ shot.duration_s | n }} seconds.
+{% if characters %}
+Characters: {% for cid in characters %}{{ tags[cid] }}{{ ", " if not loop.last else "" }}{% endfor %}.
+{% endif %}
+
+TIMELINE
+{% for beat in shot.beats %}
+{% if beat.get('speaker') %}
+{{ beat.t[0] | n }}–{{ beat.t[1] | n }}s — {{ tags.get(beat.speaker, beat.speaker) }} says: "{{ beat.line }}"
+{% elif beat.get('silence') %}
+{{ beat.t[0] | n }}–{{ beat.t[1] | n }}s — {{ beat.get('action') or 'no action' }}. Nobody speaks.
+{% else %}
+{{ beat.t[0] | n }}–{{ beat.t[1] | n }}s — {{ beat.action }}
+{% endif %}
+{% endfor %}
+
+HOLD
+{% for framed in shot.in_frame %}
+{% if framed.get('eyeline') %}
+- {{ framed.char }} keeps looking: {{ framed.eyeline }}.
+{% endif %}
+{% endfor %}
+{% for key, value in shot.continuity.get('out', {}).items() %}
+- at the end of the shot, {{ key }}: {{ value }}
+{% endfor %}
+
+SOUND
+{% if shot.sound.get('ambience') %}
+Ambience: {{ shot.sound.ambience }}.
+{% endif %}
+{% if shot.sound.get('music') and shot.sound.music != 'none' %}
+Music: {{ shot.sound.music }}.
+{% else %}
+No music.
+{% endif %}
+
+MUST HOLD
+{% for rule in rules %}
+- {{ rule }}
+{% endfor %}
+{% if style.get('negative') %}
+
+DO NOT
+{% for item in style.negative %}
+- {{ item }}
+{% endfor %}
+{% endif %}
+
+ATTACH IN THIS ORDER
+{% for attachment in attachments %}
+{{ attachment.order }}. {{ attachment.label }} — {{ attachment.path }}{{ "  (MISSING)" if not attachment.exists else "" }}
+{% endfor %}

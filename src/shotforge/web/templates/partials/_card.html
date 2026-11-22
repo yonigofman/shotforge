@@ -1,0 +1,181 @@
+{% import "partials/_macros.html" as ui %}
+<div id="shot-card" class="stack">
+  <div class="row">
+    <h1>{{ scene.id }} / {{ shot.id }}</h1>
+    <span class="badge">{{ label }}</span>
+    {% if shot.size %}<span class="badge">{{ shot.size }}</span>{% endif %}
+    <span class="faint mono">{{ shot.duration_s | n }}s</span>
+    <span class="spacer"></span>
+    {% if not active %}
+    <button
+      class="quiet"
+      hx-post="/shot/{{ scene.id }}/{{ shot.id }}/active"
+      hx-target="#shot-card"
+      hx-swap="outerHTML"
+      title="The inbox files downloads to this shot"
+    >
+      Make active
+    </button>
+    {% else %}
+    <span class="pip active">active — inbox files here</span>
+    {% endif %}
+    <a class="button quiet" href="/scene/{{ scene.id }}">Storyboard</a>
+  </div>
+  {{ ui.progress(stage_index) }}
+
+  <div class="split">
+    <!-- What to do now -->
+    <section class="card raised approval stack" x-data="copyable">
+      <div class="card-header">
+        <h2>{{ action.title }}</h2>
+        <span class="spacer"></span>
+        {% if action.tool != "—" %}<span class="badge tool">{{ action.tool }}</span>{% endif %}
+      </div>
+      {% if action.detail %}<p class="muted" dir="auto">{{ action.detail }}</p>{% endif %}
+
+      {% if action.blocked_by %}
+      <ul class="findings">
+        {% for reason in action.blocked_by %}
+        <li>{{ ui.pip('warn', 'waiting') }}<span>{{ reason }}</span></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      {% if action.kind == 'begin' %}
+      <div class="gate">
+        <button
+          class="primary"
+          hx-post="/shot/{{ scene.id }}/{{ shot.id }}/begin"
+          hx-target="#shot-card"
+          hx-swap="outerHTML"
+        >
+          {{ action.title }}
+        </button>
+      </div>
+      {% endif %}
+
+      {% if action.skill %}
+      <div class="row">
+        <span class="faint">skill: <code>{{ action.skill }}</code></span>
+        <span class="spacer"></span>
+        <button
+          hx-post="/shot/{{ scene.id }}/{{ shot.id }}/prompt"
+          hx-target="#shot-card"
+          hx-swap="outerHTML"
+        >
+          {% if prompt_text %}Regenerate prompt{% else %}Generate prompt{% endif %}
+          <span class="spinner">…</span>
+        </button>
+        {% if prompt_text %}
+        <button data-copy-prompt @click="copy('#prompt-text')">
+          <span x-text="copied ? 'Copied' : 'Copy prompt'">Copy prompt</span>
+          <kbd>c</kbd>
+        </button>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if prompt_text %}
+      <div class="prompt" id="prompt-text">{{ prompt_text }}</div>
+      <span class="faint">saved as {{ rel(prompt_path) }}</span>
+      {% endif %}
+
+      {% if action.attachments %}
+      <h3>Attach in this order</h3>
+      <ul class="attachments">
+        {% for attachment in action.attachments %}
+        <li>
+          <span class="order">{{ attachment.order }}.</span>
+          <span>
+            {{ attachment.label }}
+            <br />
+            {% if attachment.exists %}
+            <a class="mono faint" href="{{ media_url(attachment.path) }}" target="_blank">{{ rel(attachment.path) }}</a>
+            {% else %}
+            <span class="mono missing">{{ rel(attachment.path) }} — missing</span>
+            {% endif %}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      {% if action.gate %}
+      <form
+        class="gate"
+        hx-post="/shot/{{ scene.id }}/{{ shot.id }}/approve"
+        hx-target="#shot-card"
+        hx-swap="outerHTML"
+      >
+        <input type="text" name="note" placeholder="Note for the log (optional)" style="flex:1" />
+        <button class="primary" type="submit" data-approve {% if not action.ready %}disabled{% endif %}>
+          {{ action.gate }} <kbd>a</kbd>
+        </button>
+      </form>
+      {% if shot.status.stage.value == 'frame' and shot_state.frame_pass == 1 and frame_takes %}
+      <button
+        class="quiet"
+        hx-post="/shot/{{ scene.id }}/{{ shot.id }}/pass2"
+        hx-target="#shot-card"
+        hx-swap="outerHTML"
+      >
+        Go to pass 2 (identity)
+      </button>
+      {% endif %}
+      {% endif %}
+    </section>
+
+    <!-- What it produced -->
+    <section class="stack">
+      <div id="takes" hx-get="/shot/{{ scene.id }}/{{ shot.id }}/takes" hx-trigger="takes-changed from:body" hx-swap="innerHTML">
+        {% include "partials/_takes.html" %}
+      </div>
+
+      <article class="card stack">
+        <div class="card-header"><h3>Beats</h3></div>
+        <table>
+          <tbody>
+            {% for beat in shot.beats %}
+            <tr>
+              <td class="mono faint" style="white-space:nowrap">{{ beat.t[0] | n }}–{{ beat.t[1] | n }}s</td>
+              <td>
+                <span dir="auto">{% if beat.speaker %}<strong>{{ beat.speaker }}:</strong> {{ beat.line }}{% else %}{{ beat.action }}{% endif %}</span>
+                {% if beat.silence %}<span class="badge">silence</span>{% endif %}
+                {% if beat.line_overruns() %}
+                <br /><span class="fix">line needs about {{ beat.line_overruns() }}s more</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+
+      <article class="card stack">
+        <div class="card-header">
+          <h3>Checks</h3>
+          <span class="spacer"></span>
+          <form hx-post="/shot/{{ scene.id }}/{{ shot.id }}/qa" hx-target="#qa" hx-swap="innerHTML">
+            <input type="hidden" name="kind" value="{{ 'video' if video_takes else 'frame' }}" />
+            <button {% if not (frame_takes or video_takes) %}disabled{% endif %}>Run on latest take</button>
+          </form>
+        </div>
+        <div id="qa">{% include "partials/_findings.html" %}</div>
+      </article>
+
+      {% if previous %}
+      <article class="card stack">
+        <div class="card-header"><h3>Cut from {{ previous.id }}</h3></div>
+        <div class="row" style="align-items:flex-start;gap:var(--space-4)">
+          <div style="flex:1">
+            {{ ui.media(shot_paths.root.parent / previous.id / 'last_frame.png', media_url, previous.id ~ ' last frame') }}
+          </div>
+          <div style="flex:1">
+            {{ ui.media(shot_paths.approved_frame, media_url, shot.id ~ ' first frame') }}
+          </div>
+        </div>
+      </article>
+      {% endif %}
+    </section>
+  </div>
+</div>
