@@ -72,8 +72,10 @@ def file_to_shot(
     scene_id: str,
     shot_id: str,
     kind: TakeKind | None = None,
+    *,
+    vision: bool | None = None,
 ) -> Take:
-    """Move one inbox file in as the next take of a shot."""
+    """File an inbox item as the next numbered take and run its QA."""
     inbox_file = Path(inbox_file)
     if not inbox_file.is_file():
         raise FileNotFoundError(inbox_file)
@@ -89,8 +91,7 @@ def file_to_shot(
     # Allocate and file the take before another request can pick the same number.
     with _FILING_LOCK:
         take = add_take(shot_paths, kind, inbox_file, move=True)
-    if kind is TakeKind.video:
-        actions.run_qa(project, scene_id, shot_id, kind, take.number)
+    actions.run_qa(project, scene_id, shot_id, kind, take.number, vision=vision)
     return take
 
 

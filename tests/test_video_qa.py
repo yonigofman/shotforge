@@ -8,12 +8,15 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
-from shotforge import checks
+from shotforge import actions, checks
+from shotforge.cli import app
 from shotforge.engine import EngineResult
 from shotforge.models import Shot
 from shotforge.models.shot import Beat
 from shotforge.qa import eyeline
+from shotforge.yamlio import dump
 
 
 def test_video_qa_without_the_extra_retains_duration(project, mp4, monkeypatch):
@@ -59,6 +62,40 @@ def test_eyeline_reviews_a_dozen_frames_in_one_call(project, mp4, monkeypatch, d
     finding = eyeline.check_eyeline(project, shot, mp4(seconds=5), 5)
     assert finding.level == ("fail" if direct else "pass")
     assert ("8" if direct else "12") in finding.message
+
+
+def test_video_filing_and_reruns_share_the_project_vision_setting(project, mp4, monkeypatch):
+    project.config.vision_qa = False
+    dump(project.paths.config, project.config)
+    monkeypatch.setattr(
+        eyeline, "check_eyeline", lambda *args: checks.Finding(eyeline.CHECK, checks.PASS, "Clear")
+    )
+    scene, shot = "s01_pub", "sh01"
+    clip = mp4(seconds=10)
+    qa = project.paths.shot(scene, shot).qa
+    runner = CliRunner()
+
+    for number, options in enumerate(([], ["--vision"]), 1):
+        incoming = project.paths.inbox / "video.mp4"
+        incoming.write_bytes(clip.read_bytes())
+        result = runner.invoke(app, [
+            "inbox", "file", incoming.name, "-C", str(project.paths.root),
+            "--scene", scene, "--shot", shot, *options,
+        ])
+        assert result.exit_code == 0, result.output
+        report = actions.read_qa_report(qa / f"video_v{number}.json")
+        assert report is not None
+        assert any(f.check == "duration" for f in report)
+        assert any(f.check == eyeline.CHECK for f in report) == bool(options)
+
+    result = runner.invoke(app, [
+        "qa", scene, shot, "-C", str(project.paths.root),
+        "--kind", "video", "--take", "2", "--no-vision",
+    ])
+    assert result.exit_code == 0, result.output
+    report = actions.read_qa_report(qa / "video_v2.json")
+    assert report is not None
+    assert all(f.check != eyeline.CHECK for f in report)
 
 
 @pytest.fixture

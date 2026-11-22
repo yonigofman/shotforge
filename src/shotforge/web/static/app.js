@@ -26,20 +26,24 @@ document.addEventListener("alpine:init", () => {
 
   Alpine.data("dropzone", () => ({
     over: false,
-    upload(event, url) {
+    uploading: false,
+    async upload(event, url) {
       this.over = false;
       const files = event.dataTransfer ? event.dataTransfer.files : event.target.files;
-      if (!files || !files.length) return;
+      if (this.uploading || !files || !files.length) return;
       const body = new FormData();
       for (const file of files) body.append("files", file);
-      fetch(url, { method: "POST", body })
-        .then((response) => response.text())
-        .then((html) => {
-          document.body.dispatchEvent(new CustomEvent("takes-changed"));
-          toast("Filed as a new take.");
-          if (window.htmx) htmx.trigger(document.body, "takes-changed");
-        })
-        .catch(() => toast("Upload failed.", "fail"));
+      this.uploading = true;
+      try {
+        const response = await fetch(url, { method: "POST", body });
+        if (!response.ok) throw new Error("Upload failed");
+        toast("Filed takes.");
+      } catch {
+        toast("Upload failed.", "fail");
+      } finally {
+        this.uploading = false;
+        if (window.htmx) htmx.trigger(document.body, "card-changed");
+      }
     },
   }));
 });
