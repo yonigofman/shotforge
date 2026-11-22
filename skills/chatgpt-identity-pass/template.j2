@@ -31,6 +31,11 @@ MUST HOLD
 - {{ rule }}
 {% endfor %}
 
+{% if note %}
+THIS TIME
+{{ note }}
+
+{% endif %}
 ATTACH IN THIS ORDER
 {% for attachment in attachments %}
 {{ attachment.order }}. {{ attachment.label }} — {{ attachment.path }}{{ "  (MISSING)" if not attachment.exists else "" }}

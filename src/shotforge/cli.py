@@ -307,13 +307,16 @@ def shot(
 def prompt(
     scene: str,
     shot_id: str,
+    note: str | None = typer.Option(
+        None, "--note", help='What to change this time: "warmer, less rain on the glass".'
+    ),
     project_dir: Path | None = ProjectOption,
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Print only the prompt."),
 ) -> None:
     """Render the prompt for this shot's next step and save it next to the shot."""
     project, state = _open(project_dir)
     try:
-        result = actions.build_prompt(project, state, scene, shot_id)
+        result = actions.build_prompt(project, state, scene, shot_id, note=note)
     except (ValueError, TransitionError) as exc:
         raise typer.BadParameter(str(exc)) from exc
     if quiet:
@@ -590,6 +593,7 @@ def inbox_file(
         raise typer.BadParameter("no active shot — pass --scene and --shot")
     try:
         take = inbox_mod.file_to_shot(project, source, *target, vision=vision)
+        actions.note_take_origin(project, state, *target, take)
     except (ValueError, FileNotFoundError) as exc:
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(f"{name} → {project.paths.rel(take.path)}")

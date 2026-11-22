@@ -31,6 +31,8 @@ class ShotState:
     active_take: dict[str, int] = field(default_factory=dict)
     #: Take numbers you set aside, by kind. The files stay; they stop being chosen.
     rejected: dict[str, list[int]] = field(default_factory=dict)
+    #: What each take came back from: kind → take number → {prompt, note}.
+    origins: dict[str, dict[str, dict[str, str]]] = field(default_factory=dict)
     updated: str = ""
 
 
@@ -104,6 +106,10 @@ class ProjectState:
             frame_pass=int(raw.get("frame_pass", 1)),
             active_take=dict(raw.get("active_take", {})),
             rejected={kind: list(numbers) for kind, numbers in (raw.get("rejected") or {}).items()},
+            origins={
+                kind: {str(number): dict(origin) for number, origin in takes.items()}
+                for kind, takes in (raw.get("origins") or {}).items()
+            },
             updated=raw.get("updated", ""),
         )
 
@@ -141,6 +147,20 @@ class ProjectState:
             by_kind.pop(str(kind), None)
         self.update_shot(scene_id, shot_id, rejected=by_kind)
         return numbers
+
+    # -- where a take came from --------------------------------------------
+    def take_origins(self, scene_id: str, shot_id: str, kind: str) -> dict[int, dict[str, str]]:
+        """Each take's lineage: the prompt version it answered, and the note."""
+        raw = self.shot(scene_id, shot_id).origins.get(str(kind), {})
+        return {int(number): origin for number, origin in raw.items()}
+
+    def set_take_origin(
+        self, scene_id: str, shot_id: str, kind: str, number: int, origin: dict[str, str]
+    ) -> None:
+        state = self.shot(scene_id, shot_id)
+        by_kind = {name: dict(takes) for name, takes in state.origins.items()}
+        by_kind.setdefault(str(kind), {})[str(number)] = origin
+        self.update_shot(scene_id, shot_id, origins=by_kind)
 
     # -- per-entity design -------------------------------------------------
     def approved_design_revision(self, kind: str, entity_id: str) -> str | None:

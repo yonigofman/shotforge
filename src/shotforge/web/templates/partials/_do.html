@@ -34,11 +34,35 @@
     {{ ui.button("Back to shot prompt",
                  attrs=hx(get=shot_url ~ "/region/do", target="#do", swap="outerHTML")) }}
     {% else %}
-    {{ ui.button("Regenerate prompt" if prompt_text else "Generate prompt", spinner=true,
-                 attrs=hx(post=shot_url ~ "/prompt", target="#do", swap="outerHTML")) }}
+    <form class="row tight" hx-post="{{ shot_url }}/prompt" hx-target="#do" hx-swap="outerHTML"
+          hx-disabled-elt="find button">
+      <input class="grow" type="text" name="note" autocomplete="off"
+             placeholder="{{ 'Same, but… (warmer, less rain)' if prompt_text else 'Anything to add? (optional)' }}"
+             aria-label="What to change this time" />
+      {{ ui.button("Regenerate" if prompt_text else "Generate prompt", type="submit",
+                   spinner=true) }}
+    </form>
     {% endif %}
     {% if prompt_text %}{{ ui.copy_button('#prompt-text') }}{% endif %}
   </div>
+  {% endif %}
+
+  {% if prompt_history | length > 1 %}
+  <details class="history">
+    <summary>{{ prompt_history | length }} versions of this prompt</summary>
+    <ul class="findings">
+      {% for entry in prompt_history %}
+      <li>
+        <span class="mono faint">v{{ entry.version }}</span>
+        <span>
+          {% if entry.note %}<span dir="auto">{{ entry.note }}</span>
+          {% else %}<span class="faint">no note</span>{% endif %}
+          <a class="mono faint" href="{{ media_url(entry.path) }}" target="_blank">{{ entry.path.name }}</a>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
   {% endif %}
 
   {% if prompt_text %}{{ ui.prompt_block(prompt_text, rel(prompt_path)) }}{% endif %}

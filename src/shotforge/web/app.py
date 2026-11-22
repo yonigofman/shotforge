@@ -40,7 +40,7 @@ from shotforge.models import Scene, Shot, ShotStatus, Stage, as_plain
 from shotforge.pipeline import ORDER, STAGE_LABEL, TransitionError, next_action, reopen
 from shotforge.project import Project, ProjectError
 from shotforge.registry import ProjectRegistry
-from shotforge.skills import find_skill, latest_prompt
+from shotforge.skills import find_skill, latest_prompt, prompt_history
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
 from shotforge.takes import Take, TakeKind, approved_take_number, get_take, list_takes
@@ -277,6 +277,11 @@ def create_app(
             "approved_video": approved_take_number(shot_paths, TakeKind.video),
             "rejected_frames": state.rejected_takes(scene_id, shot_id, TakeKind.frame.value),
             "rejected_videos": state.rejected_takes(scene_id, shot_id, TakeKind.video.value),
+            "frame_origins": state.take_origins(scene_id, shot_id, TakeKind.frame.value),
+            "video_origins": state.take_origins(scene_id, shot_id, TakeKind.video.value),
+            "prompt_history": (
+                prompt_history(project, scene_id, shot_id, action.skill) if action.skill else []
+            ),
             "undoable": undo.can_undo(shot.status),
             "rule_offers": fixes.rule_offers(project, state, scene_id, shot),
             "cut_findings": continuity.shot_findings(project, scene, shot, previous),
@@ -647,10 +652,12 @@ def create_app(
         return shot_card(request, scene_id, shot_id)
 
     @routes.post("/shot/{scene_id}/{shot_id}/prompt", response_class=HTMLResponse)
-    def make_prompt(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
+    def make_prompt(
+        request: Request, scene_id: str, shot_id: str, note: str | None = Form(None)
+    ) -> HTMLResponse:
         project, state = load(request)
         try:
-            actions.build_prompt(project, state, scene_id, shot_id)
+            actions.build_prompt(project, state, scene_id, shot_id, note=note)
         except (ValueError, TransitionError, SkillError) as exc:
             raise HTTPException(400, str(exc)) from exc
         return region(request, "do", scene_id, shot_id)
@@ -861,7 +868,7 @@ def create_app(
     def upload(
         request: Request, scene_id: str, shot_id: str, files: list[UploadFile]
     ) -> HTMLResponse:
-        project, _ = load(request)
+        project, state = load(request)
         shot_paths = project.paths.shot(scene_id, shot_id)
         if not shot_paths.spec.is_file():
             raise HTTPException(404, f"no shot {shot_id} in {scene_id}")
@@ -870,7 +877,8 @@ def create_app(
                 with inbox_mod.stage_upload(
                     project, upload_file.filename or "upload.bin", upload_file.file
                 ) as source:
-                    inbox_mod.file_to_shot(project, source, scene_id, shot_id)
+                    take = inbox_mod.file_to_shot(project, source, scene_id, shot_id)
+                    actions.note_take_origin(project, state, scene_id, shot_id, take)
         except (ValueError, FileNotFoundError) as exc:
             raise HTTPException(400, str(exc)) from exc
         return region(request, "see", scene_id, shot_id, also=("judge", "gate"))
@@ -894,7 +902,8 @@ def create_app(
                 target = (scene, shot) if scene and shot else state.active
                 if target is None:
                     raise ValueError("no active shot — open a shot card first")
-                inbox_mod.file_to_shot(project, source, *target)
+                take = inbox_mod.file_to_shot(project, source, *target)
+                actions.note_take_origin(project, state, *target, take)
         except (ValueError, OSError) as exc:
             raise HTTPException(400, str(exc)) from exc
         return inbox_partial(request)

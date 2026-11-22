@@ -200,6 +200,22 @@ shotforge inbox file grok_result.mp4                 # becomes video/v1.mp4
 shotforge approve s01_pub sh07                       # → video/shot.mp4 + last_frame.png
 ```
 
+### Asking again, differently
+
+A prompt is rendered from the spec, so regenerating it gives you the same
+text back. When what you want is "the same, but warmer", say so:
+
+```bash
+shotforge prompt s01_pub sh07 --note "warmer, less rain on the glass"
+```
+
+The note goes into the prompt under `THIS TIME`, and is kept beside the
+version in `prompts/<skill>_v<n>.json` — never inside the `.txt`, which is
+pasted into the tool whole. The take that comes back records which prompt
+version it answered and what was asked, and the shot card shows it on the
+take: `from grok-video_v2 · "warmer"`. The same field sits beside Regenerate
+in the cockpit.
+
 ### Going back
 
 A call you cannot take back is not really a call. `shotforge unapprove` takes the

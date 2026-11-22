@@ -5,12 +5,18 @@
   Frame takes and video takes differ only in what they show and which stage
   can approve them, so one grid draws both.
 #}
-{% macro take_grid(takes, kind, approved, rejected, verdicts, reports={}) %}
+{% macro take_grid(takes, kind, approved, rejected, verdicts, reports={}, origins={}) %}
 <div class="takes">
   {% for take in takes %}
   {% set is_rejected = take.number in rejected %}
   {% call ui.take_tile(take, media_url, approved == take.number, is_rejected,
                        'video' if kind == 'video' else 'image') %}
+    {% set origin = origins.get(take.number) %}
+    {% if origin and origin.get('prompt') %}
+    <p class="faint lineage">
+      from <span class="mono">{{ origin.prompt }}</span>{% if origin.note %} · <span dir="auto">“{{ origin.note }}”</span>{% endif %}
+    </p>
+    {% endif %}
     {% if kind == 'frame' and take.number in verdicts %}
     {{ ui.pip(verdicts[take.number], 'QA ' ~ verdicts[take.number]) }}
     {% endif %}
@@ -61,10 +67,12 @@
   </form>
 
   {% if frame_takes %}
-  {{ take_grid(frame_takes, 'frame', approved_frame, rejected_frames, frame_verdicts) }}
+  {{ take_grid(frame_takes, 'frame', approved_frame, rejected_frames, frame_verdicts,
+                 origins=frame_origins) }}
   {% endif %}
 
   {% if video_takes %}
-  {{ take_grid(video_takes, 'video', approved_video, rejected_videos, video_verdicts, video_reports) }}
+  {{ take_grid(video_takes, 'video', approved_video, rejected_videos, video_verdicts,
+                 video_reports, video_origins) }}
   {% endif %}
 </article>

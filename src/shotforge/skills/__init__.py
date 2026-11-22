@@ -9,6 +9,8 @@ another engine later, unchanged.
 from shotforge.skills.registry import Skill, SkillError, bundled_root, find_skill, list_skills
 from shotforge.skills.render import (
     latest_prompt,
+    prompt_history,
+    read_prompt_note,
     render_prompt,
     save_prompt,
     shot_context,
@@ -20,6 +22,8 @@ __all__ = [
     "bundled_root",
     "find_skill",
     "latest_prompt",
+    "prompt_history",
+    "read_prompt_note",
     "list_skills",
     "render_prompt",
     "save_prompt",

@@ -714,6 +714,19 @@ figure.frame {
   filter: grayscale(1);
 }
 
+/* Where a take came from: the prompt it answered, and what was asked. */
+.lineage {
+  margin: var(--space-1) 0 0;
+  font-size: var(--type-mono-sm-size);
+  line-height: var(--type-mono-sm-line);
+}
+
+details.history summary {
+  cursor: pointer;
+  font-size: var(--type-ui-size);
+  color: var(--color-ink-muted);
+}
+
 .takes .take.approved {
   outline: 2px solid var(--color-success);
   outline-offset: 2px;
