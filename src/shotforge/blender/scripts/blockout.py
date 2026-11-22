@@ -14,13 +14,18 @@ from mathutils import Vector
 
 SET = "Shotforge Set"
 DRESSING = "Dressing"
+
+
+def _set_name(variant):
+    """A place can hold more than one state of itself; each gets a collection."""
+    return SET if variant in (None, "base") else f"{SET} {variant}"
 SCENE_PREFIX = "Shotforge Scene "
 CAMERA_PREFIX = "Shotforge Cameras "
 
 
 def _owned(name):
     """Collections Shotforge builds, and is therefore free to throw away."""
-    return name == SET or name.startswith((SCENE_PREFIX, CAMERA_PREFIX))
+    return name == SET or name.startswith((SET + " ", SCENE_PREFIX, CAMERA_PREFIX))
 
 
 def _collection(scene, name):
@@ -369,7 +374,7 @@ def render_job(job_path):
         # Shotforge builds is made again from the spec, so the room is the
         # same room in every scene shot here.
         dressing = _carry_over(scene, job["set_blend"]) if job.get("set_blend") else False
-        set_parts = _collection(scene, SET)
+        set_parts = _collection(scene, _set_name(spec["set"].get("variant")))
         if not job.get("set_blend"):
             _collection(scene, DRESSING)
         staging = _collection(scene, SCENE_PREFIX + spec["scene"])
