@@ -18,10 +18,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.responses import FileResponse
 
-from shotforge import actions, checks, tools
+from shotforge import actions, blender, checks, tools
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
-from shotforge.models import Stage
+from shotforge.models import ShotStatus, Stage
 from shotforge.pipeline import ORDER, STAGE_LABEL, TransitionError, next_action, reopen
 from shotforge.project import Project, ProjectError
 from shotforge.skills import find_skill, latest_prompt
@@ -91,6 +91,7 @@ def create_app(project_root: Path) -> FastAPI:
             "scene": project.scene(scene_id),
             "shot": shot,
             "shot_paths": shot_paths,
+            "blockout": project.paths.blockout(scene_id, shot_id),
             "action": action,
             "shot_state": shot_state,
             "stage_index": ORDER.index(shot.status),
@@ -232,6 +233,21 @@ def create_app(project_root: Path) -> FastAPI:
         try:
             actions.build_prompt(project, state, scene_id, shot_id)
         except (ValueError, TransitionError, SkillError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return shot_card(request, scene_id, shot_id)
+
+    @app.post("/shot/{scene_id}/{shot_id}/blockout", response_class=HTMLResponse)
+    def render_blockout(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
+        project, _ = load()
+        try:
+            shot = project.shot(scene_id, shot_id)
+        except ProjectError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        if shot.status is not ShotStatus.blockout:
+            raise HTTPException(400, "Start the Blockout stage before rendering.")
+        try:
+            blender.render(scene_id, shot_id, project=project)
+        except blender.BlockoutError as exc:
             raise HTTPException(400, str(exc)) from exc
         return shot_card(request, scene_id, shot_id)
 

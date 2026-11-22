@@ -22,3 +22,14 @@ assets:
   sheet: 02_design/locations/pub/sheet.png
   plate: 02_design/locations/pub/plate.png
   wall_ref: 02_design/locations/pub/wall_ref.png
+blockout:
+  room: [7, 5, 3.2]
+  window:
+    wall: back
+    offset: 2.25
+    width: 1.8
+    height: 2.05
+    sill: 0.8
+  hero_table:
+    center: [0, 0]
+    size: [2.7, 0.82, 1]

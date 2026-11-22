@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import AliasChoices, Field, field_validator, model_validator
+from pydantic import AliasChoices, Field, FiniteFloat, field_validator, model_validator
 
+from shotforge.models.blockout import Point
 from shotforge.models.common import ID_RE, WORDS_PER_SECOND, SFModel, word_count
 
 
@@ -49,9 +50,9 @@ class ShotStatus(StrEnum):
 class Camera(SFModel):
     blender_cam: str | None = None
     lens_mm: int | None = None
-    position: str | None = None
-    height: str | None = None
-    angle: str | None = None
+    position: str | Point | None = None
+    height: str | FiniteFloat | None = None
+    angle: str | FiniteFloat | None = None
     move: str = "static"
 
 
