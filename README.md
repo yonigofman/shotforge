@@ -30,8 +30,8 @@ being written by hand.
 | Video vision QA: unplanned lens contact in sampled frames | done |
 | Frame vision QA (identity, eyeline, continuity, AI look) | done |
 | Chapter breakdown and scene-to-shots skills | done |
+| Bible editing, design prompts, and entity approval | done |
 | Cinematography skill and technique library | done |
-| Design skills | not yet (Phase 4) |
 | Rough cut and assembly | not yet (Phase 5) |
 
 ## Install
@@ -68,8 +68,22 @@ start the cockpit.
 shotforge serve
 ```
 
-The cockpit opens on `http://127.0.0.1:8765`. Everything it does is available in
-the terminal too, so a scene never depends on a browser being open.
+The cockpit opens on `http://127.0.0.1:8765`. The terminal also supports the shot
+pipeline and project validation.
+
+## Design an entity
+
+1. Open **Bible** and choose **New character**, **New location**, or **New prop**.
+   Record details from the chapter in `from_book` and production decisions in
+   `design_choices`. The editor validates the same YAML schema as `shotforge validate`.
+2. Choose **Generate prompts**. Use the design sheet prompt in ChatGPT, then attach
+   the resulting sheet when running the clean reference prompt.
+3. Drop each download onto its matching section on the entity card, or pick it
+   from the inbox. The cockpit files these as `sheet.png` and `ref.png` under
+   `02_design/<kind>s/<id>/`.
+4. Review both images and choose **Approve design**. The cockpit records the
+   approval in `.shotforge/state.json` and shows it in the log. An entity edit
+   or image replacement sends the design back for review.
 
 ## Start from a chapter
 
@@ -178,7 +192,7 @@ attach to a prompt:
 ├── project.yaml                 # name, language, aspect ratio, fps, tools
 ├── 00_source/                   # the book text, one file per chapter
 ├── 01_bible/                    # style.yaml, characters/, locations/, props/
-├── 02_design/                   # approved sheets, refs, face_crops/
+├── 02_design/                   # design prompts, sheets, refs, face_crops/
 ├── 03_blender/                  # .blend files, textures/, renders/
 ├── 04_scenes/<scene>/
 │   ├── scene.yaml               # summary, seating, the 180° axis
