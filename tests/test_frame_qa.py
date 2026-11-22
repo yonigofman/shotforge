@@ -126,7 +126,9 @@ def test_frame_check_streams_review_and_cancel_preserves_report(project, png, mo
     events = [json.loads(line) for line in response.text.splitlines() if line.strip()]
     assert {"type": "status", "message": "Checking frame size…"} in events
     assert {"type": "status", "message": "Claude is reviewing the frame…"} in events
-    assert events[-1]["trigger"] == "card-changed"
+    # The verdict shows on the take and at the gate; the rest of the card
+    # is untouched, so only those two regions are asked to redraw.
+    assert events[-1]["trigger"] == "see-changed, gate-changed"
     assert "Matches the take." in events[-1]["html"]
     report = take.qa_report(paths)
     previous = report.read_bytes()
