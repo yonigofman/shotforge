@@ -14,17 +14,23 @@
     {% endif %}
   </article>
 
+  {% if material_error %}<p class="muted" role="alert">{{ material_error }}</p>{% endif %}
   {% for group in kinds %}
   {% if group.entities %}
   <h3>{{ group.kind }}s</h3>
-  <div class="takes">
+  <div class="takes bible-cards">
     {% for item in group.entities %}
     <article class="card stack" style="gap:var(--space-2)">
       <div class="row">
         <strong>{{ item.entity.id }}</strong>
         {% if item.entity.tag %}<span class="badge">{{ item.entity.tag }}</span>{% endif %}
       </div>
-      {{ ui.media(item.sheet, media_url, 'sheet') }}
+      <div class="bible-media">
+        {{ ui.media(item.sheet, media_url, 'Approved sheet') }}
+        {% for surface, path in item.textures %}
+        {{ ui.media(path, media_url, surface ~ ' · ' ~ path.name) }}
+        {% endfor %}
+      </div>
       {% if item.entity.names %}
       <span class="faint">{{ item.entity.names.values() | join(' · ') }}</span>
       {% endif %}

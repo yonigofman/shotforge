@@ -127,6 +127,37 @@ or the auto-detected executable. The add-on defaults to port 9876. Set
 The adapter documents location measurements, camera controls and 180° axis
 formats. [Blender blockout skill](skills/blender-blockout/SKILL.md)
 
+### Add materials from approved sheets
+
+Put the approved sheet at its usual Bible path under `02_design/`, then run
+`shotforge texture-prompt location.pub.wall pub_plaster --uv-scale 1`. Attach
+the sheet and paste the generated prompt into your image generator. Add the
+printed assignment to `03_blender/textures/materials.yaml`.
+
+```yaml
+location.pub.wall:
+  texture: pub_plaster.png
+  uv_scale: 1
+```
+
+With the PNG in `_inbox/`, run
+`shotforge inbox file plaster-download.png --texture pub_plaster` or select
+**File as texture** in the cockpit inbox. Filing installs the PNG at
+`03_blender/textures/pub_plaster.png` and keeps a numbered copy in
+`03_blender/textures/takes/pub_plaster/`. The Bible shows the texture next to
+its source sheet.
+
+Location surfaces are `wall`, `floor` and `table`.
+`character.<id>.garment` textures that character's shirt or jacket. The
+target's sheet is the default source. Use `--source kind.id` to reference a
+different entity's sheet. UV scale is the number of repeats per metre.
+
+The manifest is optional. Blender uses the grey material for surfaces with
+no PNG and packs the applied textures into the saved scene. Render a single
+shot to try a new texture, or run `shotforge blockout s01_pub --changed` to
+reuse current outputs. A new texture only changes the render inputs of scenes
+that use its assigned surface.
+
 ## The project folder
 
 One fixed tree per project, with fixed file names, so you always know what to

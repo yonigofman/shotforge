@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+from hashlib import file_digest, sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -23,13 +25,16 @@ def render(scene: str, shot: str, *, project: Project | None = None) -> Path:
     return _render(scene, shot, project=project)[0]
 
 
-def render_scene(scene: str, *, project: Project | None = None) -> list[Path]:
-    """Render all shots with a single Blender job."""
-    return _render(scene, project=project)
+def render_scene(
+    scene: str, *, project: Project | None = None, changed: bool = False,
+) -> list[Path]:
+    """Render a scene in one job, optionally skipping current outputs."""
+    return _render(scene, project=project, changed=changed)
 
 
 def _render(
     scene_id: str, shot_id: str | None = None, *, project: Project | None,
+    changed: bool = False,
 ) -> list[Path]:
     if not ID_RE.fullmatch(scene_id) or (shot_id is not None and not ID_RE.fullmatch(shot_id)):
         raise BlockoutError("scene and shot IDs use lowercase letters, digits and underscores")
@@ -51,13 +56,63 @@ def _render(
             for char in chars:
                 if not ID_RE.fullmatch(char):
                     raise BlockoutError(f"{shot}: invalid character id {char!r}")
-        return _run_backends(project, scene_id, spec, characters)
+        cache = project.paths.cache / "blockout" / scene_id
+        scene_key = _signature([_hash_file(_SCRIPT), spec])
+        if changed and _current(cache / ".scene", scene_key, [project.paths.blend_file(scene_id)]):
+            characters = {
+                shot: chars for shot, chars in characters.items()
+                if not _current(cache / f"{shot}.stamp", _signature([scene_key, chars]), [
+                    project.paths.blockout(scene_id, shot),
+                    *(project.paths.mask(scene_id, shot, char) for char in chars),
+                ])
+            }
+        return (
+            _run_backends(project, scene_id, spec, characters, cache, scene_key)
+            if characters else []
+        )
     except (OSError, ProjectError, ProjectFileError) as exc:
         raise BlockoutError(str(exc)) from exc
 
 
+def _hash_file(path: Path) -> str:
+    with path.open("rb") as fh:
+        return file_digest(fh, "sha256").hexdigest()
+
+
+def _signature(data: list) -> str:
+    return sha256(json.dumps(data, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _artifact_key(key: str, outputs: list[Path]) -> str:
+    return _signature([key, *map(_hash_file, outputs)])
+
+
+def _current(stamp: Path, key: str, outputs: list[Path]) -> bool:
+    try:
+        return stamp.read_text(encoding="ascii") == _artifact_key(key, outputs)
+    except (OSError, UnicodeError):
+        return False
+
+
+def _snapshot_spec(spec: dict, staging: Path) -> dict:
+    materials = {}
+    snapshots = {}
+    for surface, assignment in spec["materials"].items():
+        source = Path(assignment["texture"])
+        if source not in snapshots:
+            target = staging / "textures" / source.name
+            target.parent.mkdir(exist_ok=True)
+            shutil.copyfile(source, target)
+            if _hash_file(target) != assignment["sha256"]:
+                raise BlockoutError(f"{source.name} changed during rendering. Run blockout again.")
+            snapshots[source] = target
+        materials[surface] = {**assignment, "texture": str(snapshots[source])}
+    return {**spec, "materials": materials}
+
+
 def _run_backends(
     project: Project, scene_id: str, spec: dict, characters: dict[str, list[str]],
+    cache: Path, scene_key: str,
 ) -> list[Path]:
     paths = project.paths
     paths.blender.mkdir(parents=True, exist_ok=True)
@@ -87,7 +142,7 @@ def _run_backends(
             job = staging / "job.json"
             job.write_text(
                 json.dumps({
-                    "spec": spec,
+                    "spec": _snapshot_spec(spec, staging),
                     "blend": str(staged_blend),
                     "renders": {shot: str(path) for shot, path in staged_pngs.items()},
                     "masks": {
@@ -109,9 +164,26 @@ def _run_backends(
 
             for path in pngs.values():
                 path.parent.mkdir(parents=True, exist_ok=True)
+            # The stamp covers the files this job produced. A manual edit or an
+            # interleaved job leaves a mismatch and the next incremental run retries.
+            stamps = {".scene": _artifact_key(scene_key, [staged_blend])}
+            for shot, chars in characters.items():
+                stamps[f"{shot}.stamp"] = _artifact_key(
+                    _signature([scene_key, chars]),
+                    [staged_pngs[shot], *staged_masks[shot].values()],
+                )
             staged_blend.replace(blend)
             for staged, target in outputs.items():
                 staged.replace(target)
+            try:
+                cache.mkdir(parents=True, exist_ok=True)
+                for name, signature in stamps.items():
+                    stamp = staging / name
+                    stamp.write_text(signature, encoding="ascii")
+                    stamp.replace(cache / name)
+            except OSError:
+                # The renders are usable even if the optional cache is unavailable.
+                pass
             return list(pngs.values())
     raise BlockoutError(
         f"Blender background render failed: {failures[1]}\nBlender MCP: {failures[0]}"

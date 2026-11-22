@@ -22,8 +22,9 @@ from shotforge import actions, blender, checks, continuity, tools
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
 from shotforge.models import ShotStatus, Stage
+from shotforge.models.materials import Materials
 from shotforge.pipeline import ORDER, STAGE_LABEL, TransitionError, next_action, reopen
-from shotforge.project import Project, ProjectError
+from shotforge.project import KINDS, Project, ProjectError
 from shotforge.skills import find_skill, latest_prompt
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
@@ -70,6 +71,23 @@ def create_app(project_root: Path) -> FastAPI:
         context.setdefault("rel", project.paths.rel)
         context.setdefault("vendored", (HERE / "static" / "vendor" / "htmx.min.js").is_file())
         return templates.TemplateResponse(request, name, context)
+
+    def materials_for_page(project: Project) -> tuple[Materials, str]:
+        try:
+            return project.materials(), ""
+        except ProjectFileError as exc:
+            return Materials({}), str(exc)
+
+    def inbox_context(project: Project, state: ProjectState) -> dict[str, Any]:
+        materials, error = materials_for_page(project)
+        names = {Path(item.texture).stem for item in materials.root.values()}
+        return {
+            "project": project,
+            "inbox": inbox_mod.scan(project),
+            "active": state.active,
+            "texture_targets": sorted(names),
+            "material_error": error,
+        }
 
     def shot_card_context(request: Request, scene_id: str, shot_id: str) -> dict[str, Any]:
         project, state = load()
@@ -130,10 +148,8 @@ def create_app(project_root: Path) -> FastAPI:
             request,
             "index.html",
             {
-                "project": project,
+                **inbox_context(project, state),
                 "scenes": scenes,
-                "inbox": inbox_mod.scan(project),
-                "active": state.active,
                 "log": state.approvals(limit=8),
                 "page": "projects",
             },
@@ -207,22 +223,32 @@ def create_app(project_root: Path) -> FastAPI:
     @app.get("/bible", response_class=HTMLResponse)
     def bible(request: Request) -> HTMLResponse:
         project, _ = load()
+        materials, error = materials_for_page(project)
+        textures: dict[tuple[str, str], list[tuple[str, Path]]] = {}
+        for surface, material in materials.root.items():
+            origin = materials.source_for(surface)
+            textures.setdefault((origin.kind, origin.id), []).append(
+                (surface, project.paths.textures / material.texture)
+            )
         kinds = []
-        for kind in ("character", "location", "prop"):
+        for kind in KINDS:
             entities = []
             for entity_id, entity in project.entities(kind).items():
                 entities.append(
                     {
                         "entity": entity,
                         "sheet": project.paths.sheet(kind, entity_id),
-                        "ref": project.paths.ref(kind, entity_id),
+                        "textures": textures.get((kind, entity_id), []),
                     }
                 )
             kinds.append({"kind": kind, "entities": entities})
         return render(
             request,
             "bible.html",
-            {"project": project, "kinds": kinds, "style": project.style(), "page": "bible"},
+            {
+                "project": project, "kinds": kinds, "style": project.style(),
+                "material_error": error, "page": "bible",
+            },
         )
 
     @app.get("/log", response_class=HTMLResponse)
@@ -240,7 +266,7 @@ def create_app(project_root: Path) -> FastAPI:
         return render(
             request,
             "partials/_inbox.html",
-            {"project": project, "inbox": inbox_mod.scan(project), "active": state.active},
+            inbox_context(project, state),
         )
 
     # ---- actions ---------------------------------------------------------
@@ -388,14 +414,21 @@ def create_app(project_root: Path) -> FastAPI:
         name: str = Form(...),
         scene: str | None = Form(None),
         shot: str | None = Form(None),
+        texture: str | None = Form(None),
     ) -> HTMLResponse:
         project, state = load()
-        target = (scene, shot) if scene and shot else state.active
-        if target is None:
-            raise HTTPException(400, "no active shot — open a shot card first")
+        source = project.paths.inbox / Path(name).name
         try:
-            inbox_mod.file_to_shot(project, project.paths.inbox / Path(name).name, *target)
-        except (ValueError, FileNotFoundError) as exc:
+            if texture:
+                if scene or shot:
+                    raise ValueError("choose a texture or a shot as the inbox destination")
+                inbox_mod.file_to_texture(project, source, texture)
+            else:
+                target = (scene, shot) if scene and shot else state.active
+                if target is None:
+                    raise ValueError("no active shot — open a shot card first")
+                inbox_mod.file_to_shot(project, source, *target)
+        except (ValueError, OSError) as exc:
             raise HTTPException(400, str(exc)) from exc
         return inbox_partial(request)
 

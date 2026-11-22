@@ -19,6 +19,7 @@ from shotforge.models import (
     Shot,
     Style,
 )
+from shotforge.models.materials import Materials
 from shotforge.paths import ProjectPaths
 from shotforge.yamlio import ProjectFileError, dump, load
 
@@ -171,6 +172,11 @@ class Project:
     def props(self) -> dict[str, Prop]:
         return self.entities("prop")  # type: ignore[return-value]
 
+    def materials(self) -> Materials:
+        if not self.paths.materials.exists():
+            return Materials({})
+        return load(self.paths.materials, Materials)
+
     def save_entity(self, kind: str, entity) -> Path:
         path = self.paths.entity_file(kind, entity.id)
         dump(path, entity)
@@ -251,7 +257,7 @@ class Project:
     def validate(self) -> list[str]:
         """Load every file in the project and collect the schema errors."""
         problems: list[str] = []
-        for loader in (self.style,):
+        for loader in (self.style, self.materials):
             try:
                 loader()
             except ProjectFileError as exc:

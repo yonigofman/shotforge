@@ -34,6 +34,8 @@ def load(path: Path, model: type[T]) -> T:
     """Load one YAML file and validate it, reporting the field that is wrong."""
     try:
         return model.model_validate(read_yaml(path))
+    except yaml.YAMLError as exc:
+        raise ProjectFileError(path, str(exc)) from exc
     except ValidationError as exc:
         lines = []
         for err in exc.errors():

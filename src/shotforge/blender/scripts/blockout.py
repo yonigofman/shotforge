@@ -25,6 +25,7 @@ def _mesh(scene, name, center, dimensions, material, *, sphere=False, rotation=0
             vertex.co[axis] *= length
     bm.to_mesh(mesh)
     bm.free()
+    _uv_map(mesh, (0, 0, 0) if sphere else center)
     if sphere:
         for polygon in mesh.polygons:
             polygon.use_smooth = True
@@ -34,6 +35,19 @@ def _mesh(scene, name, center, dimensions, material, *, sphere=False, rotation=0
     obj.location = center
     obj.rotation_euler.z = rotation
     return obj
+
+
+def _uv_map(mesh, offset):
+    # Planar UVs in metres. Room-space coordinates keep each wall's pieces
+    # aligned around its window. Garments use local axes and follow the figure.
+    uv = mesh.uv_layers.new(name="Surface UV")
+    axes = ((1, 2), (0, 2), (0, 1))
+    for face in mesh.polygons:
+        dominant = max(range(3), key=lambda axis: abs(face.normal[axis]))
+        u, v = axes[dominant]
+        for index in face.loop_indices:
+            point = mesh.vertices[mesh.loops[index].vertex_index].co
+            uv.uv[index].vector = (point[u] + offset[u], point[v] + offset[v])
 
 
 def _material(name, grey, *, emission=0.25):
@@ -46,6 +60,36 @@ def _material(name, grey, *, emission=0.25):
     emission_color = shader.inputs.get("Emission Color") or shader.inputs["Emission"]
     emission_color.default_value = material.diffuse_color
     shader.inputs["Emission Strength"].default_value = emission
+    return material
+
+
+def _textured_material(base, assignment, images):
+    if assignment is None:
+        return base
+    material = base.copy()
+    texture = Path(assignment["texture"])
+    material.name = texture.stem
+    if texture not in images:
+        image = bpy.data.images.load(str(texture))
+        image.pack()
+        image.filepath = f"//textures/{texture.name}"
+        images[texture] = image
+
+    nodes = material.node_tree.nodes
+    links = material.node_tree.links
+    coords = nodes.new("ShaderNodeTexCoord")
+    scale = nodes.new("ShaderNodeVectorMath")
+    scale.operation = "SCALE"
+    scale.inputs["Scale"].default_value = assignment["uv_scale"]
+    image_node = nodes.new("ShaderNodeTexImage")
+    image_node.image = images[texture]
+    image_node.extension = "REPEAT"
+    shader = nodes.get("Principled BSDF")
+    links.new(coords.outputs["UV"], scale.inputs[0])
+    links.new(scale.outputs["Vector"], image_node.inputs["Vector"])
+    links.new(image_node.outputs["Color"], shader.inputs["Base Color"])
+    emission_color = shader.inputs.get("Emission Color") or shader.inputs["Emission"]
+    links.new(image_node.outputs["Color"], emission_color)
     return material
 
 
@@ -112,16 +156,17 @@ def _table(scene, table, material):
             )
 
 
-def _mannequin(scene, figure, top, stool_material, material, index):
+def _mannequin(scene, figure, top, stool_material, material, garment, index):
     name = figure["char"]
     x, y = figure["position"]
     heading = figure["heading"]
     cosine, sine = math.cos(heading), math.sin(heading)
 
-    def part(label, dx, dy, z, dimensions, *, body=True):
+    def part(label, dx, dy, z, dimensions, *, body=True, clothed=False):
         center = (x + dx * cosine - dy * sine, y + dx * sine + dy * cosine, z)
+        surface = garment if clothed else material if body else stool_material
         obj = _mesh(
-            scene, f"{name} {label}", center, dimensions, material if body else stool_material,
+            scene, f"{name} {label}", center, dimensions, surface,
             sphere=body, rotation=heading,
         )
         if body:
@@ -130,12 +175,12 @@ def _mannequin(scene, figure, top, stool_material, material, index):
     seat = max(0.12, top - 0.32)
     part("stool base", 0, 0, seat / 2, (0.22, 0.23, seat), body=False)
     part("stool seat", 0, 0, seat, (0.40, 0.39, 0.07), body=False)
-    part("torso", 0, 0, seat + 0.34, (0.41, 0.27, 0.60))
+    part("torso", 0, 0, seat + 0.34, (0.41, 0.27, 0.60), clothed=True)
     part("neck", 0, 0, seat + 0.66, (0.13, 0.13, 0.21))
     part("head", 0, 0, seat + 0.81, (0.24, 0.24, 0.30))
     part("face", 0, 0.10, seat + 0.79, (0.17, 0.11, 0.19))
     for dx in (-0.23, 0.23):
-        part("upper arm", dx, 0.02, seat + 0.35, (0.14, 0.16, 0.39))
+        part("upper arm", dx, 0.02, seat + 0.35, (0.14, 0.16, 0.39), clothed=True)
         part("forearm", dx, 0.16, seat + 0.31, (0.13, 0.36, 0.13))
     for dx in (-0.105, 0.105):
         part("thigh", dx, 0.15, seat + 0.06, (0.18, 0.43, 0.18))
@@ -261,7 +306,7 @@ def render_job(job_path):
     # Track our data blocks so they can be removed without touching their scene.
     groups = (
         bpy.data.scenes, bpy.data.objects, bpy.data.meshes, bpy.data.materials,
-        bpy.data.worlds, bpy.data.lights, bpy.data.cameras,
+        bpy.data.worlds, bpy.data.lights, bpy.data.cameras, bpy.data.images,
     )
     originals = [set(group) for group in groups]
     renamed = {}
@@ -290,9 +335,16 @@ def render_job(job_path):
         _check_axis(scene, cameras, spec["axis"])
 
         geometry = spec["geometry"]
-        wall = _material("Plaster blockout", 0.46)
-        floor = _material("Floor blockout", 0.28)
-        table = _material("Furniture blockout", 0.23)
+        images = {}
+        materials = spec.get("materials", {})
+        wall = _textured_material(
+            _material("Plaster blockout", 0.46), materials.get("wall"), images,
+        )
+        floor = _textured_material(
+            _material("Floor blockout", 0.28), materials.get("floor"), images,
+        )
+        furniture = _material("Furniture blockout", 0.23)
+        table = _textured_material(furniture, materials.get("table"), images)
         _room(scene, geometry, wall, floor)
         _table(scene, geometry["hero_table"], table)
         greys = (0.54, 0.68, 0.41)
@@ -302,10 +354,12 @@ def render_job(job_path):
         )
         indices = {char: index for index, char in enumerate(characters, start=1)}
         for index, figure in enumerate(spec["mannequins"]):
-            material = _material(f'{figure["char"]} grey', greys[index % len(greys)])
+            char = figure["char"]
+            material = _material(f"{char} grey", greys[index % len(greys)])
+            garment = _textured_material(material, materials.get(f"{char}.garment"), images)
             _mannequin(
-                scene, figure, geometry["hero_table"]["size"][2], table, material,
-                indices[figure["char"]],
+                scene, figure, geometry["hero_table"]["size"][2], furniture, material, garment,
+                indices[char],
             )
         _lighting(scene)
 

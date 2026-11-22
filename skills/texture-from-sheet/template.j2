@@ -1,0 +1,24 @@
+Use the attached approved design sheet ({{ sheet }}) as the visual reference.
+Generate one seamless square PNG tile for the {{ surface }} material, named {{ filename }}.
+Match the material's color, grain, wear and texture scale to the sheet.
+Use the matching swatch when the sheet includes material swatches.
+Show just the flat surface straight on, as evenly lit base color.
+Make it tile continuously on both axes. Omit perspective, shadows, glare,
+objects, labels, frames and large isolated marks.
+{% if entity.design_choices %}
+
+Approved design notes for context (use only details relevant to the material):
+{% for choice in entity.design_choices %}
+- {{ choice }}
+{% endfor %}
+{% endif %}
+{% if entity.outfit is defined and entity.outfit %}
+
+Approved outfit details:
+{% for garment, detail in entity.outfit.items() %}
+- {{ garment }}: {{ detail }}
+{% endfor %}
+{% endif %}
+{% for rule in rules %}
+- {{ rule }}
+{% endfor %}

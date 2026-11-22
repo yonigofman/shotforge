@@ -1,0 +1,3 @@
+location.pub.wall:
+  texture: pub_plaster.png
+  uv_scale: 0.85

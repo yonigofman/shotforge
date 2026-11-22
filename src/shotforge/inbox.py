@@ -1,15 +1,15 @@
-"""``_inbox/``: everything you download lands here and gets filed.
-
-The cockpit asks one question — which shot is this? — defaulting to the active
-shot, and then the file becomes the next numbered take in the right folder.
-"""
+"""File downloads from ``_inbox/`` as shot or texture takes."""
 
 from __future__ import annotations
 
+import os
+import shutil
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
+from shotforge.models.materials import texture_filename
 from shotforge.project import Project
 from shotforge.takes import Take, TakeKind, add_take
 
@@ -84,6 +84,47 @@ def file_to_shot(
     if not shot_paths.spec.is_file():
         raise FileNotFoundError(f"no shot {shot_id} in scene {scene_id}")
     return add_take(shot_paths, kind, inbox_file, move=True)
+
+
+def file_to_texture(project: Project, inbox_file: Path, name: str) -> Path:
+    """Keep a numbered PNG take and publish it to the material's fixed path."""
+    filename = texture_filename(f"{name}.png")
+    inbox = project.paths.inbox.resolve()
+    if inbox_file.parent.resolve() != inbox or inbox_file.is_symlink():
+        raise ValueError("select a file directly in _inbox")
+    if inbox_file.suffix.lower() != ".png":
+        raise ValueError("texture takes must be PNG files")
+
+    textures = project.paths.textures
+    takes = textures / "takes" / name
+    takes.mkdir(parents=True, exist_ok=True)
+    target = textures / filename
+    with TemporaryDirectory(prefix=".texture-", dir=textures) as scratch:
+        staged = Path(scratch) / "active.png"
+        shutil.copyfile(inbox_file, staged)
+        with staged.open("rb") as image:
+            if image.read(8) != b"\x89PNG\r\n\x1a\n":
+                raise ValueError(f"{inbox_file.name} is not a PNG file")
+        archive = Path(scratch) / "archive.png"
+        shutil.copyfile(staged, archive)
+        versions = (
+            int(path.stem[1:]) for path in takes.glob("v*.png") if path.stem[1:].isdecimal()
+        )
+        version = max(versions, default=0) + 1
+        while True:
+            take = takes / f"v{version}.png"
+            try:
+                os.link(archive, take)
+                break
+            except FileExistsError:
+                version += 1
+        try:
+            staged.replace(target)
+        except OSError:
+            take.unlink(missing_ok=True)
+            raise
+    inbox_file.unlink(missing_ok=True)
+    return target
 
 
 def drain(

@@ -21,6 +21,8 @@ jobs:
         python: ["3.11", "3.13"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Install ffmpeg (Linux)
         if: runner.os == 'Linux'
