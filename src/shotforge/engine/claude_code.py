@@ -80,16 +80,18 @@ class ClaudeCodeEngine(Engine):
         files: list[Path] | None = None,
     ) -> EngineResult:
         prompt = self.build_prompt(skill, inputs, files)
-        command = [
-            str(self.executable()),
-            "-p",
-            prompt,
-            "--output-format",
-            "json",
-        ]
+        command = [str(self.executable()), "-p"]
+        if files:
+            command.append(prompt)
+        command.extend(["--output-format", "json"])
+        options = {}
         if files:
             # Headless reviews need to open the images listed in the prompt.
             command.extend(["--tools", "Read", "--allowedTools", "Read"])
+        else:
+            # A whole chapter can exceed the OS argument limit. Text skills need no tools.
+            options["input"] = prompt
+            command.extend(["--tools", "", "--strict-mcp-config", "--setting-sources", ""])
         try:
             completed = subprocess.run(
                 command,
@@ -97,6 +99,7 @@ class ClaudeCodeEngine(Engine):
                 encoding="utf-8",
                 cwd=str(cwd) if cwd else None,
                 timeout=self.timeout_s,
+                **options,
             )
         except subprocess.TimeoutExpired as exc:
             raise EngineError(
