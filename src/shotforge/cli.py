@@ -23,6 +23,7 @@ from shotforge import (
     edit,
     texture,
     tools,
+    undo,
 )
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
@@ -35,7 +36,7 @@ from shotforge.registry import ProjectRegistry
 from shotforge.skills import find_skill, list_skills
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
-from shotforge.takes import TakeKind, list_takes
+from shotforge.takes import TakeKind, get_take, list_takes
 from shotforge.yamlio import ProjectFileError
 
 app = typer.Typer(
@@ -413,13 +414,13 @@ def approve(
     stage = shot.status.stage
     try:
         if stage is Stage.frame:
-            number = take or _last_take(project, scene, shot_id, TakeKind.frame)
+            number = take or _last_take(project, scene, shot_id, TakeKind.frame, state)
             shot = actions.approve_frame(project, state, scene, shot_id, number, note)
             typer.echo(f"frame take v{number} approved → frames/first.png")
             for warning in next_action(project, state, scene, shot_id).warnings:
                 typer.echo(warning)
         elif stage is Stage.video:
-            number = take or _last_take(project, scene, shot_id, TakeKind.video)
+            number = take or _last_take(project, scene, shot_id, TakeKind.video, state)
             shot, last_frame = actions.approve_video(project, state, scene, shot_id, number, note)
             typer.echo(f"video take v{number} approved → video/shot.mp4")
             if last_frame:
@@ -435,13 +436,13 @@ def approve(
     typer.echo(f"{shot_id} is now at {shot.status.value}")
 
 
-def _last_take(project: Project, scene: str, shot_id: str, kind: TakeKind) -> int:
-    takes = list_takes(project.paths.shot(scene, shot_id), kind)
-    if not takes:
-        raise typer.BadParameter(
-            f"no {kind.value} take for {shot_id} yet — file one from the inbox first"
-        )
-    return takes[-1].number
+def _last_take(
+    project: Project, scene: str, shot_id: str, kind: TakeKind, state: ProjectState
+) -> int:
+    try:
+        return actions.latest_take_number(project, state, scene, shot_id, kind)
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
 
 
 @app.command()
@@ -456,9 +457,9 @@ def qa(
     project_dir: Path | None = ProjectOption,
 ) -> None:
     """Run QA on a take and write its report."""
-    project, _ = _open(project_dir)
+    project, state = _open(project_dir)
     take_kind = TakeKind(kind)
-    number = take or _last_take(project, scene, shot_id, take_kind)
+    number = take or _last_take(project, scene, shot_id, take_kind, state)
     findings = actions.run_qa(project, scene, shot_id, take_kind, number, vision=vision)
     for finding in findings:
         typer.echo(f"{LEVEL_MARK[finding.level]} {finding.check}: {finding.message}")
@@ -468,6 +469,63 @@ def qa(
     typer.echo(f"\nverdict: {verdict}")
     if verdict == "fail":
         raise typer.Exit(1)
+
+
+@app.command()
+def unapprove(
+    scene: str,
+    shot_id: str,
+    note: str | None = typer.Option(None, "--note", help="Why, for the log."),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation."),
+    project_dir: Path | None = ProjectOption,
+) -> None:
+    """Take the last approval back, and remove what it wrote."""
+    project, state = _open(project_dir)
+    try:
+        plan = undo.plan_undo(project, state, scene, shot_id)
+    except TransitionError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"Undo the {plan.label} approval of {shot_id}, back to {plan.target.value}.")
+    if plan.approved_at:
+        typer.echo(f"approved {plan.approved_at}")
+    for path in plan.removes:
+        typer.echo(f"  removes  {project.paths.rel(path)}")
+    if not plan.removes:
+        typer.echo("  removes  nothing — this gate wrote no file")
+    for line in plan.dependents:
+        typer.echo(f"  WARN     {line}")
+    takes_kept = len(list_takes(project.paths.shot(scene, shot_id), TakeKind.frame)) + len(
+        list_takes(project.paths.shot(scene, shot_id), TakeKind.video)
+    )
+    typer.echo(f"  keeps    {takes_kept} take(s) — nothing generated is ever deleted")
+    if not yes and not typer.confirm("Undo it?", default=False):
+        typer.echo("Left as it was.")
+        raise typer.Exit(1)
+    try:
+        undo.undo_approval(project, state, scene, shot_id, note=note)
+    except (TransitionError, OSError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"{shot_id} is back at {plan.target.value}")
+
+
+@app.command()
+def reject(
+    scene: str,
+    shot_id: str,
+    take: int = typer.Argument(..., help="Take number to set aside."),
+    kind: TakeKind = typer.Option(TakeKind.frame, help="frame | video"),
+    restore: bool = typer.Option(False, "--restore", help="Bring it back into the running."),
+    project_dir: Path | None = ProjectOption,
+) -> None:
+    """Set a take aside so it is never chosen again. The file stays."""
+    project, state = _open(project_dir)
+    try:
+        get_take(project.paths.shot(scene, shot_id), kind, take)
+    except FileNotFoundError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    state.set_take_rejected(scene, shot_id, kind.value, take, not restore)
+    verb = "back in the running" if restore else "set aside"
+    typer.echo(f"{kind.value} take v{take} of {shot_id} is {verb}")
 
 
 @app.command("reopen")

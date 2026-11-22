@@ -26,6 +26,36 @@
     <a class="button quiet" href="{{ project_prefix }}/scene/{{ scene.id }}">Storyboard</a>
   </div>
   {{ ui.progress(stage_index) }}
+  {% if undoable %}
+  <div class="row" style="gap:var(--space-2)">
+    <button
+      class="quiet"
+      hx-get="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/undo"
+      hx-target="#undo-panel"
+      hx-swap="outerHTML"
+      title="Take the last approval back and remove what it wrote"
+    >
+      Undo approval
+    </button>
+    <span class="faint">back to:</span>
+    {% for stage in stages %}
+    {% if stage_index > loop.index0 * 2 %}
+    <form
+      hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/reopen"
+      hx-target="#shot-card"
+      hx-swap="outerHTML"
+      style="display:inline"
+    >
+      <input type="hidden" name="stage" value="{{ stage.value }}" />
+      <button class="quiet" type="submit" title="Reopen this stage; what the approvals wrote stays">
+        {{ stage_label[stage] }}
+      </button>
+    </form>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+  <div id="undo-panel"></div>
 
   <div class="split">
     <!-- What to do now -->

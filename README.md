@@ -200,6 +200,33 @@ shotforge inbox file grok_result.mp4                 # becomes video/v1.mp4
 shotforge approve s01_pub sh07                       # → video/shot.mp4 + last_frame.png
 ```
 
+### Going back
+
+A call you cannot take back is not really a call. `shotforge unapprove` takes the
+last approval back and removes what it wrote — `frames/first.png` and the face
+crops cut from it, or `video/shot.mp4` and `last_frame.png` — then returns the
+shot to that stage. It shows what it will remove and what already stands on it
+(the next shot opens from this shot's last frame) before it does anything.
+
+```bash
+shotforge unapprove s01_pub sh07 --note "identity drifts two shots later"
+```
+
+The numbered takes are never deleted. To stop one being chosen without losing
+it, set it aside:
+
+```bash
+shotforge reject s01_pub sh07 2 --kind frame
+```
+
+```bash
+shotforge reject s01_pub sh07 2 --kind frame --restore
+```
+
+`shotforge reopen <scene> <shot> <stage>` still goes back any number of stages
+without removing anything, when that is what you want. Both are written to the
+approval log, and an undo names the approval it took back.
+
 ## Review a video take
 
 Camera motion and speech checks use the optional `qa` extra. If you launch

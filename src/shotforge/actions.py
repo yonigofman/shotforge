@@ -185,6 +185,22 @@ def advance_frame_pass(project: Project, state: ProjectState, scene_id: str, sho
     return 2
 
 
+def latest_take_number(
+    project: Project, state: ProjectState, scene_id: str, shot_id: str, kind: TakeKind
+) -> int:
+    """The take a stage would approve: the newest one you have not set aside."""
+    takes = list_takes(project.paths.shot(scene_id, shot_id), kind)
+    if not takes:
+        raise FileNotFoundError(f"no {kind.value} take yet for {shot_id}")
+    rejected = state.rejected_takes(scene_id, shot_id, kind.value)
+    usable = [take for take in takes if take.number not in rejected]
+    if not usable:
+        raise FileNotFoundError(
+            f"every {kind.value} take of {shot_id} is set aside — restore one or generate another"
+        )
+    return usable[-1].number
+
+
 def stage_label(shot: Shot) -> str:
     from shotforge.pipeline import STAGE_LABEL
 
