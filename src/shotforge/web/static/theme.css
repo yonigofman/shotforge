@@ -1943,3 +1943,103 @@ button.rail-item {
 [id] {
   scroll-margin-top: calc(var(--size-topbar-height) + var(--space-4));
 }
+
+/* --- rough cut --------------------------------------------------------- */
+
+.cut-strip {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cut-strip .clip {
+  min-width: 84px;
+}
+
+.cut-strip .clip > a,
+.cut-strip .clip > .clip-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1_5);
+}
+
+/* A strip reads along its length, so the clips keep one height however
+   long they run. */
+.clip-art {
+  display: block;
+  overflow: hidden;
+  height: 72px;
+  background: var(--color-surface-neutral);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.clip-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.clip > a:hover .clip-art {
+  border-color: var(--color-line-control);
+}
+
+.blocked .clip-art {
+  border-style: dashed;
+}
+
+.blocked .clip-id {
+  color: var(--color-warning);
+}
+
+.end-card .clip-art {
+  background: var(--color-canvas);
+  border-style: dashed;
+}
+
+.clip-foot {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.clip-id {
+  font-size: var(--type-ui-size);
+  font-weight: 500;
+}
+
+.cut-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-line);
+}
+
+.cut-controls h3 {
+  flex-basis: 100%;
+}
+
+.cut-controls p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.field-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-ink-muted);
+  font-size: var(--type-ui-size);
+}
+
+.field-inline input[type="number"] {
+  width: 5rem;
+}
