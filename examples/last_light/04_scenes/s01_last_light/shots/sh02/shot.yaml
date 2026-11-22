@@ -1,0 +1,13 @@
+id: sh02
+duration_s: 3
+size: insert
+summary: A closer look at the letter's red wax seal.
+camera:
+  blender_cam: CAM_SH02
+  lens_mm: 56
+beats:
+  - t: [0, 3]
+    action: Hold on the intact red seal.
+sound:
+  ambience: rain outside the window
+status: blockout

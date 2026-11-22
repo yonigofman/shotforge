@@ -52,5 +52,10 @@ jobs:
       - name: The shipped example still validates
         run: uv run shotforge validate -C examples/ulybka_vavilony
 
+      - name: Copy and validate the public demo
+        run: |
+          uv run shotforge demo
+          uv run shotforge validate -C last_light
+
       - name: Tests
         run: uv run pytest -q

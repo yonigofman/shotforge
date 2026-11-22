@@ -15,7 +15,7 @@ from threading import Lock
 from typing import Any
 from uuid import uuid4
 
-from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -29,11 +29,15 @@ from shotforge.console import setup_console
 from shotforge.models import Scene, Shot, ShotStatus, Stage, as_plain
 from shotforge.pipeline import ORDER, STAGE_LABEL, TransitionError, next_action, reopen
 from shotforge.project import Project, ProjectError
+from shotforge.registry import ProjectRegistry
 from shotforge.skills import find_skill, latest_prompt
 from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
 from shotforge.takes import Take, TakeKind, approved_take_number, get_take, list_takes
 from shotforge.web.bible import materials_for_page, register_bible
+from shotforge.web.edit import register_edit
+from shotforge.web.local import LocalOnlyMiddleware
+from shotforge.web.projects import project_prefix, register_projects
 from shotforge.yamlio import ProjectFileError
 
 HERE = Path(__file__).resolve().parent
@@ -52,6 +56,7 @@ CAMERA_ERRORS = (cinematography.CameraError, ProjectFileError, OSError)
 
 @dataclass
 class BreakdownDraft:
+    project_root: Path
     chapter: breakdown.Chapter
     book: breakdown.BookBreakdown
     plan: breakdown.WritePlan
@@ -101,39 +106,62 @@ def _qa_context(take: Take, findings: list[checks.Finding]) -> dict[str, Any]:
     }
 
 
-def create_app(project_root: Path) -> FastAPI:
+def create_app(
+    project_root: Path | None = None,
+    *,
+    registry_path: Path | None = None,
+    enforce_local: bool = False,
+) -> FastAPI:
     setup_console()
-    project_root = Path(project_root).resolve()
-    app = FastAPI(title="Shotforge cockpit", docs_url=None, redoc_url=None)
+    project_root = Path(project_root).resolve() if project_root is not None else None
+    registry = ProjectRegistry(registry_path)
+    app = FastAPI(title="Shotforge cockpit", openapi_url=None)
+    app.add_middleware(LocalOnlyMiddleware, enforce_all=enforce_local)
+    routes = APIRouter()
     templates = Jinja2Templates(directory=str(HERE / "templates"))
     templates.env.filters["n"] = _number
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
+    register_projects(app, registry, templates, project_root)
     drafts: OrderedDict[str, BreakdownDraft] = OrderedDict()
-    camera_drafts: OrderedDict[str, tuple[str, str, cinematography.CameraProposal]] = OrderedDict()
+    camera_drafts: OrderedDict[
+        str, tuple[Path, str, str, cinematography.CameraProposal]
+    ] = OrderedDict()
     drafts_lock = Lock()
 
     # ---- helpers ---------------------------------------------------------
-    def load() -> tuple[Project, ProjectState]:
-        """Re-read the project on every request: files are the source of truth."""
+    def load(request: Request) -> tuple[Project, ProjectState]:
+        """Resolve the project's URL, then read its current project.yaml."""
+        key = request.path_params.get("project_id")
+        root = project_root
+        if key:
+            try:
+                entry = registry.find(key)
+            except (OSError, ValueError, ProjectError) as exc:
+                raise HTTPException(500, f"Could not read the projects registry: {exc}") from exc
+            if entry is None:
+                raise HTTPException(404, "Project not found. Open it from /projects.")
+            root = entry.path
+        if root is None:
+            raise HTTPException(404, "Choose a project at /projects.")
         try:
-            project = Project.open(project_root)
-        except (ProjectError, ProjectFileError) as exc:
+            project = Project.open(root)
+        except ProjectError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except (ProjectFileError, OSError) as exc:
             raise HTTPException(500, str(exc)) from exc
         tools.configure(project.config.tool_paths.model_dump())
         return project, ProjectState(project.paths)
-
-    def media_url(project: Project, path: Path) -> str:
-        return f"/media/{project.paths.rel(path)}"
 
     def render(
         request: Request, name: str, context: dict[str, Any], *, status_code: int = 200
     ) -> HTMLResponse:
         project: Project = context["project"]
+        prefix = project_prefix(request)
         context.setdefault("stages", STAGES)
         context.setdefault("stage_label", STAGE_LABEL)
-        context.setdefault("media_url", lambda path: media_url(project, path))
+        context.setdefault("project_prefix", prefix)
+        context.setdefault("media_url", lambda path: f"{prefix}/media/{project.paths.rel(path)}")
         context.setdefault("rel", project.paths.rel)
-        context.setdefault("vendored", (HERE / "static" / "vendor" / "htmx.min.js").is_file())
         return templates.TemplateResponse(request, name, context, status_code=status_code)
 
     def inbox_context(project: Project, state: ProjectState) -> dict[str, Any]:
@@ -148,7 +176,7 @@ def create_app(project_root: Path) -> FastAPI:
         }
 
     def shot_card_context(request: Request, scene_id: str, shot_id: str) -> dict[str, Any]:
-        project, state = load()
+        project, state = load(request)
         try:
             shot = project.shot(scene_id, shot_id)
         except ProjectError as exc:
@@ -215,9 +243,11 @@ def create_app(project_root: Path) -> FastAPI:
         }
 
     # ---- pages -----------------------------------------------------------
-    @app.get("/", response_class=HTMLResponse)
-    def index(request: Request) -> HTMLResponse:
-        project, state = load()
+    @routes.get("/", response_class=HTMLResponse)
+    def index(request: Request):
+        if project_root is None and not project_prefix(request):
+            return RedirectResponse("/projects", status_code=303)
+        project, state = load(request)
         scenes = []
         for scene_id in project.scene_ids():
             shots = project.shots(scene_id)
@@ -236,7 +266,7 @@ def create_app(project_root: Path) -> FastAPI:
                 **inbox_context(project, state),
                 "scenes": scenes,
                 "log": state.approvals(limit=8),
-                "page": "projects",
+                "page": "scenes",
             },
         )
 
@@ -255,9 +285,9 @@ def create_app(project_root: Path) -> FastAPI:
             status_code=status_code,
         )
 
-    @app.get("/breakdown", response_class=HTMLResponse)
+    @routes.get("/breakdown", response_class=HTMLResponse)
     def breakdown_page(request: Request, chapter: str | None = None) -> HTMLResponse:
-        project, _ = load()
+        project, _ = load(request)
         names = breakdown.chapter_names(project)
         selected = chapter or (names[0] if names else None)
         source, error = None, None
@@ -268,9 +298,9 @@ def create_app(project_root: Path) -> FastAPI:
                 error = str(exc)
         return render_breakdown(request, project, source=source, selected=selected, error=error)
 
-    @app.post("/breakdown/propose", response_class=HTMLResponse)
+    @routes.post("/breakdown/propose", response_class=HTMLResponse)
     def generate_breakdown(request: Request, chapter: str = Form(...)) -> HTMLResponse:
-        project, _ = load()
+        project, _ = load(request)
         source = None
         try:
             source = breakdown.read_chapter(project, chapter)
@@ -292,7 +322,7 @@ def create_app(project_root: Path) -> FastAPI:
                 error=str(exc),
                 status_code=400,
             )
-        draft = BreakdownDraft(source, book, plan)
+        draft = BreakdownDraft(project.paths.root, source, book, plan)
         token = uuid4().hex
         with drafts_lock:
             drafts[token] = draft
@@ -320,12 +350,14 @@ def create_app(project_root: Path) -> FastAPI:
             **context,
         )
 
-    @app.post("/breakdown/approve", response_class=HTMLResponse)
+    @routes.post("/breakdown/approve", response_class=HTMLResponse)
     async def approve_breakdown(request: Request, token: str = Form(...)) -> HTMLResponse:
-        project, _ = load()
+        project, _ = load(request)
         form = await request.form()
         with drafts_lock:
             draft = drafts.get(token)
+            if draft is not None and draft.project_root != project.paths.root:
+                draft = None
             if draft is not None:
                 if draft.approving:
                     raise HTTPException(409, "This proposal is already being saved.")
@@ -363,9 +395,9 @@ def create_app(project_root: Path) -> FastAPI:
             collisions=[*plan.collisions, *collisions],
         )
 
-    @app.get("/scene/{scene_id}", response_class=HTMLResponse)
+    @routes.get("/scene/{scene_id}", response_class=HTMLResponse)
     def storyboard(request: Request, scene_id: str) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         try:
             scene = project.scene(scene_id)
         except ProjectError as exc:
@@ -400,9 +432,9 @@ def create_app(project_root: Path) -> FastAPI:
             },
         )
 
-    @app.post("/scene/{scene_id}/continuity", response_class=HTMLResponse)
+    @routes.post("/scene/{scene_id}/continuity", response_class=HTMLResponse)
     def review_continuity(request: Request, scene_id: str) -> HTMLResponse:
-        project, _ = load()
+        project, _ = load(request)
         try:
             scene = project.scene(scene_id)
         except ProjectError as exc:
@@ -413,35 +445,36 @@ def create_app(project_root: Path) -> FastAPI:
             request, "partials/_findings.html", {"project": project, "findings": findings}
         )
 
-    @app.get("/shot/{scene_id}/{shot_id}", response_class=HTMLResponse)
+    @routes.get("/shot/{scene_id}/{shot_id}", response_class=HTMLResponse)
     def shot_page(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
         context = shot_card_context(request, scene_id, shot_id)
         context["page"] = "shot"
         return render(request, "shot.html", context)
 
-    @app.get("/shot/{scene_id}/{shot_id}/card", response_class=HTMLResponse)
+    @routes.get("/shot/{scene_id}/{shot_id}/card", response_class=HTMLResponse)
     def shot_card(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
         return render(request, "partials/_card.html", shot_card_context(request, scene_id, shot_id))
 
-    @app.get("/shot/{scene_id}/{shot_id}/takes", response_class=HTMLResponse)
+    @routes.get("/shot/{scene_id}/{shot_id}/takes", response_class=HTMLResponse)
     def shot_takes(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
         context = shot_card_context(request, scene_id, shot_id)
         return render(request, "partials/_takes.html", context)
 
-    register_bible(app, load, render)
+    register_bible(routes, load, render)
+    register_edit(routes, load, render)
 
-    @app.get("/log", response_class=HTMLResponse)
+    @routes.get("/log", response_class=HTMLResponse)
     def log_page(request: Request) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         return render(
             request,
             "log.html",
             {"project": project, "entries": state.approvals(limit=200), "page": "log"},
         )
 
-    @app.get("/inbox", response_class=HTMLResponse)
+    @routes.get("/inbox", response_class=HTMLResponse)
     def inbox_partial(request: Request) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         return render(
             request,
             "partials/_inbox.html",
@@ -449,9 +482,9 @@ def create_app(project_root: Path) -> FastAPI:
         )
 
     # ---- actions ---------------------------------------------------------
-    @app.post("/shot/{scene_id}/{shot_id}/camera", response_class=HTMLResponse)
+    @routes.post("/shot/{scene_id}/{shot_id}/camera", response_class=HTMLResponse)
     def propose_camera(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
-        project, _ = load()
+        project, _ = load(request)
         try:
             proposal, diff = cinematography.propose_camera(project, scene_id, shot_id)
         except ProjectError as exc:
@@ -466,7 +499,7 @@ def create_app(project_root: Path) -> FastAPI:
         if diff:
             token = uuid4().hex
             with drafts_lock:
-                camera_drafts[token] = (scene_id, shot_id, proposal)
+                camera_drafts[token] = (project.paths.root, scene_id, shot_id, proposal)
                 if len(camera_drafts) > 16:
                     camera_drafts.popitem(last=False)
         return render(
@@ -476,21 +509,21 @@ def create_app(project_root: Path) -> FastAPI:
                 "project": project,
                 "camera_token": token,
                 "camera_diff": diff,
-                "shot_url": f"/shot/{scene_id}/{shot_id}",
+                "shot_url": f"{project_prefix(request)}/shot/{scene_id}/{shot_id}",
             },
         )
 
-    @app.post("/shot/{scene_id}/{shot_id}/camera/apply", response_class=HTMLResponse)
+    @routes.post("/shot/{scene_id}/{shot_id}/camera/apply", response_class=HTMLResponse)
     def apply_camera(
         request: Request, scene_id: str, shot_id: str, token: str = Form(...)
     ) -> HTMLResponse:
-        project, _ = load()
+        project, _ = load(request)
         with drafts_lock:
             draft = camera_drafts.get(token)
-            if draft is None or draft[:2] != (scene_id, shot_id):
+            if draft is None or draft[:3] != (project.paths.root, scene_id, shot_id):
                 raise HTTPException(409, "Generate a new camera proposal for this shot.")
             try:
-                cinematography.apply_camera(project, scene_id, shot_id, draft[2])
+                cinematography.apply_camera(project, scene_id, shot_id, draft[3])
             except ProjectError as exc:
                 raise HTTPException(404, str(exc)) from exc
             except CAMERA_ERRORS as exc:
@@ -498,16 +531,16 @@ def create_app(project_root: Path) -> FastAPI:
             camera_drafts.pop(token)
         return shot_card(request, scene_id, shot_id)
 
-    @app.post("/shot/{scene_id}/{shot_id}/prompt", response_class=HTMLResponse)
+    @routes.post("/shot/{scene_id}/{shot_id}/prompt", response_class=HTMLResponse)
     def make_prompt(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         try:
             actions.build_prompt(project, state, scene_id, shot_id)
         except (ValueError, TransitionError, SkillError) as exc:
             raise HTTPException(400, str(exc)) from exc
         return shot_card(request, scene_id, shot_id)
 
-    @app.post("/shot/{scene_id}/{shot_id}/fix", response_class=HTMLResponse)
+    @routes.post("/shot/{scene_id}/{shot_id}/fix", response_class=HTMLResponse)
     def make_fix(
         request: Request,
         scene_id: str,
@@ -528,9 +561,9 @@ def create_app(project_root: Path) -> FastAPI:
             context.update(_qa_context(source, report))
         return render(request, "partials/_card.html", context)
 
-    @app.post("/shot/{scene_id}/{shot_id}/blockout", response_class=HTMLResponse)
+    @routes.post("/shot/{scene_id}/{shot_id}/blockout", response_class=HTMLResponse)
     def render_blockout(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
-        project, _ = load()
+        project, _ = load(request)
         try:
             shot = project.shot(scene_id, shot_id)
         except ProjectError as exc:
@@ -543,25 +576,25 @@ def create_app(project_root: Path) -> FastAPI:
             raise HTTPException(400, str(exc)) from exc
         return shot_card(request, scene_id, shot_id)
 
-    @app.post("/shot/{scene_id}/{shot_id}/begin", response_class=HTMLResponse)
+    @routes.post("/shot/{scene_id}/{shot_id}/begin", response_class=HTMLResponse)
     def begin_stage(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         try:
             actions.begin(project, state, scene_id, shot_id)
         except TransitionError as exc:
             raise HTTPException(400, str(exc)) from exc
         return shot_card(request, scene_id, shot_id)
 
-    @app.post("/shot/{scene_id}/{shot_id}/pass2", response_class=HTMLResponse)
+    @routes.post("/shot/{scene_id}/{shot_id}/pass2", response_class=HTMLResponse)
     def to_pass_two(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         try:
             actions.advance_frame_pass(project, state, scene_id, shot_id)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
         return shot_card(request, scene_id, shot_id)
 
-    @app.post("/shot/{scene_id}/{shot_id}/approve", response_class=HTMLResponse)
+    @routes.post("/shot/{scene_id}/{shot_id}/approve", response_class=HTMLResponse)
     def approve_stage(
         request: Request,
         scene_id: str,
@@ -569,7 +602,7 @@ def create_app(project_root: Path) -> FastAPI:
         take: int | None = Form(None),
         note: str | None = Form(None),
     ) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         shot = project.shot(scene_id, shot_id)
         note = (note or "").strip() or None
         try:
@@ -588,7 +621,7 @@ def create_app(project_root: Path) -> FastAPI:
             raise HTTPException(400, str(exc)) from exc
         return shot_card(request, scene_id, shot_id)
 
-    @app.post("/shot/{scene_id}/{shot_id}/reopen", response_class=HTMLResponse)
+    @routes.post("/shot/{scene_id}/{shot_id}/reopen", response_class=HTMLResponse)
     def reopen_stage(
         request: Request,
         scene_id: str,
@@ -596,14 +629,14 @@ def create_app(project_root: Path) -> FastAPI:
         stage: str = Form(...),
         note: str | None = Form(None),
     ) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         try:
             reopen(project, state, scene_id, shot_id, Stage(stage), note=(note or None))
         except (TransitionError, ValueError) as exc:
             raise HTTPException(400, str(exc)) from exc
         return shot_card(request, scene_id, shot_id)
 
-    @app.post("/shot/{scene_id}/{shot_id}/qa", response_class=HTMLResponse)
+    @routes.post("/shot/{scene_id}/{shot_id}/qa", response_class=HTMLResponse)
     def run_qa(
         request: Request,
         scene_id: str,
@@ -612,7 +645,7 @@ def create_app(project_root: Path) -> FastAPI:
         take: int | None = Form(None),
         vision: bool | None = Form(None),
     ) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         number = take if take is not None else _latest(project, scene_id, shot_id, kind)
         try:
             findings = actions.run_qa(project, scene_id, shot_id, kind, number, vision=vision)
@@ -635,18 +668,18 @@ def create_app(project_root: Path) -> FastAPI:
             response.headers["HX-Trigger-After-Swap"] = "card-changed"
         return response
 
-    @app.post("/shot/{scene_id}/{shot_id}/active", response_class=HTMLResponse)
+    @routes.post("/shot/{scene_id}/{shot_id}/active", response_class=HTMLResponse)
     def set_active(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         project.shot(scene_id, shot_id)
         state.set_active(scene_id, shot_id)
         return shot_card(request, scene_id, shot_id)
 
-    @app.post("/shot/{scene_id}/{shot_id}/upload", response_class=HTMLResponse)
+    @routes.post("/shot/{scene_id}/{shot_id}/upload", response_class=HTMLResponse)
     def upload(
         request: Request, scene_id: str, shot_id: str, files: list[UploadFile]
     ) -> HTMLResponse:
-        project, _ = load()
+        project, _ = load(request)
         shot_paths = project.paths.shot(scene_id, shot_id)
         if not shot_paths.spec.is_file():
             raise HTTPException(404, f"no shot {shot_id} in {scene_id}")
@@ -661,7 +694,7 @@ def create_app(project_root: Path) -> FastAPI:
         context = shot_card_context(request, scene_id, shot_id)
         return render(request, "partials/_takes.html", context)
 
-    @app.post("/inbox/file", response_class=HTMLResponse)
+    @routes.post("/inbox/file", response_class=HTMLResponse)
     def file_from_inbox(
         request: Request,
         name: str = Form(...),
@@ -669,7 +702,7 @@ def create_app(project_root: Path) -> FastAPI:
         shot: str | None = Form(None),
         texture: str | None = Form(None),
     ) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         source = project.paths.inbox / Path(name).name
         try:
             if texture:
@@ -686,9 +719,9 @@ def create_app(project_root: Path) -> FastAPI:
         return inbox_partial(request)
 
     # ---- media and events ------------------------------------------------
-    @app.get("/media/{relative_path:path}")
-    def media(relative_path: str) -> FileResponse:
-        project, _ = load()
+    @routes.get("/media/{relative_path:path}")
+    def media(request: Request, relative_path: str) -> FileResponse:
+        project, _ = load(request)
         target = (project.paths.root / relative_path).resolve()
         try:
             target.relative_to(project.paths.root)
@@ -698,7 +731,7 @@ def create_app(project_root: Path) -> FastAPI:
             raise HTTPException(404, relative_path)
         return FileResponse(target)
 
-    @app.get("/events")
+    @routes.get("/events")
     async def events(request: Request) -> StreamingResponse:
         """Server-sent events: the inbox and the approval log, as they change."""
 
@@ -707,7 +740,10 @@ def create_app(project_root: Path) -> FastAPI:
             while True:
                 if await request.is_disconnected():
                     break
-                project, state = load()
+                try:
+                    project, state = load(request)
+                except HTTPException:
+                    break
                 payload = {
                     "inbox": len(inbox_mod.scan(project)),
                     "approvals": len(state.approvals()),
@@ -719,11 +755,11 @@ def create_app(project_root: Path) -> FastAPI:
 
         return StreamingResponse(stream(), media_type="text/event-stream")
 
-    @app.get("/skills", response_class=HTMLResponse)
+    @routes.get("/skills", response_class=HTMLResponse)
     def skills_page(request: Request) -> HTMLResponse:
         from shotforge.skills import list_skills
 
-        project, _ = load()
+        project, _ = load(request)
         return render(
             request,
             "skills.html",
@@ -734,16 +770,16 @@ def create_app(project_root: Path) -> FastAPI:
             },
         )
 
-    @app.post("/skills/{name}/rules", response_class=HTMLResponse)
+    @routes.post("/skills/{name}/rules", response_class=HTMLResponse)
     def add_rule(request: Request, name: str, rule: str = Form(...)) -> HTMLResponse:
         """A fix that worked becomes a rule — on your say-so, never automatically."""
-        project, _ = load()
+        project, _ = load(request)
         try:
             skill = find_skill(name, project.paths.skills)
             skill.add_rule(rule)
         except SkillError as exc:
             raise HTTPException(400, str(exc)) from exc
-        return RedirectResponse("/skills", status_code=303)
+        return RedirectResponse(f"{project_prefix(request)}/skills", status_code=303)
 
     def _latest(project: Project, scene_id: str, shot_id: str, kind: TakeKind) -> int:
         takes = list_takes(project.paths.shot(scene_id, shot_id), kind)
@@ -751,12 +787,12 @@ def create_app(project_root: Path) -> FastAPI:
             raise HTTPException(400, f"no {kind.value} take yet for {shot_id}")
         return takes[-1].number
 
+    app.include_router(routes, prefix="/p/{project_id}")
+    app.include_router(routes)
     return app
 
 
 def app_from_env() -> FastAPI:
     """Factory for ``uvicorn --reload``; the project folder comes from the env."""
     root = os.environ.get("SHOTFORGE_PROJECT")
-    if not root:
-        raise RuntimeError("set SHOTFORGE_PROJECT to the project folder")
-    return create_app(Path(root))
+    return create_app(Path(root) if root else None, enforce_local=True)

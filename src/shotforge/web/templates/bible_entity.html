@@ -2,7 +2,7 @@
 {% import "partials/_macros.html" as ui %}
 {% block content %}
 <div class="stack">
-  <a class="faint" href="/bible">← Bible</a>
+  <a class="faint" href="{{ project_prefix }}/bible">← Bible</a>
   <div class="row">
     <h1 dir="auto">{{ entity.names.get('book') or entity.id }}</h1>
     {{ ui.pip('pass' if designed else 'warn', 'Designed' if designed else 'In design') }}

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Projects — Shotforge{% endblock %}
+{% block content %}
+<div class="stack">
+  <h1>Projects</h1>
+  {% if error %}<div class="form-error" role="alert">{{ error }}</div>{% endif %}
+  {% if registry_error %}<div class="form-error" role="alert">{{ registry_error }}</div>{% endif %}
+  <div class="project-columns">
+    <section class="card stack">
+      <div class="card-header"><h2>Recent projects</h2></div>
+      {% if rows %}
+      <ul class="project-list">
+        {% for row in rows %}
+        <li class="row">
+          <div class="project-entry">
+            <strong>{{ row.name }}</strong>
+            <span class="mono faint">{{ row.entry.path }}</span>
+            {% if row.status %}
+            <span class="muted">{{ row.status }}</span>
+            {% else %}
+            <span class="muted">{{ row.done }} / {{ row.total }} shots done</span>
+            {% endif %}
+          </div>
+          {% if not row.status %}
+          <form method="post" action="/projects/open">
+            <input type="hidden" name="key" value="{{ row.entry.key }}" />
+            <button type="submit" aria-label="Open {{ row.name }}">Open</button>
+          </form>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="muted">Open an existing Shotforge folder or create a project to get started.</p>
+      {% endif %}
+      <form method="post" action="/projects/open" class="stack project-form">
+        <h3>Open existing project</h3>
+        <label>Folder path
+          <input type="text" name="path" required value="{{ open_path }}" autocomplete="off" />
+        </label>
+        <button type="submit">Open project</button>
+      </form>
+    </section>
+
+    <form method="post" action="/projects/new" class="card stack project-form">
+      <div class="card-header"><h2>New project</h2></div>
+      <label>Project name
+        <input type="text" name="name" required value="{{ create_form.get('name', '') }}" />
+      </label>
+      <label><span>Folder path <span class="faint">(optional)</span></span>
+        <input type="text" name="path" value="{{ create_form.get('path', '') }}" autocomplete="off" />
+        <small class="faint">Defaults to a new folder under {{ cwd }}.</small>
+      </label>
+      <div class="project-fields">
+        <label>Dialogue language
+          <input type="text" name="language" required value="{{ create_form.get('language', 'en') }}" />
+        </label>
+        <label>Aspect ratio
+          <input type="text" name="aspect" required value="{{ create_form.get('aspect', '16:9') }}" />
+        </label>
+        <label>FPS
+          <input type="number" name="fps" required min="1" max="120" value="{{ create_form.get('fps', '24') }}" />
+        </label>
+      </div>
+      <label>Media storage
+        <select name="media">
+          {% for value, label in [('lfs', 'Git LFS'), ('external', 'External or synced folder'), ('git', 'Plain Git')] %}
+          <option value="{{ value }}" {% if create_form.get('media', 'lfs') == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="primary">Create project</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

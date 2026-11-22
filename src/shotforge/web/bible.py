@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from jinja2 import TemplateError
 
@@ -17,6 +17,7 @@ from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
 from shotforge.takes import TakeKind
 from shotforge.tools import ToolError
+from shotforge.web.projects import project_prefix
 from shotforge.yamlio import ProjectFileError
 
 STARTER_FIELDS = {
@@ -38,8 +39,8 @@ def _entity(project: Project, kind: str, entity_id: str):
         raise HTTPException(404, str(exc)) from exc
 
 
-def _entity_url(kind: str, entity_id: str) -> str:
-    return f"/bible/{kind}/{entity_id}"
+def _entity_url(request: Request, kind: str, entity_id: str) -> str:
+    return f"{project_prefix(request)}/bible/{kind}/{entity_id}"
 
 
 def materials_for_page(project: Project) -> tuple[Materials, str]:
@@ -50,13 +51,13 @@ def materials_for_page(project: Project) -> tuple[Materials, str]:
 
 
 def register_bible(
-    app: FastAPI,
-    load: Callable[[], tuple[Project, ProjectState]],
+    app: APIRouter,
+    load: Callable[[Request], tuple[Project, ProjectState]],
     render: Callable[..., HTMLResponse],
 ) -> None:
     @app.get("/bible", response_class=HTMLResponse)
     def bible(request: Request) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         materials, material_error = materials_for_page(project)
         textures: dict[tuple[str, str], list[tuple[str, Path]]] = {}
         for surface, material in materials.root.items():
@@ -121,7 +122,7 @@ def register_bible(
     @app.get("/bible/new/{kind}", response_class=HTMLResponse)
     def new_entity(request: Request, kind: str) -> HTMLResponse:
         _check_kind(kind)
-        project, _ = load()
+        project, _ = load(request)
         source = (
             "id: ''\nnames:\n  book: ''\ntag: null\nfrom_book: []\ndesign_choices: []\n"
             f"{STARTER_FIELDS[kind]}\n"
@@ -131,12 +132,12 @@ def register_bible(
     @app.post("/bible/new/{kind}", response_model=None)
     def create_entity(request: Request, kind: str, source: str = Form(...)):
         _check_kind(kind)
-        project, state = load()
+        project, state = load(request)
         try:
             entity = design.save_entity(project, state, kind, source)
         except (ProjectFileError, ProjectError) as exc:
             return editor(request, project, kind, source, error=str(exc))
-        return RedirectResponse(_entity_url(kind, entity.id), status_code=303)
+        return RedirectResponse(_entity_url(request, kind, entity.id), status_code=303)
 
     def entity_card(
         request: Request,
@@ -144,7 +145,7 @@ def register_bible(
         entity_id: str,
         error: str | None = None,
     ) -> HTMLResponse:
-        project, state = load()
+        project, state = load(request)
         entity = _entity(project, kind, entity_id)
         revision = design.revision(project, kind, entity_id, entity)
         response = render(
@@ -155,7 +156,7 @@ def register_bible(
                 "page": "bible",
                 "kind": kind,
                 "entity": entity,
-                "url": _entity_url(kind, entity_id),
+                "url": _entity_url(request, kind, entity_id),
                 "error": error,
                 "revision": revision,
                 "designed": revision is not None
@@ -179,30 +180,30 @@ def register_bible(
 
     @app.get("/bible/{kind}/{entity_id}/edit", response_class=HTMLResponse)
     def edit_entity(request: Request, kind: str, entity_id: str) -> HTMLResponse:
-        project, _ = load()
+        project, _ = load(request)
         _entity(project, kind, entity_id)
         source = project.bible_entity_path(kind, entity_id).read_text(encoding="utf-8")
         return editor(request, project, kind, source, entity_id)
 
     @app.post("/bible/{kind}/{entity_id}/edit", response_model=None)
     def save_entity(request: Request, kind: str, entity_id: str, source: str = Form(...)):
-        project, state = load()
+        project, state = load(request)
         _entity(project, kind, entity_id)
         try:
             design.save_entity(project, state, kind, source, entity_id)
         except (ProjectFileError, ProjectError) as exc:
             return editor(request, project, kind, source, entity_id, str(exc))
-        return RedirectResponse(_entity_url(kind, entity_id), status_code=303)
+        return RedirectResponse(_entity_url(request, kind, entity_id), status_code=303)
 
     @app.post("/bible/{kind}/{entity_id}/prompts", response_model=None)
     def generate_prompts(request: Request, kind: str, entity_id: str):
-        project, _ = load()
+        project, _ = load(request)
         _entity(project, kind, entity_id)
         try:
             design.build_prompts(project, kind, entity_id)
         except (SkillError, TemplateError, ProjectFileError) as exc:
             return entity_card(request, kind, entity_id, str(exc))
-        return RedirectResponse(f"{_entity_url(kind, entity_id)}#prompts", status_code=303)
+        return RedirectResponse(f"{_entity_url(request, kind, entity_id)}#prompts", status_code=303)
 
     @app.post("/bible/{kind}/{entity_id}/{asset}/file", response_model=None)
     def file_asset(
@@ -213,7 +214,7 @@ def register_bible(
         file: UploadFile | None = None,
         name: str = Form(""),
     ):
-        project, state = load()
+        project, state = load(request)
         _entity(project, kind, entity_id)
         try:
             if file is not None and file.filename:
@@ -232,7 +233,9 @@ def register_bible(
                 raise ValueError("Choose an image to file.")
         except (ValueError, FileNotFoundError, ToolError) as exc:
             return entity_card(request, kind, entity_id, str(exc))
-        return RedirectResponse(f"{_entity_url(kind, entity_id)}#{asset.value}", status_code=303)
+        return RedirectResponse(
+            f"{_entity_url(request, kind, entity_id)}#{asset.value}", status_code=303
+        )
 
     @app.post("/bible/{kind}/{entity_id}/approve", response_model=None)
     def approve(
@@ -242,10 +245,12 @@ def register_bible(
         revision: str = Form(""),
         note: str = Form(""),
     ):
-        project, state = load()
+        project, state = load(request)
         _entity(project, kind, entity_id)
         try:
             design.approve(project, state, kind, entity_id, revision, note.strip() or None)
         except TransitionError as exc:
             return entity_card(request, kind, entity_id, str(exc))
-        return RedirectResponse(f"{_entity_url(kind, entity_id)}#approval", status_code=303)
+        return RedirectResponse(
+            f"{_entity_url(request, kind, entity_id)}#approval", status_code=303
+        )

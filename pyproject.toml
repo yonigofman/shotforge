@@ -22,6 +22,8 @@ dependencies = [
   "uvicorn>=0.30",
   "jinja2>=3.1",
   "python-multipart>=0.0.9",
+  "filelock>=3.13",
+  "pillow>=10.3",
 ]
 
 [project.optional-dependencies]
@@ -44,6 +46,10 @@ packages = ["src/shotforge"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "skills" = "shotforge/_skills"
+"examples/last_light" = "shotforge/_demo"
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/docs", "/examples/ulybka_vavilony"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

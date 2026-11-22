@@ -14,7 +14,7 @@
         <td style="text-align:right">
           {% if active %}
           <form
-            hx-post="/inbox/file"
+            hx-post="{{ project_prefix }}/inbox/file"
             hx-target="#inbox"
             hx-swap="innerHTML"
             style="display:inline"
@@ -30,7 +30,7 @@
           <span class="faint">open a shot card first</span>
           {% endif %}
           {% if texture_targets and item.path.suffix | lower == '.png' %}
-          <form hx-post="/inbox/file" hx-target="#inbox" hx-swap="innerHTML" class="row">
+          <form hx-post="{{ project_prefix }}/inbox/file" hx-target="#inbox" hx-swap="innerHTML" class="row">
             <input type="hidden" name="name" value="{{ item.name }}" />
             <select name="texture" aria-label="Texture for {{ item.name }}" required>
               {% for texture in texture_targets %}

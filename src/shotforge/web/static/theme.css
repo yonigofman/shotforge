@@ -745,7 +745,8 @@ tr:last-child td {
   font-family: var(--font-mono);
 }
 
-.bible-error {
+.bible-error,
+.form-error {
   color: var(--color-danger);
   white-space: pre-wrap;
 }
@@ -762,4 +763,99 @@ tr:last-child td {
 
 #sheet, #ref, #prompts, #approval {
   scroll-margin-top: calc(var(--size-topbar-height) + var(--space-4));
+}
+
+/* Rough cut */
+.edit-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-left: 2px solid var(--color-line);
+}
+
+.edit-timeline > li {
+  position: relative;
+  padding: var(--space-2) var(--space-4);
+  gap: var(--space-2);
+}
+
+.edit-timeline > li::before {
+  position: absolute;
+  top: 16px;
+  left: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  content: "";
+}
+
+.edit-timeline input[type="number"] {
+  width: 6rem;
+}
+
+.edit-problem {
+  color: var(--color-ink-muted);
+}
+
+.edit-preview {
+  margin: 0;
+}
+
+/* Projects */
+.project-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.project-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-list > li {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.project-entry,
+.project-form label {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.project-form input[type="text"],
+.project-form input[type="number"],
+.project-form select {
+  width: 100%;
+  min-width: 0;
+}
+
+.project-fields {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-form > button {
+  align-self: start;
+}
+
+@media (max-width: 800px) {
+  .project-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .project-fields {
+    grid-template-columns: 1fr;
+  }
 }

@@ -1,0 +1,13 @@
+id: sh01
+duration_s: 3
+size: wide
+summary: Rain behind the lantern and the untouched letter.
+camera:
+  blender_cam: CAM_SH01
+  lens_mm: 49
+beats:
+  - t: [0, 3]
+    action: Hold on the lantern and letter, with rain behind them.
+sound:
+  ambience: rain outside the window
+status: blockout

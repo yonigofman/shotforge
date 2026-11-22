@@ -19,13 +19,13 @@
   <section class="stack">
     <div class="row">
       <h2>{{ group.kind | capitalize }}s</h2>
-      <a class="button" href="/bible/new/{{ group.kind }}">New {{ group.kind }}</a>
+      <a class="button" href="{{ project_prefix }}/bible/new/{{ group.kind }}">New {{ group.kind }}</a>
     </div>
     <div class="takes bible-cards">
       {% for item in group.entities %}
       <article class="card stack">
         <div class="row">
-          <h3><a href="/bible/{{ group.kind }}/{{ item.id }}">{{ item.id }}</a></h3>
+          <h3><a href="{{ project_prefix }}/bible/{{ group.kind }}/{{ item.id }}">{{ item.id }}</a></h3>
           {{ ui.pip('pass' if item.designed else 'warn', 'Designed' if item.designed else 'In design') }}
         </div>
         {% if item.entity.names %}
@@ -41,7 +41,7 @@
           {% endfor %}
         </div>
         {% endif %}
-        <a class="button" href="/bible/{{ group.kind }}/{{ item.id }}">Open {{ group.kind }}</a>
+        <a class="button" href="{{ project_prefix }}/bible/{{ group.kind }}/{{ item.id }}">Open {{ group.kind }}</a>
       </article>
       {% else %}
       <p class="muted">No {{ group.kind }}s yet.</p>

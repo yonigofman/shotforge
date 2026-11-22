@@ -11,11 +11,12 @@ import os
 import shutil
 import subprocess
 import sys
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 
 #: Overrides from the open project's ``tool_paths``.
-_OVERRIDES: dict[str, str] = {}
+_OVERRIDES: ContextVar[dict[str, str] | None] = ContextVar("tool_paths", default=None)
 
 CANDIDATES: dict[str, dict[str, tuple[str, ...]]] = {
     "blender": {
@@ -61,10 +62,7 @@ class ToolError(Exception):
 
 def configure(overrides: dict[str, str | None] | None) -> None:
     """Register the open project's ``tool_paths`` overrides."""
-    _OVERRIDES.clear()
-    for name, value in (overrides or {}).items():
-        if value:
-            _OVERRIDES[name] = value
+    _OVERRIDES.set({name: value for name, value in (overrides or {}).items() if value})
 
 
 def _platform_key() -> str:
@@ -77,7 +75,7 @@ def _platform_key() -> str:
 
 def find_tool(name: str, *, overrides: dict[str, str | None] | None = None) -> Path | None:
     """The override, then PATH, then the standard locations for this system."""
-    configured = _OVERRIDES if overrides is None else overrides
+    configured = (_OVERRIDES.get() or {}) if overrides is None else overrides
     override = configured.get(name) or os.environ.get(f"SHOTFORGE_{name.upper()}")
     if override:
         candidate = Path(os.path.expandvars(override)).expanduser()
