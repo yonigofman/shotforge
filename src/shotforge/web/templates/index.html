@@ -2,49 +2,76 @@
 {% import "partials/_macros.html" as ui %}
 {% block content %}
 <div class="stack">
-  <div class="row">
-    <h1>{{ project.name }}</h1>
-    <span class="badge">{{ project.config.language }}</span>
-    {% if active %}
-    <span class="faint">active shot: <a href="{{ project_prefix }}/shot/{{ active[0] }}/{{ active[1] }}">{{ active[0] }}/{{ active[1] }}</a></span>
-    {% endif %}
-  </div>
-
   <div class="split">
     <section class="stack">
+      {#
+        The home answers one question before it lists anything: what now.
+        Everything under it is there to pick a different answer.
+      #}
+      {% if next %}
+      {% set next_url = project_prefix ~ "/shot/" ~ next.scene ~ "/" ~ next.shot %}
+      <article class="card raised next">
+        <a class="next-thumb" href="{{ next_url }}" aria-label="Open {{ next.shot }}">
+          {% if next.thumb %}
+          <img src="{{ media_url(next.thumb) }}" alt="" />
+          {% else %}
+          <span class="faint">no frame yet</span>
+          {% endif %}
+        </a>
+        <div class="next-body">
+          <p class="eyebrow">Next · {{ next.reason }}</p>
+          <h1>{{ next.title }}</h1>
+          <p class="muted">{{ next.detail }}</p>
+          <div class="row tight">
+            {{ ui.badge(next.stage) }}
+            {{ ui.badge(next.tool) }}
+            <span class="faint mono">{{ next.scene }} / {{ next.shot }}</span>
+          </div>
+          <div class="row">
+            <a class="button primary" href="{{ next_url }}">Open the shot</a>
+            <a class="button quiet" href="{{ project_prefix }}/scene/{{ next.scene }}">Storyboard</a>
+          </div>
+        </div>
+      </article>
+      {% elif scenes %}
+      <article class="card raised">
+        <h1>Every shot is done.</h1>
+        <p class="muted">Cut the scenes together, or take a shot back to make it better.</p>
+      </article>
+      {% endif %}
+
       <h3>Scenes</h3>
       {% if not scenes %}
       <div class="card">
         <p class="muted">No scenes yet.</p>
         <p class="faint">
-          Add <code>04_scenes/&lt;id&gt;/scene.yaml</code> and a shot under
-          <code>shots/&lt;id&gt;/shot.yaml</code>, then reload.
+          Run the breakdown on a chapter, or add
+          <code>04_scenes/&lt;id&gt;/scene.yaml</code> by hand and reload.
         </p>
+        <p><a class="button" href="{{ project_prefix }}/breakdown">Open the breakdown</a></p>
       </div>
       {% endif %}
       {% for row in scenes %}
-      <article class="card raised">
+      <article class="card">
         <div class="card-header">
           <h2><a href="{{ project_prefix }}/scene/{{ row.scene.id }}">{{ row.scene.id }}</a></h2>
+          {% if row.scene.location %}<span class="badge">{{ row.scene.location }}</span>{% endif %}
           <span class="spacer"></span>
-          <span class="faint">{{ row.done }}/{{ row.shots | length }} done</span>
+          <span class="faint mono">{{ row.done }}/{{ row.shots | length }}</span>
         </div>
-        <p class="muted" dir="auto">{{ row.scene.summary or row.scene.location }}</p>
-        <table>
-          <thead>
-            <tr><th>Shot</th><th>Stage</th><th>Checks</th><th>Length</th></tr>
-          </thead>
-          <tbody>
-            {% for shot in row.shots %}
-            <tr>
-              <td><a href="{{ project_prefix }}/shot/{{ row.scene.id }}/{{ shot.id }}">{{ shot.id }}</a></td>
-              <td>{{ stage_label[shot.status.stage] }}{% if shot.status.is_approved %} · approved{% endif %}</td>
-              <td>{{ ui.pip(row.verdicts[shot.id]) }}</td>
-              <td class="mono">{{ shot.duration_s | n }}s</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        {{ ui.meter(row.done, row.shots | length) }}
+        {% if row.scene.summary %}<p class="muted" dir="auto">{{ row.scene.summary }}</p>{% endif %}
+        <div class="shot-strip">
+          {% for shot in row.shots %}
+          <a class="chip" href="{{ project_prefix }}/shot/{{ row.scene.id }}/{{ shot.id }}"
+             {% if next and next.scene == row.scene.id and next.shot == shot.id %}data-next{% endif %}
+             title="{{ shot.id }} — {{ stage_label[shot.status.stage] }}, {{ shot.duration_s | n }}s">
+            {{ ui.pip(row.verdicts[shot.id]) }}
+            <span class="chip-id">{{ shot.id }}</span>
+            <span class="chip-stage">{{ stage_label[shot.status.stage] }}{% if shot.status.is_approved %} ✓{% endif %}</span>
+          </a>
+          {% endfor %}
+        </div>
       </article>
       {% endfor %}
     </section>

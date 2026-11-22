@@ -32,6 +32,7 @@ from shotforge import (
     compare,
     continuity,
     fixes,
+    now,
     tools,
     undo,
 )
@@ -322,6 +323,7 @@ def create_app(
             {
                 **inbox_context(project, state),
                 "scenes": scenes,
+                "next": now.next_up(project, state),
                 "log": state.approvals(limit=8),
                 "page": "scenes",
             },

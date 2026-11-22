@@ -56,6 +56,13 @@
 </div>
 {%- endmacro %}
 
+{# How far a scene has got, as one bar rather than a count to read. #}
+{% macro meter(done, total) -%}
+<div class="meter" role="img" aria-label="{{ done }} of {{ total }} shots done">
+  <span style="width: {{ (100 * done / total) | round(1) if total else 0 }}%"></span>
+</div>
+{%- endmacro %}
+
 {#
   The stages of a shot as a path you can walk back along. A stage that is
   behind you is a button that reopens it; the rest are plain.

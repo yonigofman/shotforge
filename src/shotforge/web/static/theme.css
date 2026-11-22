@@ -888,6 +888,11 @@ main {
 
 .gatebar .gate input[type="text"] {
   min-width: 14rem;
+}
+
+.gatebar button,
+.gatebar .button,
+.gatebar input[type="text"] {
   height: var(--size-control-lg);
 }
 
@@ -933,6 +938,7 @@ button:hover,
 .button:hover {
   background: var(--color-surface-hover);
   border-color: var(--color-line-control);
+  color: var(--color-ink);
 }
 
 button:active,
@@ -940,38 +946,44 @@ button:active,
   background: var(--color-surface-active);
 }
 
-button.primary {
-  height: var(--size-control-lg);
+button.primary,
+.button.primary {
   background: var(--color-accent);
   border-color: var(--color-accent);
   color: var(--color-on-accent);
   font-weight: 600;
 }
 
-button.primary:hover {
+button.primary:hover,
+.button.primary:hover {
   background: var(--color-accent-hover);
   border-color: var(--color-accent-hover);
 }
 
-button.primary:active {
+button.primary:active,
+.button.primary:active {
   background: var(--color-accent-press);
   border-color: var(--color-accent-press);
 }
 
-button.quiet {
+button.quiet,
+.button.quiet {
   background: transparent;
   border-color: var(--color-line);
   color: var(--color-ink-muted);
 }
 
-button.quiet:hover {
+button.quiet:hover,
+.button.quiet:hover {
   background: var(--color-surface-hover);
   border-color: var(--color-line-strong);
   color: var(--color-ink);
 }
 
 button[disabled],
-button[disabled]:hover {
+.button[disabled],
+button[disabled]:hover,
+.button[disabled]:hover {
   opacity: 0.5;
   background: var(--color-surface-raised);
   border-color: var(--color-line-strong);
@@ -980,7 +992,9 @@ button[disabled]:hover {
 }
 
 button.primary[disabled],
-button.primary[disabled]:hover {
+.button.primary[disabled],
+button.primary[disabled]:hover,
+.button.primary[disabled]:hover {
   background: var(--color-accent);
   border-color: var(--color-accent);
   color: var(--color-on-accent);
@@ -1669,4 +1683,113 @@ tr:last-child td {
 
 .compare-slider:focus-visible {
   opacity: 1;
+}
+
+/* --- the Now home ------------------------------------------------------ */
+
+.next {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.next-thumb {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--color-surface-neutral);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+
+.next-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.next-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.next-body h1 {
+  font-size: var(--type-title-lg-size);
+  line-height: var(--type-title-lg-line);
+}
+
+.next-body p {
+  margin: 0;
+}
+
+.eyebrow {
+  color: var(--color-ink-subtle);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: var(--type-caption-weight);
+  letter-spacing: var(--type-caption-tracking);
+  text-transform: uppercase;
+}
+
+@media (max-width: 620px) {
+  .next {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.meter {
+  display: flex;
+  height: 3px;
+  background: var(--color-surface-active);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.meter span {
+  background: var(--color-accent);
+  transition: width var(--duration-base) var(--ease-out);
+}
+
+/* A scene's shots, close enough together to read as one run. */
+.shot-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1_5) var(--space-2_5);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+  transition: background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.chip:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-line-strong);
+  color: var(--color-ink);
+}
+
+.chip[data-next] {
+  border-color: var(--color-accent-line);
+}
+
+.chip-id {
+  font-family: var(--font-mono);
+  font-size: var(--type-mono-sm-size);
+}
+
+.chip-stage {
+  color: var(--color-ink-subtle);
 }
