@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from hashlib import sha256
-from math import copysign, isfinite
+from math import copysign
 from pathlib import Path
 
 from shotforge.blender.errors import BlockoutError
@@ -16,6 +16,7 @@ from shotforge.models import Scene, Shot
 from shotforge.models.blockout import signed_distance
 from shotforge.models.shot import Technique
 from shotforge.project import Project, ProjectError
+from shotforge.tools import ToolError
 from shotforge.yamlio import ProjectFileError
 
 PASS, WARN, FAIL = "pass", "warn", "fail"
@@ -311,9 +312,18 @@ def check_video_file(
     findings: list[Finding] = []
     if progress:
         progress.status("Checking video duration…")
-    duration = probe_duration(video)
-    if duration is None or not isfinite(duration) or duration <= 0:
-        return [Finding("video readable", WARN, f"could not read the duration of {video.name}")]
+    try:
+        duration = probe_duration(video)
+    except ToolError as exc:
+        return [Finding(
+            "video tools", WARN, f"could not check {video.name}. {exc}",
+            fix="run shotforge doctor or set the executable paths under tool_paths in project.yaml",
+        )]
+    if duration is None:
+        return [Finding(
+            "video readable", WARN, f"could not read the duration of {video.name}",
+            fix="open the video in a player and export a fresh MP4 if it does not play",
+        )]
     delta = duration - shot.duration_s
     if abs(delta) > 1.0:
         findings.append(

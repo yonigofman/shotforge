@@ -6,8 +6,10 @@ Video operations use the installed FFmpeg tools. Still dimensions use Pillow.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
+from math import isfinite
 from pathlib import Path
 
 from PIL import Image
@@ -40,32 +42,51 @@ def write_design_png(source: Path, target: Path) -> None:
 
 
 def probe_duration(video: Path) -> float | None:
-    """Length of a video in seconds, or None when ffprobe cannot read it."""
-    try:
-        ffprobe = require_tool("ffprobe")
-        result = subprocess.run(
-            [
-                str(ffprobe),
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "json",
-                str(video),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except (ToolError, OSError, subprocess.SubprocessError):
-        return None
-    if result.returncode != 0:
-        return None
+    """Read a video duration, falling back to FFmpeg when ffprobe fails."""
+    commands = (
+        ("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "json", str(video)],
+         _ffprobe_duration),
+        ("ffmpeg", [
+            "-nostdin", "-hide_banner", "-v", "info", "-i", str(video),
+            "-map", "0:v:0", "-c", "copy", "-t", "0", "-f", "null", "-",
+        ], _ffmpeg_duration),
+    )
+    errors = []
+    for name, arguments, parse in commands:
+        try:
+            executable = require_tool(name)
+            result = subprocess.run(
+                [str(executable), *arguments], capture_output=True,
+                encoding="utf-8", errors="replace", timeout=30,
+            )
+        except ToolError as exc:
+            errors.append(str(exc))
+            continue
+        except (OSError, subprocess.SubprocessError) as exc:
+            errors.append(f"Could not run {name}: {exc}")
+            continue
+        if result.returncode == 0:
+            duration = parse(result)
+            if duration is not None and isfinite(duration) and duration > 0:
+                return duration
+    if len(errors) == len(commands):
+        raise ToolError(" ".join(errors))
+    return None
+
+
+def _ffprobe_duration(result: subprocess.CompletedProcess[str]) -> float | None:
     try:
         return float(json.loads(result.stdout)["format"]["duration"])
-    except (KeyError, ValueError, json.JSONDecodeError):
+    except (KeyError, TypeError, ValueError):
         return None
+
+
+def _ffmpeg_duration(result: subprocess.CompletedProcess[str]) -> float | None:
+    match = re.search(r"^\s*Duration: (\d+):(\d\d):(\d\d(?:\.\d+)?),", result.stderr, re.M)
+    if match is None:
+        return None
+    hours, minutes, seconds = match.groups()
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
 
 
 def extract_last_frame(video: Path, target: Path) -> Path:

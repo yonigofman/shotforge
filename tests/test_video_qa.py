@@ -22,7 +22,7 @@ from shotforge.web.app import create_app
 from shotforge.yamlio import dump
 
 
-def test_video_qa_without_the_extra_retains_duration(project, mp4, monkeypatch):
+def test_video_qa_without_ffprobe_or_qa_extra_retains_duration(project, mp4, monkeypatch, tmp_path):
     import_module = builtins.__import__
 
     def without_qa(name, *args, **kwargs):
@@ -31,6 +31,7 @@ def test_video_qa_without_the_extra_retains_duration(project, mp4, monkeypatch):
         return import_module(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", without_qa)
+    monkeypatch.setenv("SHOTFORGE_FFPROBE", str(tmp_path / "missing-ffprobe"))
     findings = checks.check_video_file(
         project, "s01_pub", Shot(id="silent", duration_s=5), mp4(seconds=5), vision=False
     )
@@ -39,6 +40,17 @@ def test_video_qa_without_the_extra_retains_duration(project, mp4, monkeypatch):
         ("duration", "pass"), ("camera motion", "warn"), ("speech", "warn"),
     ]
     assert all("shotforge[qa]" in f.fix for f in findings if f.level == "warn")
+
+
+def test_video_qa_explains_when_video_tools_are_missing(project, monkeypatch, tmp_path):
+    monkeypatch.setenv("SHOTFORGE_FFPROBE", str(tmp_path / "missing-ffprobe"))
+    monkeypatch.setenv("SHOTFORGE_FFMPEG", str(tmp_path / "missing-ffmpeg"))
+    findings = checks.check_video_file(
+        project, "s01_pub", Shot(id="silent", duration_s=5), tmp_path / "v1.mp4", vision=False
+    )
+    assert [(f.check, f.level) for f in findings] == [("video tools", "warn")]
+    assert "ffmpeg not found" in findings[0].message
+    assert "shotforge doctor" in findings[0].fix
 
 
 @pytest.mark.parametrize("direct", [False, True])
