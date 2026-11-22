@@ -37,6 +37,7 @@
         <main id="page">{% block content %}{% endblock %}</main>
       </div>
     </div>
+    {% include "partials/_keys.html" %}
     <div class="toasts"></div>
     {% if project %}
     <script>

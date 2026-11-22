@@ -1851,3 +1851,75 @@ tr:last-child td {
   color: var(--color-ink-disabled);
   font-size: var(--type-ui-size);
 }
+
+/* --- keyboard map ------------------------------------------------------ */
+
+.rail-item.rail-kbd-row,
+button.rail-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-weight: 400;
+  text-align: start;
+}
+
+.rail-kbd {
+  margin-inline-start: auto;
+}
+
+.keys {
+  width: min(680px, calc(100vw - var(--space-8)));
+  padding: 0;
+  background: var(--color-surface-overlay);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--color-ink);
+}
+
+.keys::backdrop {
+  background: #09090bcc;
+}
+
+.keys-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.keys-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  align-items: start;
+  gap: var(--space-5);
+  max-height: min(70vh, 32rem);
+  overflow-y: auto;
+  padding: var(--space-5);
+}
+
+.keys dl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1_5);
+  margin: var(--space-2) 0 0;
+}
+
+.keys dl > div {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.keys dt,
+.keys dd {
+  margin: 0;
+}
+
+.keys dd {
+  color: var(--color-ink-muted);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+}

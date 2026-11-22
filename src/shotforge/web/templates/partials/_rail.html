@@ -50,6 +50,10 @@
       {{ ui.icon("inbox") }}<span class="rail-text">Inbox</span>
       <span class="count" data-inbox-count {% if not inbox_count %}hidden{% endif %}>{{ inbox_count }}</span>
     </a>
+    <button type="button" class="rail-item" data-keys title="Keyboard  ?">
+      {{ ui.icon("keyboard") }}<span class="rail-text">Keyboard</span>
+      <kbd class="rail-kbd">?</kbd>
+    </button>
   </div>
   {% endif %}
 </aside>

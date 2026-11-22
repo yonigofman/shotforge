@@ -88,6 +88,10 @@ let chord = 0;
 document.addEventListener("keydown", (event) => {
   if (event.ctrlKey || event.metaKey || event.altKey || event.target.isContentEditable ||
       event.target.matches("input, textarea, select")) return;
+  if (event.key === "?") {
+    document.getElementById("keys")?.showModal();
+    return;
+  }
   if (event.key === "[") {
     setRail(document.documentElement.dataset.rail !== "shut");
     return;
@@ -184,6 +188,10 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-keys]")) {
+    document.getElementById("keys")?.showModal();
+    return;
+  }
   if (event.target.closest("[data-rail-toggle]")) {
     setRail(document.documentElement.dataset.rail !== "shut");
     return;
