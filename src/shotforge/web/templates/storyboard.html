@@ -6,6 +6,8 @@
     <h1>{{ scene.id }}</h1>
     <span class="badge">{{ scene.location }}</span>
     {% if scene.time %}<span class="faint">{{ scene.time }}</span>{% endif %}
+    <span class="spacer"></span>
+    <a class="button" href="/scene/{{ scene.id }}/cut">Rough cut</a>
   </div>
   {% if scene.axis_180 %}<p class="muted" dir="auto">180°: {{ scene.axis_180 }}</p>{% endif %}
 

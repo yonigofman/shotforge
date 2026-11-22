@@ -83,6 +83,15 @@ wheels = [
 ]
 
 [[package]]
+name = "filelock"
+version = "4.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6c/bf/a895b0b8e83d0a64d134f658e393e83998abfc22bbb8b58181ce55268706/filelock-4.3.0.tar.gz", hash = "sha256:143407310acf479e82d88068e3b9a6486f45fb410c0ed8729fe7359eaabeb6f1", size = 742199 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/68/66/870b527908a06c7ec0e91239bd2c4d0bb22921efd4f915428b4e47d461a6/filelock-4.3.0-py3-none-any.whl", hash = "sha256:f933f39f7e01249a4a49b9abab30edc6d4b874624c3de5dd0b0d137aa8adb979", size = 244553 },
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -818,6 +827,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "filelock" },
     { name = "jinja2" },
     { name = "pydantic" },
     { name = "python-multipart" },
@@ -841,6 +851,7 @@ qa = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.111" },
+    { name = "filelock", specifier = ">=3.13" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "numpy", marker = "extra == 'qa'", specifier = ">=1.26" },

@@ -18,6 +18,7 @@ from shotforge import (
     checks,
     cinematography,
     continuity,
+    edit,
     texture,
     tools,
 )
@@ -146,6 +147,19 @@ def continuity_cmd(
             typer.echo(f"      fix: {finding.fix}")
     if any(finding.failed for finding in findings):
         raise typer.Exit(1)
+
+
+@app.command()
+def cut(scene: str, project_dir: Path | None = ProjectOption) -> None:
+    """Assemble the scene's approved video, EDL and editable reels."""
+    project, _ = _open(project_dir)
+    try:
+        output = edit.assemble(project, scene)
+    except (edit.EditError, ProjectError, ProjectFileError, tools.ToolError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    for name in (edit.VIDEO, edit.EDL, edit.EXPORT):
+        typer.echo(project.paths.rel(output.with_name(name)))
 
 
 @app.command("breakdown")

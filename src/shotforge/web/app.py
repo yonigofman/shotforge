@@ -34,6 +34,7 @@ from shotforge.skills.registry import SkillError
 from shotforge.state import ProjectState
 from shotforge.takes import Take, TakeKind, approved_take_number, get_take, list_takes
 from shotforge.web.bible import materials_for_page, register_bible
+from shotforge.web.edit import register_edit
 from shotforge.yamlio import ProjectFileError
 
 HERE = Path(__file__).resolve().parent
@@ -428,6 +429,7 @@ def create_app(project_root: Path) -> FastAPI:
         return render(request, "partials/_takes.html", context)
 
     register_bible(app, load, render)
+    register_edit(app, load, render)
 
     @app.get("/log", response_class=HTMLResponse)
     def log_page(request: Request) -> HTMLResponse:

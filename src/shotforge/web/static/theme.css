@@ -763,3 +763,41 @@ tr:last-child td {
 #sheet, #ref, #prompts, #approval {
   scroll-margin-top: calc(var(--size-topbar-height) + var(--space-4));
 }
+
+/* Rough cut */
+.edit-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-left: 2px solid var(--color-line);
+}
+
+.edit-timeline > li {
+  position: relative;
+  padding: var(--space-2) var(--space-4);
+  gap: var(--space-2);
+}
+
+.edit-timeline > li::before {
+  position: absolute;
+  top: 16px;
+  left: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  content: "";
+}
+
+.edit-timeline input[type="number"] {
+  width: 6rem;
+}
+
+.edit-problem {
+  color: var(--color-ink-muted);
+}
+
+.frame video {
+  display: block;
+  width: 100%;
+}

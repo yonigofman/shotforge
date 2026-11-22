@@ -32,7 +32,7 @@ being written by hand.
 | Chapter breakdown and scene-to-shots skills | done |
 | Bible editing, design prompts, and entity approval | done |
 | Cinematography skill and technique library | done |
-| Rough cut and assembly | not yet (Phase 5) |
+| Rough-cut timeline, sound bridges and CMX 3600 export | done |
 
 ## Install
 
@@ -233,6 +233,42 @@ shot to try a new texture, or run `shotforge blockout s01_pub --changed` to
 reuse current outputs. A new texture only changes the render inputs of scenes
 that use its assigned surface.
 
+## Assemble a rough cut
+
+Approve the video for every shot in the scene. Open **Rough cut** from its
+storyboard to see the cut order. Set each bridge in seconds, using the
+outgoing clip's tail only when it contains ambience you want to carry over.
+Set the title and duration of the end card, then click **Assemble** to play
+the cut in the cockpit. For Last Light, repeat the demo steps with the
+`sh02` takes and try a 0.6-second bridge after `sh01`.
+
+```sh
+shotforge cut s01_last_light -C last_light
+```
+
+Both entry points use the scene's `rough_cut.yaml`. You can edit it
+directly. The `bridges` keys identify the outgoing shots.
+
+```yaml
+bridges:
+  sh01: 0.6
+end_title: Last Light
+end_seconds: 2
+```
+
+The latest assembly in a project is written to `05_edit/rough_cut.mp4`,
+`05_edit/rough_cut.edl`, and `05_edit/rough_cut.zip`. Keep the ZIP for a
+scene before assembling another one. The ZIP contains the CMX 3600 EDL
+and the matching reels, including the end card and rendered audio bridges.
+
+For DaVinci Resolve, extract the ZIP, set the project and timeline to
+the Shotforge project's frame rate, and import the `reels/` folder
+into the media pool. In **Project Settings → General Options**, enable
+reel names from **Source clip filename**. Then import `rough_cut.edl`
+as a timeline. The EDL starts at `01:00:00:00` and uses non-drop-frame
+timecode. Use 24, 25 or 30 fps for a standard CMX 3600 handoff.
+You can also import the assembled MP4 directly into your editor.
+
 ## The project folder
 
 One fixed tree per project, with fixed file names, so you always know what to
@@ -254,7 +290,7 @@ attach to a prompt:
 │       ├── video/               # v1.mp4 … + approved → shot.mp4
 │       ├── last_frame.png       # pulled from the approved video
 │       └── qa/                  # a report per take
-├── 05_edit/
+├── 05_edit/                     # rough_cut.mp4, rough_cut.edl, rough_cut.zip
 ├── _inbox/                      # download here; the cockpit files it
 └── .shotforge/                  # state and the approval log
 ```
