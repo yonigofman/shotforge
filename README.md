@@ -117,6 +117,11 @@ Use `shotforge doctor` to check available tools and `tool_paths` in
    approval in `.shotforge/state.json` and shows it in the log. An entity edit
    or image replacement sends the design back for review.
 
+For a first-frame wall reference, render or generate an empty view of the
+location that shows the wall finish and any windows. Save the PNG as
+`02_design/locations/<id>/wall_ref.png` in your project. Shotforge lists it
+with the Pass 1 attachments and uses it in frame vision QA.
+
 ## Start from a chapter
 
 Put the chapter text in `00_source/` as Markdown or plain text. With Claude
