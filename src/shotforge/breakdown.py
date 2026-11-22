@@ -10,7 +10,7 @@ from typing import TypeVar
 
 from pydantic import Field, ValidationError
 
-from shotforge.engine import Engine, EngineError, get_engine
+from shotforge.engine import Engine, EngineError, EngineProgress, get_engine
 from shotforge.models import Character, Location, Prop, Scene, Shot, ShotStatus
 from shotforge.models.common import ID_RE, Entity, SFModel, as_plain
 from shotforge.project import KINDS, Project, ProjectError
@@ -73,7 +73,8 @@ def read_chapter(project: Project, chapter: str | None) -> Chapter:
 
 
 def propose_book(
-    project: Project, chapter: Chapter, *, engine: Engine | None = None
+    project: Project, chapter: Chapter, *, engine: Engine | None = None,
+    progress: EngineProgress | None = None,
 ) -> BookBreakdown:
     bible = {kind: as_plain(project.entities(kind)) for kind in KINDS}
     book = _run(
@@ -88,6 +89,7 @@ def propose_book(
             "existing_scenes": as_plain(project.scenes()),
         },
         BookBreakdown,
+        progress,
     )
     known = {}
     for kind in KINDS:
@@ -115,6 +117,7 @@ def propose_shots(
     *,
     book: BookBreakdown | None = None,
     engine: Engine | None = None,
+    progress: EngineProgress | None = None,
 ) -> list[Shot]:
     characters = project.entities("character")
     if book is not None:
@@ -132,6 +135,7 @@ def propose_shots(
             "existing_shot_ids": project.shot_ids(scene.id),
         },
         ShotList,
+        progress,
     )
     _check_ids(shot_list.shots, f"shot in {scene.id}")
     shots = []
@@ -202,11 +206,19 @@ def _check_catalog(
 T = TypeVar("T", bound=SFModel)
 
 
-def _run(project: Project, engine: Engine | None, name: str, inputs: dict, schema: type[T]) -> T:
+def _run(
+    project: Project, engine: Engine | None, name: str, inputs: dict, schema: type[T],
+    progress: EngineProgress | None,
+) -> T:
     try:
         skill = find_skill(name, project.paths.skills)
         engine = engine or get_engine(project.config.engine)
-        result = engine.run_skill(skill, inputs, cwd=project.paths.root)
+        if progress is None:
+            result = engine.run_skill(skill, inputs, cwd=project.paths.root)
+        else:
+            result = engine.run_skill_with_progress(
+                skill, inputs, cwd=project.paths.root, progress=progress,
+            )
         return schema.model_validate(result.structured())
     except ValidationError as exc:
         detail = _validation_detail(exc)

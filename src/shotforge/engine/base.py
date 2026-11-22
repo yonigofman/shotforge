@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import abc
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from threading import Event
 from typing import Any
 
 from shotforge.skills.registry import Skill
@@ -13,6 +15,14 @@ from shotforge.skills.registry import Skill
 
 class EngineError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class EngineProgress:
+    """Report the first model output and let the caller cancel a proposal."""
+
+    on_output: Callable[[], None]
+    cancelled: Event
 
 
 @dataclass
@@ -54,6 +64,19 @@ class Engine(abc.ABC):
 
     def available(self) -> bool:
         return True
+
+    def run_skill_with_progress(
+        self,
+        skill: Skill,
+        inputs: dict[str, Any],
+        *,
+        cwd: Path,
+        progress: EngineProgress,
+    ) -> EngineResult:
+        """Run a text proposal, falling back to a single result on other engines."""
+        if progress.cancelled.is_set():
+            raise EngineError("Proposal generation was cancelled.")
+        return self.run_skill(skill, inputs, cwd=cwd)
 
 
 def get_engine(name: str) -> Engine:

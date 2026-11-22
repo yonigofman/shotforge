@@ -1,0 +1,29 @@
+{% macro skeleton() %}
+<div class="proposal-skeleton stack" aria-hidden="true">
+  <i></i><i></i><i></i>
+</div>
+{% endmacro %}
+
+{% macro loading(message) %}
+<template data-proposal-loading>
+  <div class="stack">
+    <div class="row">
+      <p class="muted" data-proposal-status role="status">{{ message }}</p>
+      <span class="spacer"></span>
+      <button type="button" class="quiet" data-proposal-cancel>Cancel</button>
+    </div>
+    <div class="stack" data-proposal-scenes>
+      <div class="card">{{ skeleton() }}</div>
+    </div>
+    <template data-proposal-scene>
+      <article class="card stack">
+        <div class="row">
+          <strong class="mono" data-proposal-scene-id></strong>
+          <span class="muted" data-proposal-scene-status>Waiting for shots</span>
+        </div>
+        {{ skeleton() }}
+      </article>
+    </template>
+  </div>
+</template>
+{% endmacro %}

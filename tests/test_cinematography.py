@@ -180,3 +180,24 @@ def test_a_pending_proposal_cannot_overwrite_new_work_or_edit_an_approved_shot(
         cinematography.apply_camera(example_project, SCENE, SHOT, proposal)
     client = TestClient(create_app(example_project.paths.root))
     assert "Propose camera" not in client.get(URL).text
+
+
+def test_camera_stream_uses_the_existing_review_and_approval(example_project, engine, monkeypatch):
+    def stream(self, skill, inputs, *, cwd, progress):
+        progress.on_output()
+        return self.run_skill(skill, inputs, cwd=cwd)
+
+    monkeypatch.setattr(ClaudeCodeEngine, "run_skill_with_progress", stream)
+    client = TestClient(create_app(example_project.paths.root))
+    path = example_project.paths.shot(SCENE, SHOT).spec
+    before = path.read_bytes()
+    response = client.post(f"{URL}/camera", headers={"Accept": "application/x-ndjson"})
+    events = [json.loads(line) for line in response.text.splitlines() if line.strip()]
+    assert [event["type"] for event in events] == ["status", "status", "complete"]
+    assert events[1]["message"] == "Drafting camera changes…"
+    assert path.read_bytes() == before
+
+    form = _ProposalForm()
+    form.feed(events[-1]["html"])
+    result = client.post(f"{URL}/camera/apply", data={"token": form.token})
+    assert result.status_code == 200 and "Lens 50 mm" in result.text

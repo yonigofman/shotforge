@@ -1,41 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Breakdown — {{ project.name }}{% endblock %}
 
-{% macro provenance(record) %}
-  {% for label, notes in [("From the book", record.from_book), ("Design choices", record.design_choices)] %}
-    {% if notes %}
-    <div>
-      <h3>{{ label }}</h3>
-      <ul class="breakdown-notes">
-        {% for note in notes %}<li>{{ note }}</li>{% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-  {% endfor %}
-{% endmacro %}
+{% import "partials/_proposal_loading.html" as proposal %}
 
 {% block content %}
 <div class="stack">
   <h1>Breakdown</h1>
-  {% if error %}<p class="card" role="alert">{{ error }}</p>{% endif %}
-  {% if written is defined %}
-  <div class="card" role="status">
-    <p>Saved {{ written|length }} {{ "file" if written|length == 1 else "files" }}. New shots are in Breakdown.</p>
-    <div class="row">
-      {% for scene in saved_scenes %}
-      <a class="button" href="{{ project_prefix }}/scene/{{ scene.id }}">Open {{ scene.id }} storyboard</a>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-  {% if collisions %}
-  <section class="card" aria-labelledby="collision-title">
-    <h2 id="collision-title">Skipped ID collisions</h2>
-    <ul>
-      {% for path in collisions %}<li><code>{{ rel(path) }}</code></li>{% endfor %}
-    </ul>
-  </section>
-  {% endif %}
   <div class="breakdown-workspace">
     <section class="card stack breakdown-source" aria-labelledby="chapter-title">
       <h2 id="chapter-title">Chapter text</h2>
@@ -57,88 +27,10 @@
 
     <section class="stack" aria-labelledby="proposal-title">
       <h2 id="proposal-title">Scene and shot proposal</h2>
-      {% if draft %}
-      <form class="stack" method="post" action="{{ project_prefix }}/breakdown/approve">
-        <input type="hidden" name="token" value="{{ token }}">
-        {% set fields = form|default({}) %}
-        {% for scene in draft.book.scenes %}
-        <section class="card stack">
-          <h2>{{ scene.id }}</h2>
-          {% if scene.summary %}<div dir="auto">{{ scene.summary }}</div>{% endif %}
-          <div class="muted">
-            {{ scene.location }}{% if scene.time %} · {{ scene.time }}{% endif %}
-            {% if scene.characters %} · {{ scene.characters|join(", ") }}{% endif %}
-            {% if scene.props %} · {{ scene.props|join(", ") }}{% endif %}
-          </div>
-          {{ provenance(scene) }}
-          {% for shot in shots.get(scene.id, []) %}
-          <section class="card raised stack">
-            <h3><span class="mono">{{ shot.id }}</span> · {{ shot.duration_s|n }} s{% if shot.size %} · {{ shot.size }}{% endif %}</h3>
-            {% if shot.summary %}<div dir="auto">{{ shot.summary }}</div>{% endif %}
-            {% for beat in shot.beats %}
-            {% set key = scene.id ~ "." ~ shot.id ~ "." ~ loop.index0 %}
-            <fieldset class="breakdown-beat">
-              <legend>Beat {{ loop.index }}</legend>
-              <div class="breakdown-beat-time">
-                <label>Start (s)
-                  <input type="number" step="any" min="0" required name="{{ key }}.start"
-                         value="{{ fields.get(key ~ '.start', beat.t[0]) }}">
-                </label>
-                <label>End (s)
-                  <input type="number" step="any" min="0" required name="{{ key }}.end"
-                         value="{{ fields.get(key ~ '.end', beat.t[1]) }}">
-                </label>
-              </div>
-              <label>Action
-                <textarea name="{{ key }}.action" rows="2" dir="auto">{{ fields.get(key ~ '.action', beat.action or '') }}</textarea>
-              </label>
-              <label>Speaker
-                <input type="text" name="{{ key }}.speaker" list="breakdown-characters"
-                       value="{{ fields.get(key ~ '.speaker', beat.speaker or '') }}">
-              </label>
-              <label>Dialogue
-                <textarea name="{{ key }}.line" rows="2" dir="auto">{{ fields.get(key ~ '.line', beat.line or '') }}</textarea>
-              </label>
-              <label class="row">
-                <input type="checkbox" name="{{ key }}.silence"
-                       {% if key ~ '.silence' in fields or (key ~ '.start' not in fields and beat.silence) %}checked{% endif %}>
-                Silence
-              </label>
-            </fieldset>
-            {% endfor %}
-          </section>
-          {% endfor %}
-        </section>
-        {% endfor %}
-        {% if draft.book.characters or draft.book.locations or draft.book.props %}
-        <section class="card stack">
-          <h2>Proposed bible entries</h2>
-          {% for label, entries in [("Character", draft.book.characters), ("Location", draft.book.locations), ("Prop", draft.book.props)] %}
-            {% for entry in entries %}
-            <section class="stack">
-              <h3>{{ label }} · {{ entry.id }}</h3>
-              {{ provenance(entry) }}
-            </section>
-            {% endfor %}
-          {% endfor %}
-        </section>
-        {% endif %}
-        <datalist id="breakdown-characters">
-          {% for character in characters %}<option value="{{ character }}">{% endfor %}
-        </datalist>
-        {% if draft.plan.files %}
-        <div class="row">
-          <button class="primary" type="submit">Approve and save</button>
-          <span class="muted">New shots enter Breakdown.</span>
-        </div>
-        {% endif %}
-      </form>
-      {% elif source %}
-      <form method="post" action="{{ project_prefix }}/breakdown/propose">
-        <input type="hidden" name="chapter" value="{{ source.name }}">
-        <button class="primary" type="submit">Generate proposal</button>
-      </form>
-      {% endif %}
+      <div id="breakdown-proposal" class="stack" tabindex="-1">
+        {% include "partials/_breakdown_proposal.html" %}
+      </div>
+      {{ proposal.loading("Starting the chapter proposal…") }}
     </section>
   </div>
 </div>

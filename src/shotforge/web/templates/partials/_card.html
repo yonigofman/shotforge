@@ -1,4 +1,5 @@
 {% import "partials/_macros.html" as ui %}
+{% import "partials/_proposal_loading.html" as proposal %}
 {% set prompt_action = fix_prompt.action if fix_prompt else action %}
 {% set prompt_text = fix_prompt.text if fix_prompt else prompt_text %}
 {% set prompt_path = fix_prompt.path if fix_prompt else prompt_path %}
@@ -178,12 +179,12 @@
           <h3>Camera</h3>
           {% if shot.status.value == 'breakdown' %}
           <span class="spacer"></span>
-          <button
-            hx-post="{{ project_prefix }}/shot/{{ scene.id }}/{{ shot.id }}/camera"
-            hx-target="#camera-proposal"
-            hx-swap="innerHTML"
-            hx-disabled-elt="this"
-          >Propose camera <span class="spinner">…</span></button>
+          {% set camera_url = project_prefix ~ "/shot/" ~ scene.id ~ "/" ~ shot.id ~ "/camera" %}
+          <form method="post" action="{{ camera_url }}" data-proposal-target="camera-proposal"
+                hx-post="{{ camera_url }}" hx-target="#camera-proposal" hx-swap="innerHTML"
+                hx-disabled-elt="find button">
+            <button type="submit">Propose camera <span class="spinner">…</span></button>
+          </form>
           {% endif %}
         </div>
         {% if shot.camera.why %}
@@ -200,7 +201,8 @@
         <p dir="auto">{{ shot.technique_why }}</p>
         {% endif %}
         {% if shot.status.value == 'breakdown' %}
-        <div id="camera-proposal" class="stack" aria-live="polite"></div>
+        <div id="camera-proposal" class="stack" tabindex="-1"></div>
+        {{ proposal.loading("Starting the camera proposal…") }}
         {% endif %}
       </article>
       {% endif %}

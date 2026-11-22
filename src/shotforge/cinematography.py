@@ -12,7 +12,7 @@ from typing import Annotated, Literal
 from pydantic import Field, ValidationError, field_validator
 
 from shotforge import checks
-from shotforge.engine import EngineError, get_engine
+from shotforge.engine import EngineError, EngineProgress, get_engine
 from shotforge.models import Scene, Shot, ShotStatus
 from shotforge.models.common import ID_RE, SFModel, as_plain
 from shotforge.models.shot import Technique
@@ -126,7 +126,9 @@ def _candidate(project: Project, context: _Context, plan: CameraPlan) -> Shot:
     return shot
 
 
-def propose_camera(project: Project, scene_id: str, shot_id: str) -> tuple[CameraProposal, str]:
+def propose_camera(
+    project: Project, scene_id: str, shot_id: str, *, progress: EngineProgress | None = None,
+) -> tuple[CameraProposal, str]:
     """Generate and validate a proposal, then show the diff without writing the shot."""
     context = _context(project, scene_id, shot_id)
     try:
@@ -137,7 +139,12 @@ def propose_camera(project: Project, scene_id: str, shot_id: str) -> tuple[Camer
             library = bundled_root() / SKILL_NAME / reference
         inputs = {**context.inputs(), "technique_library": library.read_text(encoding="utf-8")}
         engine = get_engine(project.config.engine)
-        result = engine.run_skill(skill, inputs, cwd=project.paths.root)
+        if progress is None:
+            result = engine.run_skill(skill, inputs, cwd=project.paths.root)
+        else:
+            result = engine.run_skill_with_progress(
+                skill, inputs, cwd=project.paths.root, progress=progress,
+            )
         plan = CameraPlan.model_validate(result.structured())
     except ValidationError as exc:
         details = ", ".join(

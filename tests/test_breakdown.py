@@ -224,3 +224,59 @@ def test_cockpit_proposes_scene_two_with_a_hand_written_scene_one(chapter_projec
     assert project.paths.scene(FIRST).spec.read_bytes() == existing
     assert project.shot_ids(FIRST) == []
     assert project.shot(SECOND, "sh01").status is ShotStatus.breakdown
+
+
+def test_streamed_breakdown_reports_scenes_before_the_editable_review(
+    chapter_project, model, monkeypatch,
+):
+    def stream(self, skill, inputs, *, cwd, progress):
+        progress.on_output()
+        return self.run_skill(skill, inputs, cwd=cwd)
+
+    monkeypatch.setattr(ClaudeCodeEngine, "run_skill_with_progress", stream)
+    client = TestClient(create_app(chapter_project.paths.root))
+
+    response = client.post("/breakdown/propose", data={"chapter": "ch01.md"},
+                           headers={"Accept": "application/x-ndjson"})
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/x-ndjson")
+    events = [json.loads(line) for line in response.text.splitlines() if line.strip()]
+    assert {"type": "status", "message": "Drafting scenes and bible entries…"} in events
+    assert [event for event in events if event["type"] != "status"][:-1] == [
+        {"type": "scenes", "ids": [FIRST, SECOND]},
+        {"type": "scene", "id": FIRST, "shots": 1},
+        {"type": "scene", "id": SECOND, "shots": 1},
+    ]
+    assert events[-1]["type"] == "complete"
+    review = events[-1]["html"]
+    assert "Approve and save" in review and "<!doctype html>" not in review
+    assert all("html" not in event for event in events[:-1])
+    assert not chapter_project.scene_ids()
+
+    token = re.search('name="token" value="([^"]+)"', review)[1]
+    assert client.post("/breakdown/approve", data={"token": token}).status_code == 200
+    assert chapter_project.shot(SECOND, "sh01").status is ShotStatus.breakdown
+
+
+def test_stream_returns_retry_form_if_a_later_scene_is_invalid(chapter_project, model, monkeypatch):
+    model[SECOND]["shots"][0]["duration_s"] = 1
+
+    def stream(self, skill, inputs, *, cwd, progress):
+        return self.run_skill(skill, inputs, cwd=cwd)
+
+    monkeypatch.setattr(ClaudeCodeEngine, "run_skill_with_progress", stream)
+    client = TestClient(create_app(chapter_project.paths.root))
+    response = client.post("/breakdown/propose", data={"chapter": "ch01.md"},
+                           headers={"Accept": "application/x-ndjson"})
+    events = [json.loads(line) for line in response.text.splitlines() if line.strip()]
+    assert {"type": "scene", "id": FIRST, "shots": 1} in events
+    assert not any(event.get("id") == SECOND for event in events)
+    review = events[-1]["html"]
+    assert "beats run to" in review
+    assert "Generate proposal" in review and "Approve and save" not in review
+    assert not chapter_project.scene_ids()
+
+    model[SECOND]["shots"][0]["duration_s"] = 6
+    response = client.post("/breakdown/propose", data={"chapter": "ch01.md"},
+                           headers={"Accept": "application/x-ndjson"})
+    assert "Approve and save" in json.loads(response.text.splitlines()[-1])["html"]

@@ -21,7 +21,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.datastructures import FormData
-from starlette.responses import FileResponse
+from starlette.responses import FileResponse, Response
 
 from shotforge import actions, blender, breakdown, checks, cinematography, continuity, fixes, tools
 from shotforge import inbox as inbox_mod
@@ -38,6 +38,7 @@ from shotforge.web.bible import materials_for_page, register_bible
 from shotforge.web.edit import register_edit
 from shotforge.web.local import LocalOnlyMiddleware
 from shotforge.web.projects import project_prefix, register_projects
+from shotforge.web.proposals import ProposalProgress, accepts_proposal_stream, stream_proposal
 from shotforge.yamlio import ProjectFileError
 
 HERE = Path(__file__).resolve().parent
@@ -271,11 +272,12 @@ def create_app(
         )
 
     def render_breakdown(
-        request: Request, project: Project, *, status_code: int = 200, **context: Any
+        request: Request, project: Project, *, status_code: int = 200, fragment: bool = False,
+        **context: Any
     ) -> HTMLResponse:
         return render(
             request,
-            "breakdown.html",
+            "partials/_breakdown_proposal.html" if fragment else "breakdown.html",
             {
                 "project": project,
                 "page": "breakdown",
@@ -299,36 +301,62 @@ def create_app(
         return render_breakdown(request, project, source=source, selected=selected, error=error)
 
     @routes.post("/breakdown/propose", response_class=HTMLResponse)
-    def generate_breakdown(request: Request, chapter: str = Form(...)) -> HTMLResponse:
+    async def generate_breakdown(request: Request, chapter: str = Form(...)) -> Response:
         project, _ = load(request)
-        source = None
-        try:
-            source = breakdown.read_chapter(project, chapter)
-            book = breakdown.propose_book(project, source)
-            plan = breakdown.WritePlan.for_book(project, book)
-            new_scenes = [entry.spec for entry in plan.files if isinstance(entry.spec, Scene)]
-            for scene in new_scenes:
-                try:
-                    shots = breakdown.propose_shots(project, scene, source, book=book)
-                except breakdown.BreakdownError as exc:
-                    raise breakdown.BreakdownError(f"{scene.id}: {exc}") from exc
-                plan.add(breakdown.WritePlan.for_shots(project, scene.id, shots))
-        except BREAKDOWN_ERRORS as exc:
-            return render_breakdown(
-                request,
-                project,
-                source=source,
-                selected=source.name if source else chapter,
-                error=str(exc),
-                status_code=400,
-            )
-        draft = BreakdownDraft(project.paths.root, source, book, plan)
-        token = uuid4().hex
-        with drafts_lock:
-            drafts[token] = draft
-            if len(drafts) > 16:
-                drafts.popitem(last=False)
-        return review_breakdown(request, project, token, draft)
+
+        def generate(progress: ProposalProgress | None) -> HTMLResponse:
+            source = None
+            try:
+                if progress:
+                    progress.status("Reading the chapter…")
+                source = breakdown.read_chapter(project, chapter)
+                if progress:
+                    progress.status("Waiting for the chapter breakdown…")
+                book_progress = (
+                    progress.engine("Drafting scenes and bible entries…") if progress else None
+                )
+                book = breakdown.propose_book(
+                    project, source, progress=book_progress,
+                )
+                plan = breakdown.WritePlan.for_book(project, book)
+                new_scenes = [entry.spec for entry in plan.files if isinstance(entry.spec, Scene)]
+                if progress:
+                    progress.send({"type": "scenes", "ids": [scene.id for scene in new_scenes]})
+                for index, scene in enumerate(new_scenes, 1):
+                    if progress:
+                        progress.status(f"Planning scene {index} of {len(new_scenes)}…")
+                    try:
+                        shots = breakdown.propose_shots(
+                            project, scene, source, book=book,
+                            progress=progress.engine(f"Drafting shots for {scene.id}…")
+                            if progress else None,
+                        )
+                    except breakdown.BreakdownError as exc:
+                        raise breakdown.BreakdownError(f"{scene.id}: {exc}") from exc
+                    plan.add(breakdown.WritePlan.for_shots(project, scene.id, shots))
+                    if progress:
+                        progress.send({"type": "scene", "id": scene.id, "shots": len(shots)})
+            except BREAKDOWN_ERRORS as exc:
+                return render_breakdown(
+                    request,
+                    project,
+                    source=source,
+                    selected=source.name if source else chapter,
+                    error=str(exc),
+                    status_code=400,
+                    fragment=progress is not None,
+                )
+            draft = BreakdownDraft(project.paths.root, source, book, plan)
+            token = uuid4().hex
+            with drafts_lock:
+                drafts[token] = draft
+                if len(drafts) > 16:
+                    drafts.popitem(last=False)
+            return review_breakdown(request, project, token, draft, fragment=progress is not None)
+
+        if accepts_proposal_stream(request):
+            return stream_proposal(generate)
+        return await run_in_threadpool(generate, None)
 
     def review_breakdown(
         request: Request, project: Project, token: str, draft: BreakdownDraft, **context: Any
@@ -483,35 +511,46 @@ def create_app(
 
     # ---- actions ---------------------------------------------------------
     @routes.post("/shot/{scene_id}/{shot_id}/camera", response_class=HTMLResponse)
-    def propose_camera(request: Request, scene_id: str, shot_id: str) -> HTMLResponse:
+    async def propose_camera(request: Request, scene_id: str, shot_id: str) -> Response:
         project, _ = load(request)
-        try:
-            proposal, diff = cinematography.propose_camera(project, scene_id, shot_id)
-        except ProjectError as exc:
-            raise HTTPException(404, str(exc)) from exc
-        except CAMERA_ERRORS as exc:
+
+        def generate(progress: ProposalProgress | None) -> HTMLResponse:
+            try:
+                if progress:
+                    progress.status("Reviewing the scene and neighbouring shots…")
+                proposal, diff = cinematography.propose_camera(
+                    project, scene_id, shot_id,
+                    progress=progress.engine("Drafting camera changes…") if progress else None,
+                )
+            except ProjectError as exc:
+                raise HTTPException(404, str(exc)) from exc
+            except CAMERA_ERRORS as exc:
+                return render(
+                    request,
+                    "partials/_camera_proposal.html",
+                    {"project": project, "camera_error": str(exc)},
+                )
+            token = None
+            if diff:
+                token = uuid4().hex
+                with drafts_lock:
+                    camera_drafts[token] = (project.paths.root, scene_id, shot_id, proposal)
+                    if len(camera_drafts) > 16:
+                        camera_drafts.popitem(last=False)
             return render(
                 request,
                 "partials/_camera_proposal.html",
-                {"project": project, "camera_error": str(exc)},
+                {
+                    "project": project,
+                    "camera_token": token,
+                    "camera_diff": diff,
+                    "shot_url": f"{project_prefix(request)}/shot/{scene_id}/{shot_id}",
+                },
             )
-        token = None
-        if diff:
-            token = uuid4().hex
-            with drafts_lock:
-                camera_drafts[token] = (project.paths.root, scene_id, shot_id, proposal)
-                if len(camera_drafts) > 16:
-                    camera_drafts.popitem(last=False)
-        return render(
-            request,
-            "partials/_camera_proposal.html",
-            {
-                "project": project,
-                "camera_token": token,
-                "camera_diff": diff,
-                "shot_url": f"{project_prefix(request)}/shot/{scene_id}/{shot_id}",
-            },
-        )
+
+        if accepts_proposal_stream(request):
+            return stream_proposal(generate)
+        return await run_in_threadpool(generate, None)
 
     @routes.post("/shot/{scene_id}/{shot_id}/camera/apply", response_class=HTMLResponse)
     def apply_camera(

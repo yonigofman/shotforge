@@ -121,9 +121,10 @@ Use `shotforge doctor` to check available tools and `tool_paths` in
 
 Put the chapter text in `00_source/` as Markdown or plain text. With Claude
 Code signed in, open **Breakdown** in the cockpit, choose the chapter and
-generate a proposal. Read the chapter alongside the proposed scenes, bible
-entries and shots. Edit the timed beats in place, then use **Approve and save**
-to create the reviewed files.
+generate a proposal. The cockpit shows progress as Claude drafts the chapter
+and plans shots for each scene. You can cancel while it works. Read the chapter
+alongside the proposed scenes, bible entries and shots. Edit the timed beats
+in place, then use **Approve and save** to create the reviewed files.
 
 From the terminal, run the two steps separately. Use the scene ID shown in the
 first diff for the second command.
@@ -361,8 +362,9 @@ added without touching the pipeline or the skills.
 
 During Breakdown, `shotforge camera <scene> <shot>` or **Propose camera** on
 the shot card uses the scene seating, the 180° line, and adjacent shots to
-propose a lens, height, angle, and techniques from the bundled library. Review
-the diff and apply it to save the settings and their reasons to `shot.yaml`.
+propose a lens, height, angle, and techniques from the bundled library. The
+shot card shows generation progress until the diff is ready to review. Apply
+the diff to save the settings and their reasons to `shot.yaml`.
 Shotforge refuses a proposal that crosses the line or uses over-the-shoulder
 framing without a foreground character. The shot card shows the saved reasons.
 
