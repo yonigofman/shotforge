@@ -44,7 +44,8 @@
         {% endif %}
       </article>
       {% else %}
-      <p class="muted">No {{ group.kind }}s yet.</p>
+      {{ ui.empty_state("No " ~ group.kind ~ "s yet",
+                        "Add one, or let the breakdown name the ones a scene needs.") }}
       {% endfor %}
     </div>
   </section>

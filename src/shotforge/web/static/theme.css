@@ -2131,3 +2131,61 @@ button.rail-item {
     transparent 4px 8px
   );
 }
+
+/* A disclosure that reads as an action until you open it. */
+.add-rule > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  padding: var(--space-1) var(--space-2);
+  margin-inline-start: calc(-1 * var(--space-2));
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-subtle);
+  font-size: var(--type-ui-size);
+  cursor: pointer;
+  list-style: none;
+}
+
+.add-rule > summary::-webkit-details-marker {
+  display: none;
+}
+
+.add-rule > summary::before {
+  content: "+";
+  font-size: var(--type-body-size);
+  line-height: 1;
+}
+
+.add-rule > summary:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-ink);
+}
+
+.add-rule[open] > summary {
+  margin-bottom: var(--space-2);
+}
+
+/* --- empty states ------------------------------------------------------ */
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-8) var(--space-4);
+  text-align: center;
+}
+
+.empty strong {
+  color: var(--color-ink-muted);
+  font-size: var(--type-body-size);
+  font-weight: 500;
+}
+
+.empty p {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--color-ink-subtle);
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+}

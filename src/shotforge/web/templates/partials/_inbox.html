@@ -2,9 +2,8 @@
 <div class="card">
   {% if material_error %}<p class="muted" role="alert">{{ material_error }}</p>{% endif %}
   {% if not inbox %}
-  <p class="faint">
-    Empty. Download from ChatGPT or Grok into <code>_inbox/</code> and it shows up here.
-  </p>
+  {{ ui.empty_state("The inbox is empty",
+                    "Download from ChatGPT or Grok into _inbox/ and it shows up here.") }}
   {% else %}
   <table>
     <tbody>

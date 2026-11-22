@@ -77,7 +77,7 @@
     </section>
 
     <section class="stack">
-      <h3>Inbox <span class="badge" data-inbox-count>{{ inbox | length }}</span></h3>
+      <h3>Inbox <span class="badge" data-inbox-count {% if not inbox %}hidden{% endif %}>{{ inbox | length }}</span></h3>
       <div
         id="inbox"
         hx-get="{{ project_prefix }}/inbox"
@@ -90,7 +90,7 @@
       <h3>Last approvals</h3>
       <div class="card">
         {% if not log %}
-        <p class="faint">Nothing approved yet.</p>
+        {{ ui.empty_state("Nothing approved yet") }}
         {% else %}
         <table>
           <tbody>

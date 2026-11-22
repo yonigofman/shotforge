@@ -114,8 +114,15 @@
 
 {# --- blocks --------------------------------------------------------- #}
 
+{#
+  Nothing here yet, said once and the same way everywhere: what is missing,
+  then what puts something here.
+#}
 {% macro empty_state(message, hint=none) -%}
-<p class="faint">{{ message }}{% if hint %} {{ hint }}{% endif %}</p>
+<div class="empty">
+  <strong>{{ message }}</strong>
+  {% if hint %}<p>{{ hint }}</p>{% endif %}
+</div>
 {%- endmacro %}
 
 {% macro prompt_block(text, saved_as=none, id="prompt-text") -%}

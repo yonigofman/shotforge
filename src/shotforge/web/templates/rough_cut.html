@@ -19,7 +19,8 @@
     </div>
 
     {% if not rows %}
-    <p class="muted">The scene has no shots to assemble.</p>
+    {{ ui.empty_state("The scene has no shots to assemble",
+                      "Break a chapter down, or add a shot to this scene.") }}
     {% else %}
     {#
       The cut, at the length it will run: every clip is as wide as it is
@@ -109,7 +110,8 @@
       <a class="button" href="{{ project_prefix }}/scene/{{ scene_id }}/cut/rough_cut.mp4" download>Download video</a>
     </div>
     {% else %}
-    <p class="muted">Assemble the approved shots to preview the cut and export the EDL.</p>
+    {{ ui.empty_state("No cut assembled yet",
+                      "Assemble the approved shots to preview the cut and export the EDL.") }}
     {% endif %}
   </section>
 </div>
