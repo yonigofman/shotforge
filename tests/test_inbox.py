@@ -52,3 +52,4 @@ def test_draining_files_everything_to_one_shot(project, png, mp4):
     filed = inbox_mod.drain(project, "s01_pub", "sh01")
     assert sorted(t.path.name for t in filed) == ["first_v1.png", "first_v2.png", "v1.mp4"]
     assert inbox_mod.scan(project) == []
+    assert (project.paths.shot("s01_pub", "sh01").qa / "video_v1.json").is_file()
