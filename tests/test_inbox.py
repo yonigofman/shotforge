@@ -25,6 +25,7 @@ def test_scan_classifies_and_skips_partial_downloads(project, png, mp4):
 def test_filing_moves_the_file_in_as_the_next_take(project, png):
     source = _drop(project, png("a.png"), "chatgpt.png")
     take = inbox_mod.file_to_shot(project, source, "s01_pub", "sh01")
+    assert take.qa_report(project.paths.shot("s01_pub", "sh01")).is_file()
     assert take.kind is TakeKind.frame
     assert take.path.name == "first_v1.png"
     assert not source.exists()

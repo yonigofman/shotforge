@@ -1,8 +1,7 @@
 """The checks that need no model: schema-level and code-level QA.
 
-Each one came from something that actually went wrong in scene 1. Vision
-checks (identity, eyeline, AI look) arrive with the QA phase; these are the
-ones a plain function can settle, and they run before anything reaches you.
+Each one came from something that actually went wrong in scene 1. These
+checks also run when the vision engine is disabled or unavailable.
 """
 
 from __future__ import annotations
