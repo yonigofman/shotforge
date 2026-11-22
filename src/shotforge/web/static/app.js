@@ -155,6 +155,14 @@ document.addEventListener("click", (event) => {
   if (button) copyImage(button.dataset.copyImage);
 });
 
+// A clipped file input still has to say what was chosen.
+document.addEventListener("change", (event) => {
+  const input = event.target.closest("input.file-clip");
+  if (!input) return;
+  const name = input.form?.querySelector("[data-file-name]");
+  if (name) name.textContent = input.files?.[0]?.name || "No file chosen";
+});
+
 async function uploadFiles(form, files, pasted = false) {
   if (form.getAttribute("aria-busy") === "true") return;
   const input = form.querySelector('input[type="file"]');

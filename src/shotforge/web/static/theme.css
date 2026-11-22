@@ -529,31 +529,46 @@ main {
 
 /* --- controls ---------------------------------------------------------- */
 
+/* A control is a quiet box that answers the pointer: the border stays
+   recessive, the ground lifts on hover, and the ring is the only loud part.
+   A bright border over a dark fill is what makes a control look cheap. */
 button,
-.button {
+.button,
+input[type="text"],
+input[type="number"],
+input[type="search"],
+select,
+textarea {
   font-family: var(--font-sans);
   font-size: var(--type-ui-size);
   line-height: var(--type-ui-line);
-  font-weight: 500;
+  height: var(--size-control-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-line-strong);
+  transition:
+    background var(--duration-instant) var(--ease-out),
+    border-color var(--duration-instant) var(--ease-out),
+    color var(--duration-instant) var(--ease-out);
+}
+
+button,
+.button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-1_5);
-  height: var(--size-control-md);
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-line-control);
+  padding: 0 var(--space-3_5);
   background: var(--color-surface-raised);
   color: var(--color-ink);
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
-  transition:
-    background var(--duration-instant) var(--ease-out),
-    border-color var(--duration-instant) var(--ease-out);
 }
 
 button:hover,
 .button:hover {
   background: var(--color-surface-hover);
+  border-color: var(--color-line-control);
 }
 
 button:active,
@@ -586,42 +601,111 @@ button.quiet {
 }
 
 button.quiet:hover {
-  color: var(--color-ink);
   background: var(--color-surface-hover);
+  border-color: var(--color-line-strong);
+  color: var(--color-ink);
 }
 
-button[disabled] {
-  color: var(--color-ink-disabled);
-  background: var(--color-surface);
-  border-color: var(--color-line);
+button[disabled],
+button[disabled]:hover {
+  opacity: 0.5;
+  background: var(--color-surface-raised);
+  border-color: var(--color-line-strong);
+  color: var(--color-ink-muted);
   cursor: not-allowed;
 }
 
-/* A primary that cannot be pressed still reads as the primary, dimmed —
-   not as some other button that happens to be grey. */
-button.primary[disabled] {
-  background: var(--color-accent-soft);
-  border-color: var(--color-accent-line);
-  color: var(--color-ink-disabled);
+button.primary[disabled],
+button.primary[disabled]:hover {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 input[type="text"],
 input[type="number"],
+input[type="search"],
 select,
 textarea {
-  font-family: var(--font-sans);
-  font-size: var(--type-ui-size);
-  line-height: var(--type-ui-line);
-  height: var(--size-control-md);
-  color: var(--color-ink);
   background: var(--color-canvas);
-  border: 1px solid var(--color-line-control);
-  border-radius: var(--radius-sm);
+  color: var(--color-ink);
   padding: 0 var(--space-2_5);
 }
 
-input::placeholder {
+textarea {
+  height: auto;
+  padding: var(--space-2) var(--space-2_5);
+  line-height: var(--type-body-line);
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--color-line-control);
+}
+
+input::placeholder,
+textarea::placeholder {
   color: var(--color-ink-subtle);
+}
+
+/* The browser's own select chrome is the loudest unstyled thing on the
+   page, so the arrow is ours and the box matches every other control. */
+select {
+  appearance: none;
+  padding-right: var(--space-8);
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-2_5) center;
+  cursor: pointer;
+}
+
+select option,
+select optgroup {
+  background: var(--color-surface-overlay);
+  color: var(--color-ink);
+}
+
+/* A file input's own button is the other piece of browser chrome on show. */
+input[type="file"] {
+  font-size: var(--type-ui-size);
+  color: var(--color-ink-muted);
+}
+
+input[type="file"]::file-selector-button {
+  font: inherit;
+  font-weight: 500;
+  height: var(--size-control-sm);
+  margin-right: var(--space-2);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-line);
+  background: transparent;
+  color: var(--color-ink-muted);
+  cursor: pointer;
+}
+
+input[type="file"]::file-selector-button:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-ink);
+}
+
+/* Kept in the form for validation, kept out of the way of the eye: the
+   button beside it is what people press. */
+.file-clip {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--color-accent);
+  width: 16px;
+  height: 16px;
 }
 
 /* Kbd */
