@@ -10,7 +10,7 @@ from pathlib import Path
 
 import typer
 
-from shotforge import actions, blender, checks, tools
+from shotforge import actions, blender, checks, continuity, tools
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
 from shotforge.models import Stage
@@ -101,6 +101,28 @@ def validate(project_dir: Path | None = ProjectOption) -> None:
     typer.echo(f"ok    {project.name}: {scenes} scene(s), {shots} shot(s), every file valid")
 
 
+@app.command("continuity")
+def continuity_cmd(
+    scene: str,
+    project_dir: Path | None = ProjectOption,
+) -> None:
+    """Review visual continuity across the scene's cuts with Claude Code."""
+    project, _ = _open(project_dir)
+    try:
+        scene_spec = project.scene(scene)
+    except (ProjectError, ProjectFileError) as exc:
+        raise typer.BadParameter(str(exc), param_hint="scene") from exc
+    findings = continuity.scene_findings(project, scene_spec, run=True)
+    if not findings:
+        typer.echo("No neighboring shots to review.")
+    for finding in findings:
+        typer.echo(f"{LEVEL_MARK[finding.level]} {finding.check}: {finding.message}")
+        if finding.fix and finding.level != checks.PASS:
+            typer.echo(f"      fix: {finding.fix}")
+    if any(finding.failed for finding in findings):
+        raise typer.Exit(1)
+
+
 @app.command()
 def status(
     scene: str | None = typer.Argument(None, help="Scene id; omit for all scenes."),
@@ -159,11 +181,15 @@ def shot(
             typer.echo(f"  - {reason}")
     if action.gate:
         typer.echo(f"\ngate: {action.gate}  (`shotforge approve {scene} {shot_id}`)")
-    findings = checks.check_spec(project, scene, shot)
+    findings = checks.check_spec(project, scene, shot) + continuity.shot_findings(
+        project, project.scene(scene), shot, project.previous_shot(scene, shot.id)
+    )
     if findings:
         typer.echo("\nchecks:")
         for finding in findings:
             typer.echo(f"  {LEVEL_MARK[finding.level]} {finding.check}: {finding.message}")
+            if finding.fix and finding.level != checks.PASS:
+                typer.echo(f"       fix: {finding.fix}")
 
 
 @app.command()
