@@ -10,8 +10,8 @@ closes only when you approve it, and every approval is logged with your note.
 
 ## What works today
 
-This is Phase 0 and Phase 1 of the build plan: a shot can go from blockout to
-an approved video without a prompt being written by hand.
+A shot can go from blockout to an approved video without a prompt being
+written by hand.
 
 | Area | State |
 | --- | --- |
@@ -24,15 +24,16 @@ an approved video without a prompt being written by hand.
 | Last-frame extraction feeding the next shot | done |
 | Cockpit: Scenes, Storyboard, Shot card, Takes, Bible, Skills, Log | done |
 | Engine layer (`Engine.run_skill`) with a Claude Code implementation | done |
-| Blender blockout, masks, automatic face crops | not yet (Phase 2) |
+| Blender blockout scene generation | not yet (Phase 2) |
+| Character masks from an existing blockout, automatic face crops | done |
 | Vision QA (identity, eyeline, AI look) | not yet (Phase 3) |
 | Breakdown, design and cinematography skills | not yet (Phase 4) |
 | Rough cut and assembly | not yet (Phase 5) |
 
 ## Install
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). ffmpeg is required;
-Blender and Claude Code are optional until Phases 2 and 3.
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). ffmpeg is required.
+Install Blender 4.x to render character masks. Claude Code is optional.
 
 ```bash
 uv venv && uv pip install -e ".[dev]"
@@ -83,6 +84,15 @@ why something was decided.
 
 The frame stage runs in two passes: pass 1 locks the composition from the Blender
 blockout, pass 2 fixes identity against the face crops. Approving ends the stage.
+
+To render masks from an existing blockout, save its Blender file as
+`03_blender/<scene>.blend`. Set the `shotforge_character` custom property on each
+mannequin object or its parent to the character ID used in `in_frame`. Save the
+file with the same render resolution and view layer as the blockout.
+Run `shotforge masks s01_pub sh07` to render the shot camera's masks into
+`03_blender/renders/s01_pub/sh07/`. Approving a first frame crops the top third of
+each visible character's mask from the approved image. The shot card reports
+skipped crops, and pass 2 uses the latest available approved crop for each character.
 
 A full shot, in the terminal:
 

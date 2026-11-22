@@ -178,6 +178,9 @@ class ProjectPaths:
     def face_crops(self, character_id: str) -> Path:
         return self.design_dir("character", character_id) / "face_crops"
 
+    def face_crop(self, scene_id: str, shot_id: str, character_id: str) -> Path:
+        return self.face_crops(character_id) / f"{scene_id}_{shot_id}.png"
+
     # -- blender -----------------------------------------------------------
     @property
     def blender(self) -> Path:

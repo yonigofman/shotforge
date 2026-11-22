@@ -12,6 +12,7 @@ import typer
 
 from shotforge import actions, checks, tools
 from shotforge import inbox as inbox_mod
+from shotforge.blender import render_masks
 from shotforge.console import setup_console
 from shotforge.models import Stage
 from shotforge.pipeline import TransitionError, next_action, reopen
@@ -139,6 +140,8 @@ def shot(
     typer.echo(f"\n{action.title}  [{action.tool}]")
     if action.detail:
         typer.echo(action.detail)
+    for warning in action.warnings:
+        typer.echo(f"  - {warning}")
     if action.skill:
         typer.echo(f"skill: {action.skill}")
     if action.attachments:
@@ -164,6 +167,18 @@ def shot(
         typer.echo("\nchecks:")
         for finding in findings:
             typer.echo(f"  {LEVEL_MARK[finding.level]} {finding.check}: {finding.message}")
+
+
+@app.command()
+def masks(scene: str, shot_id: str, project_dir: Path | None = ProjectOption) -> None:
+    """Render the character masks from an existing Blender blockout scene."""
+    project, _ = _open(project_dir)
+    try:
+        paths = render_masks(project, scene, shot_id)
+    except (ProjectError, ValueError, tools.ToolError, OSError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    for path in paths:
+        typer.echo(project.paths.rel(path))
 
 
 @app.command()
@@ -214,6 +229,8 @@ def approve(
             number = take or _last_take(project, scene, shot_id, TakeKind.frame)
             shot = actions.approve_frame(project, state, scene, shot_id, number, note)
             typer.echo(f"frame take v{number} approved → frames/first.png")
+            for warning in next_action(project, state, scene, shot_id).warnings:
+                typer.echo(warning)
         elif stage is Stage.video:
             number = take or _last_take(project, scene, shot_id, TakeKind.video)
             shot, last_frame = actions.approve_video(project, state, scene, shot_id, number, note)
