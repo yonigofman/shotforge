@@ -10,9 +10,13 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from threading import Lock
 from typing import Any
 
 from shotforge.paths import ProjectPaths
+from shotforge.yamlio import write_text
+
+_state_lock = Lock()
 
 
 def _now() -> str:
@@ -31,13 +35,21 @@ class ShotState:
 @dataclass
 class ApprovalEntry:
     ts: str
-    scene: str
-    shot: str
+    scene: str | None
+    shot: str | None
     action: str
     from_status: str
     to_status: str
     note: str | None = None
     detail: dict[str, Any] = field(default_factory=dict)
+    entity_kind: str | None = None
+    entity_id: str | None = None
+
+    @property
+    def subject(self) -> str:
+        if self.entity_kind:
+            return f"{self.entity_kind}/{self.entity_id}"
+        return f"{self.scene}/{self.shot}"
 
 
 class ProjectState:
@@ -45,26 +57,23 @@ class ProjectState:
 
     def __init__(self, paths: ProjectPaths):
         self.paths = paths
-        self._data: dict[str, Any] = {"active": {}, "shots": {}}
+        self._data: dict[str, Any]
         self.reload()
 
     # -- persistence -------------------------------------------------------
     def reload(self) -> None:
-        if self.paths.state_file.is_file():
-            try:
-                self._data = json.loads(self.paths.state_file.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                # A corrupt state file must never block the project: the YAML
-                # files are the source of truth and state is rebuildable.
-                self._data = {"active": {}, "shots": {}}
+        try:
+            data = json.loads(self.paths.state_file.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError):
+            # A missing or corrupt state file must never block the project.
+            data = {}
+        self._data = data if isinstance(data, dict) else {}
         self._data.setdefault("active", {})
         self._data.setdefault("shots", {})
+        self._data.setdefault("designs", {})
 
     def save(self) -> None:
-        self.paths.state_dir.mkdir(parents=True, exist_ok=True)
-        tmp = self.paths.state_file.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(self._data, indent=2, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(self.paths.state_file)
+        write_text(self.paths.state_file, json.dumps(self._data, indent=2, ensure_ascii=False))
 
     # -- active shot -------------------------------------------------------
     @property
@@ -75,8 +84,10 @@ class ProjectState:
         return None
 
     def set_active(self, scene_id: str, shot_id: str) -> None:
-        self._data["active"] = {"scene": scene_id, "shot": shot_id, "since": _now()}
-        self.save()
+        with _state_lock:
+            self.reload()
+            self._data["active"] = {"scene": scene_id, "shot": shot_id, "since": _now()}
+            self.save()
 
     # -- per-shot state ----------------------------------------------------
     @staticmethod
@@ -92,21 +103,44 @@ class ProjectState:
         )
 
     def update_shot(self, scene_id: str, shot_id: str, **changes: Any) -> ShotState:
-        state = self.shot(scene_id, shot_id)
-        for name, value in changes.items():
-            if not hasattr(state, name):
-                raise KeyError(f"unknown shot state field {name!r}")
-            setattr(state, name, value)
-        state.updated = _now()
-        self._data["shots"][self.key(scene_id, shot_id)] = asdict(state)
-        self.save()
-        return state
+        with _state_lock:
+            self.reload()
+            state = self.shot(scene_id, shot_id)
+            for name, value in changes.items():
+                if not hasattr(state, name):
+                    raise KeyError(f"unknown shot state field {name!r}")
+                setattr(state, name, value)
+            state.updated = _now()
+            self._data["shots"][self.key(scene_id, shot_id)] = asdict(state)
+            self.save()
+            return state
+
+    # -- per-entity design -------------------------------------------------
+    def approved_design_revision(self, kind: str, entity_id: str) -> str | None:
+        raw = self._data["designs"].get(self.key(kind, entity_id), {})
+        return raw.get("revision") if raw.get("designed") else None
+
+    def set_design_approval(self, kind: str, entity_id: str, revision: str | None) -> None:
+        with _state_lock:
+            self.reload()
+            designs = self._data["designs"]
+            key = self.key(kind, entity_id)
+            if revision:
+                designs[key] = {"designed": True, "revision": revision}
+            elif key in designs:
+                designs.pop(key)
+            else:
+                return
+            self.save()
 
     # -- approval log ------------------------------------------------------
     def log_approval(self, entry: ApprovalEntry) -> None:
         self.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        record = asdict(entry)
+        if entry.entity_kind is None:
+            del record["entity_kind"], record["entity_id"]
         with self.paths.approvals_log.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(asdict(entry), ensure_ascii=False) + "\n")
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     def approvals(
         self, scene_id: str | None = None, shot_id: str | None = None, limit: int | None = None

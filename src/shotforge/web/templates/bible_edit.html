@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="stack">
+  <a class="faint" href="{{ '/bible/' ~ kind ~ '/' ~ entity_id if entity_id else '/bible' }}">← {{ entity_id or 'Bible' }}</a>
+  <h1>{{ 'Edit' if entity_id else 'New' }} {{ kind }}</h1>
+  <form method="post" class="card raised stack bible-editor">
+    {% if error %}<div class="bible-error" role="alert">{{ error }}</div>{% endif %}
+    <label for="entity-source">Bible YAML</label>
+    <p class="muted">
+      {% if entity_id %}Keep the existing id so shots can still refer to this {{ kind }}.
+      {% else %}Give the {{ kind }} a lowercase id and add its name under <code>names.book</code>.{% endif %}
+      Record details from the text in <code>from_book</code> and production decisions in <code>design_choices</code>.
+    </p>
+    <textarea id="entity-source" name="source" rows="18" spellcheck="false" required>
+{{ source }}</textarea>
+    <div class="row"><button class="primary" type="submit">Save {{ kind }}</button></div>
+  </form>
+</div>
+{% endblock %}

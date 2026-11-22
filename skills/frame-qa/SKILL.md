@@ -49,4 +49,8 @@ in `required_checks`, with the exact check name and these fields.
 ```
 
 The `level` values are `pass`, `warn` and `fail`. Use `null` for `fix` when there
-is no correction. Report only what this first frame and its references support.
+is no correction. For an identity mismatch, put the ID of the character to
+correct first in `target` and describe the correction for that character. For a
+prop or window mismatch, put the affected object's name in `target` and describe
+its position in the frame in `region`. These two fields are optional. Report
+only what this first frame and its references support.

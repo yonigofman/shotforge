@@ -1,17 +1,25 @@
-"""File downloads from ``_inbox/`` as shot or texture takes."""
+"""File downloads from ``_inbox/`` as shot takes, design assets or texture takes."""
 
 from __future__ import annotations
 
 import os
 import shutil
+import stat
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
+from os import stat_result
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock
+from typing import BinaryIO
 
 from shotforge import actions
+from shotforge.media import write_design_png
 from shotforge.models.materials import texture_filename
+from shotforge.paths import ProjectPaths
 from shotforge.project import Project
 from shotforge.takes import Take, TakeKind, add_take
 
@@ -20,10 +28,21 @@ PARTIAL_SUFFIXES = (".part", ".crdownload", ".download", ".tmp")
 _FILING_LOCK = Lock()
 
 
+class DesignAsset(StrEnum):
+    sheet = "sheet"
+    ref = "ref"
+
+    def path(self, paths: ProjectPaths, kind: str, entity_id: str) -> Path:
+        if self is DesignAsset.sheet:
+            return paths.sheet(kind, entity_id)
+        return paths.ref(kind, entity_id)
+
+
 @dataclass
 class InboxFile:
     path: Path
     kind: TakeKind | None
+    stat: stat_result
 
     @property
     def name(self) -> str:
@@ -31,11 +50,11 @@ class InboxFile:
 
     @property
     def size_kb(self) -> int:
-        return max(1, round(self.path.stat().st_size / 1024))
+        return max(1, round(self.stat.st_size / 1024))
 
     @property
     def modified(self) -> datetime:
-        return datetime.fromtimestamp(self.path.stat().st_mtime, tz=UTC)
+        return datetime.fromtimestamp(self.stat.st_mtime, tz=UTC)
 
     @property
     def filed_as(self) -> str:
@@ -58,12 +77,57 @@ def scan(project: Project) -> list[InboxFile]:
         return []
     found: list[InboxFile] = []
     for path in inbox.iterdir():
-        if not path.is_file() or path.name in IGNORED_NAMES or path.name.startswith("."):
+        if path.name in IGNORED_NAMES or path.name.startswith("."):
             continue
         if path.suffix.lower() in PARTIAL_SUFFIXES:
             continue
-        found.append(InboxFile(path=path, kind=classify(path)))
-    return sorted(found, key=lambda f: f.path.stat().st_mtime, reverse=True)
+        try:
+            info = path.stat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISREG(info.st_mode):
+            found.append(InboxFile(path=path, kind=classify(path), stat=info))
+    return sorted(found, key=lambda item: item.stat.st_mtime_ns, reverse=True)
+
+
+@contextmanager
+def stage_upload(project: Project, name: str, stream: BinaryIO) -> Iterator[Path]:
+    """Stage a browser upload in the inbox without replacing an existing download."""
+    staging = project.paths.inbox
+    staging.mkdir(parents=True, exist_ok=True)
+    basename = Path(name.replace("\\", "/")).name
+    if basename in {"", ".", ".."}:
+        raise ValueError("upload needs a file name")
+    with TemporaryDirectory(prefix=".upload-", dir=staging) as directory:
+        source = Path(directory) / basename
+        with source.open("wb") as file:
+            shutil.copyfileobj(stream, file)
+        yield source
+
+
+def file_to_design(
+    project: Project, inbox_file: Path, kind: str, entity_id: str, asset: DesignAsset
+) -> Path:
+    """File one inbox image under its fixed design filename."""
+    project.entity(kind, entity_id)
+    inbox_file = Path(inbox_file)
+    target = asset.path(project.paths, kind, entity_id)
+    with _FILING_LOCK:
+        if (
+            not inbox_file.is_file()
+            or inbox_file.is_symlink()
+            or not inbox_file.resolve().is_relative_to(project.paths.inbox.resolve())
+        ):
+            raise FileNotFoundError(f"{inbox_file.name} is not a file in the inbox")
+        if classify(inbox_file) is not TakeKind.frame:
+            raise ValueError("choose a PNG, JPEG or WebP image")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(prefix=".filing-", dir=target.parent) as directory:
+            staged = Path(directory) / target.name
+            write_design_png(inbox_file, staged)
+            staged.replace(target)
+        inbox_file.unlink()
+    return target
 
 
 def file_to_shot(

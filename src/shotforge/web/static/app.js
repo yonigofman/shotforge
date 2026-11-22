@@ -7,17 +7,7 @@ document.addEventListener("alpine:init", () => {
     async copy(selector) {
       const node = document.querySelector(selector);
       if (!node) return;
-      try {
-        await navigator.clipboard.writeText(node.innerText);
-      } catch (err) {
-        const range = document.createRange();
-        range.selectNodeContents(node);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-        document.execCommand("copy");
-        selection.removeAllRanges();
-      }
+      if (!await copyPrompt(node)) return;
       this.copied = true;
       toast("Prompt copied. Paste it into a new chat.");
       setTimeout(() => (this.copied = false), 2000);
@@ -48,6 +38,23 @@ document.addEventListener("alpine:init", () => {
   }));
 });
 
+async function copyPrompt(node) {
+  try {
+    await navigator.clipboard.writeText(node.textContent);
+    return true;
+  } catch {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const copied = document.execCommand("copy");
+    if (copied) selection.removeAllRanges();
+    else toast("Select and copy the prompt text.", "fail");
+    return copied;
+  }
+}
+
 function toast(message, level = "") {
   let holder = document.querySelector(".toasts");
   if (!holder) {
@@ -76,4 +83,30 @@ document.addEventListener("keydown", (event) => {
 
 document.body && document.body.addEventListener("htmx:responseError", (event) => {
   toast(event.detail.xhr.responseText || "Something went wrong.", "fail");
+});
+
+document.querySelectorAll("[data-design-copy]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const prompt = document.getElementById(button.dataset.designCopy);
+    if (await copyPrompt(prompt)) toast("Prompt copied.");
+  });
+});
+
+document.querySelectorAll("[data-design-drop]").forEach((form) => {
+  form.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    form.classList.add("over");
+  });
+  form.addEventListener("dragleave", () => form.classList.remove("over"));
+  form.addEventListener("drop", (event) => {
+    event.preventDefault();
+    form.classList.remove("over");
+    const files = event.dataTransfer.files;
+    if (files.length !== 1) {
+      toast("Drop one image at a time.", "fail");
+      return;
+    }
+    form.querySelector('input[type="file"]').files = files;
+    form.requestSubmit();
+  });
 });

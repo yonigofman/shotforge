@@ -11,16 +11,17 @@ import re
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, StrictUndefined
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from shotforge.models.common import as_plain
 from shotforge.pipeline import Attachment
 from shotforge.project import Project
-from shotforge.skills.registry import Skill, SkillError
+from shotforge.skills.registry import Skill, SkillError, bundled_root
 
 
-def _environment() -> Environment:
+def _environment(skill: Skill) -> Environment:
     env = Environment(
+        loader=FileSystemLoader([skill.root, bundled_root()]),
         trim_blocks=True,
         lstrip_blocks=True,
         keep_trailing_newline=True,
@@ -89,7 +90,7 @@ def render_prompt(skill: Skill, context: dict[str, Any]) -> str:
     """Fill the skill's template; the skill's rules are always in scope."""
     if not skill.template_path.is_file():
         raise SkillError(f"skill {skill.name} has no template.j2 — it is not a prompt skill")
-    template = _environment().from_string(skill.template_path.read_text(encoding="utf-8"))
+    template = _environment(skill).get_template(skill.template_path.name)
     payload = dict(context)
     payload.setdefault("rules", skill.constraints())
     payload.setdefault("rule_notes", skill.rules())
@@ -110,9 +111,15 @@ def save_prompt(project: Project, scene_id: str, shot_id: str, skill: Skill, tex
     folder = project.paths.shot(scene_id, shot_id).prompts
     folder.mkdir(parents=True, exist_ok=True)
     version = next_prompt_version(folder, skill.name)
-    path = folder / f"{skill.name}_v{version}.txt"
-    path.write_text(text, encoding="utf-8")
-    return path
+    while True:
+        path = folder / f"{skill.name}_v{version}.txt"
+        try:
+            with path.open("x", encoding="utf-8") as prompt:
+                prompt.write(text)
+        except FileExistsError:
+            version += 1
+        else:
+            return path
 
 
 def latest_prompt(project: Project, scene_id: str, shot_id: str, skill_name: str) -> Path | None:

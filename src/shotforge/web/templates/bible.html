@@ -16,33 +16,38 @@
 
   {% if material_error %}<p class="muted" role="alert">{{ material_error }}</p>{% endif %}
   {% for group in kinds %}
-  {% if group.entities %}
-  <h3>{{ group.kind }}s</h3>
-  <div class="takes bible-cards">
-    {% for item in group.entities %}
-    <article class="card stack" style="gap:var(--space-2)">
-      <div class="row">
-        <strong>{{ item.entity.id }}</strong>
-        {% if item.entity.tag %}<span class="badge">{{ item.entity.tag }}</span>{% endif %}
-      </div>
-      <div class="bible-media">
-        {{ ui.media(item.sheet, media_url, 'Approved sheet') }}
-        {% for surface, path in item.textures %}
-        {{ ui.media(path, media_url, surface ~ ' · ' ~ path.name) }}
-        {% endfor %}
-      </div>
-      {% if item.entity.names %}
-      <span class="faint">{{ item.entity.names.values() | join(' · ') }}</span>
-      {% endif %}
-      {% if item.entity.design_choices %}
-      <ul class="faint" dir="auto">
-        {% for choice in item.entity.design_choices %}<li>{{ choice }}</li>{% endfor %}
-      </ul>
-      {% endif %}
-    </article>
-    {% endfor %}
-  </div>
-  {% endif %}
+  <section class="stack">
+    <div class="row">
+      <h2>{{ group.kind | capitalize }}s</h2>
+      <a class="button" href="/bible/new/{{ group.kind }}">New {{ group.kind }}</a>
+    </div>
+    <div class="takes bible-cards">
+      {% for item in group.entities %}
+      <article class="card stack">
+        <div class="row">
+          <h3><a href="/bible/{{ group.kind }}/{{ item.id }}">{{ item.id }}</a></h3>
+          {{ ui.pip('pass' if item.designed else 'warn', 'Designed' if item.designed else 'In design') }}
+        </div>
+        {% if item.entity.names %}
+        <span class="muted" dir="auto">{{ item.entity.names.values() | join(' · ') }}</span>
+        {% endif %}
+        {% if item.sheet.is_file() or item.textures %}
+        <div class="bible-media">
+          {% if item.sheet.is_file() %}
+          {{ ui.media(item.sheet, media_url, 'Design sheet') }}
+          {% endif %}
+          {% for surface, path in item.textures %}
+          {{ ui.media(path, media_url, surface ~ ' · ' ~ path.name) }}
+          {% endfor %}
+        </div>
+        {% endif %}
+        <a class="button" href="/bible/{{ group.kind }}/{{ item.id }}">Open {{ group.kind }}</a>
+      </article>
+      {% else %}
+      <p class="muted">No {{ group.kind }}s yet.</p>
+      {% endfor %}
+    </div>
+  </section>
   {% endfor %}
 </div>
 {% endblock %}

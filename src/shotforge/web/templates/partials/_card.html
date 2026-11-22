@@ -1,4 +1,7 @@
 {% import "partials/_macros.html" as ui %}
+{% set prompt_action = fix_prompt.action if fix_prompt else action %}
+{% set prompt_text = fix_prompt.text if fix_prompt else prompt_text %}
+{% set prompt_path = fix_prompt.path if fix_prompt else prompt_path %}
 <div id="shot-card" class="stack" hx-get="/shot/{{ scene.id }}/{{ shot.id }}/card" hx-trigger="card-changed from:body" hx-swap="outerHTML">
   <div class="row">
     <h1>{{ scene.id }} / {{ shot.id }}</h1>
@@ -27,11 +30,11 @@
     <!-- What to do now -->
     <section class="card raised approval stack" x-data="copyable">
       <div class="card-header">
-        <h2>{{ action.title }}</h2>
+        <h2>{{ prompt_action.title }}</h2>
         <span class="spacer"></span>
-        {% if action.tool != "—" %}<span class="badge tool">{{ action.tool }}</span>{% endif %}
+        {% if prompt_action.tool != "—" %}<span class="badge tool">{{ prompt_action.tool }}</span>{% endif %}
       </div>
-      {% if action.detail %}<p class="muted" dir="auto">{{ action.detail }}</p>{% endif %}
+      {% if action.detail and not fix_prompt %}<p class="muted" dir="auto">{{ action.detail }}</p>{% endif %}
 
       {% if action.warnings %}
       <ul class="findings">
@@ -84,10 +87,15 @@
       </div>
       {% endif %}
 
-      {% if action.skill %}
+      {% if prompt_action.skill %}
       <div class="row">
-        <span class="faint">skill: <code>{{ action.skill }}</code></span>
+        <span class="faint">skill: <code>{{ prompt_action.skill }}</code></span>
         <span class="spacer"></span>
+        {% if fix_prompt %}
+        <button hx-get="/shot/{{ scene.id }}/{{ shot.id }}/card" hx-target="#shot-card" hx-swap="outerHTML">
+          Back to shot prompt
+        </button>
+        {% else %}
         <button
           hx-post="/shot/{{ scene.id }}/{{ shot.id }}/prompt"
           hx-target="#shot-card"
@@ -96,6 +104,7 @@
           {% if prompt_text %}Regenerate prompt{% else %}Generate prompt{% endif %}
           <span class="spinner">…</span>
         </button>
+        {% endif %}
         {% if prompt_text %}
         <button data-copy-prompt @click="copy('#prompt-text')">
           <span x-text="copied ? 'Copied' : 'Copy prompt'">Copy prompt</span>
@@ -110,10 +119,10 @@
       <span class="faint">saved as {{ rel(prompt_path) }}</span>
       {% endif %}
 
-      {% if action.attachments %}
+      {% if prompt_action.attachments %}
       <h3>Attach in this order</h3>
       <ul class="attachments">
-        {% for attachment in action.attachments %}
+        {% for attachment in prompt_action.attachments %}
         <li>
           <span class="order">{{ attachment.order }}.</span>
           <span>
@@ -128,6 +137,9 @@
         </li>
         {% endfor %}
       </ul>
+      {% if fix_prompt and fix_prompt.selection_guide and fix_prompt.selection_guide.exists %}
+      {{ ui.media(fix_prompt.selection_guide.path, media_url, fix_prompt.selection_guide.label) }}
+      {% endif %}
       {% endif %}
 
       {% if action.gate %}
@@ -208,7 +220,7 @@
           </div>
         </div>
         {% if cut_findings %}
-          {% with findings = cut_findings %}
+          {% with findings = cut_findings, fix_take = none, verdict = none, rule_offers = [] %}
             {% include "partials/_findings.html" %}
           {% endwith %}
         {% endif %}

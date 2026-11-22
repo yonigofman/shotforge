@@ -2,12 +2,13 @@
 
 from pathlib import Path
 
-import yaml
-
+from shotforge import design
 from shotforge.models.common import as_plain
 from shotforge.models.materials import Materials
 from shotforge.project import Project
 from shotforge.skills import find_skill, render_prompt
+from shotforge.state import ProjectState
+from shotforge.yamlio import render_yaml
 
 
 def build_prompt(
@@ -23,6 +24,9 @@ def build_prompt(
     sheet = project.paths.sheet(origin.kind, origin.id)
     if not sheet.is_file() or not sheet.resolve().is_relative_to(project.paths.root):
         raise ValueError(f"place the approved sheet at {project.paths.rel(sheet)} first")
+    approved = ProjectState(project.paths).approved_design_revision(origin.kind, origin.id)
+    if approved is None or approved != design.revision(project, origin.kind, origin.id, entity):
+        raise ValueError(f"approve the current design for {origin.kind} {origin.id!r} in the Bible")
     skill = find_skill("texture-from-sheet", project.paths.skills)
     prompt = render_prompt(skill, {
         "sheet": project.paths.rel(sheet),
@@ -30,4 +34,4 @@ def build_prompt(
         "surface": surface.rsplit(".", 1)[1],
         "filename": assignments.root[surface].texture,
     })
-    return sheet, prompt, yaml.safe_dump(as_plain(assignments), sort_keys=False)
+    return sheet, prompt, render_yaml(assignments)

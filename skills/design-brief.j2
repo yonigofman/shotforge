@@ -1,0 +1,34 @@
+SOURCE FACTS FROM THE BOOK
+{% for fact in entity.get('from_book', []) %}
+- {{ fact }}
+{% else %}
+No source details recorded.
+{% endfor %}
+
+PRODUCTION DESIGN CHOICES
+{% for choice in entity.get('design_choices', []) %}
+- {{ choice }}
+{% else %}
+No production design choices recorded.
+{% endfor %}
+Treat added visual details as design choices. Preserve recorded source facts.
+{% block craft %}{% endblock %}
+
+SERIES STYLE
+{{ style.art_style }}
+{% if style.get('film_stock') %}
+Film stock: {{ style.film_stock }}
+{% endif %}
+{% if style.get('palette') %}
+Palette: {{ style.palette | join(', ') }}
+{% endif %}
+{% if style.get('grade') %}
+Grade: {{ style.grade }}
+{% endif %}
+{% for rule in style.get('world_rules', []) %}
+- {{ rule }}
+{% endfor %}
+
+{% for rule in rules %}
+- {{ rule }}
+{% endfor %}

@@ -19,12 +19,13 @@ from shotforge.models import (
     Shot,
     Style,
 )
+from shotforge.models.common import ID_RE
 from shotforge.models.materials import Materials
 from shotforge.paths import ProjectPaths
-from shotforge.yamlio import ProjectFileError, dump, load
+from shotforge.yamlio import ProjectFileError, dump, load, parse
 
 KINDS = ("character", "location", "prop")
-_MODELS: dict[str, type] = {"character": Character, "location": Location, "prop": Prop}
+_MODELS = {"character": Character, "location": Location, "prop": Prop}
 
 LFS_PATTERNS = ("*.png", "*.jpg", "*.jpeg", "*.mp4", "*.mov", "*.wav", "*.blend")
 
@@ -141,7 +142,15 @@ class Project:
         keep.touch(exist_ok=True)
         return cls(paths=paths, config=config)
 
-    # -- bible -------------------------------------------------------------
+    # -- source and bible --------------------------------------------------
+    def chapter_text(self, filename: str) -> str:
+        if not filename or Path(filename).name != filename:
+            raise ProjectError("Choose a chapter filename in 00_source.")
+        text = (self.paths.source / filename).read_text(encoding="utf-8-sig")
+        if not text.strip() or text.strip() == _SOURCE_PLACEHOLDER.strip():
+            raise ProjectError(f"Add the book text to 00_source/{filename} before generating.")
+        return text
+
     @property
     def name(self) -> str:
         return self.config.name
@@ -150,12 +159,30 @@ class Project:
         return load(self.paths.style, Style)
 
     def entity(self, kind: str, entity_id: str):
-        if kind not in KINDS:
-            raise ProjectError(f"unknown bible kind {kind!r}")
-        path = self.paths.entity_file(kind, entity_id)
+        path = self.bible_entity_path(kind, entity_id)
         if not path.is_file():
             raise ProjectError(f"no {kind} {entity_id!r} in the bible ({path})")
         return load(path, _MODELS[kind])
+
+    def bible_entity_path(self, kind: str, entity_id: str) -> Path:
+        if kind not in KINDS:
+            raise ProjectError(f"unknown bible kind {kind!r}")
+        if not ID_RE.fullmatch(entity_id):
+            raise ProjectError(f"invalid bible id {entity_id!r}")
+        return self.paths.entity_file(kind, entity_id)
+
+    def parse_entity(
+        self, kind: str, text: str, entity_id: str | None = None
+    ) -> Character | Location | Prop:
+        if kind not in KINDS:
+            raise ProjectError(f"unknown bible kind {kind!r}")
+        path = self.paths.bible_kind(kind)
+        if entity_id is not None:
+            path = self.bible_entity_path(kind, entity_id)
+        entity = parse(text, path, _MODELS[kind])
+        if entity_id is not None and entity_id != entity.id:
+            raise ProjectFileError(path, "id cannot change because shots and assets refer to it")
+        return entity
 
     def entities(self, kind: str) -> dict[str, Character | Location | Prop]:
         return {eid: self.entity(kind, eid) for eid in self.paths.entity_ids(kind)}
@@ -177,9 +204,9 @@ class Project:
             return Materials({})
         return load(self.paths.materials, Materials)
 
-    def save_entity(self, kind: str, entity) -> Path:
-        path = self.paths.entity_file(kind, entity.id)
-        dump(path, entity)
+    def save_entity(self, kind: str, entity, *, create_only: bool = False) -> Path:
+        path = self.bible_entity_path(kind, entity.id)
+        dump(path, entity, create_only=create_only)
         return path
 
     # -- scenes and shots --------------------------------------------------
@@ -221,17 +248,17 @@ class Project:
         index = ids.index(shot_id)
         return self.shot(scene_id, ids[index + 1]) if index + 1 < len(ids) else None
 
-    def save_scene(self, scene: Scene) -> Path:
+    def save_scene(self, scene: Scene, *, create_only: bool = False) -> Path:
         paths = self.paths.scene(scene.id)
         paths.shots_dir.mkdir(parents=True, exist_ok=True)
-        dump(paths.spec, scene)
+        dump(paths.spec, scene, create_only=create_only)
         return paths.spec
 
-    def save_shot(self, scene_id: str, shot: Shot) -> Path:
+    def save_shot(self, scene_id: str, shot: Shot, *, create_only: bool = False) -> Path:
         shot_paths = self.paths.shot(scene_id, shot.id)
         for folder in shot_paths.dirs():
             folder.mkdir(parents=True, exist_ok=True)
-        dump(shot_paths.spec, shot)
+        dump(shot_paths.spec, shot, create_only=create_only)
         return shot_paths.spec
 
     def shot_refs(self, scene_id: str, shot_id: str) -> dict[str, Path]:

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import re
+import shutil
+from dataclasses import asdict
 
 import pytest
 from fastapi.testclient import TestClient
 
-from shotforge import actions, frame_qa
+from shotforge import actions, checks, frame_qa
 from shotforge.engine import EngineResult
+from shotforge.models.shot import FramedCharacter
 from shotforge.pipeline import approve
+from shotforge.skills import find_skill
 from shotforge.takes import TakeKind, add_take
 from shotforge.web.app import create_app
 
@@ -164,3 +168,98 @@ def test_qa_runs_on_the_latest_take_and_writes_a_report(client, project, state, 
 def test_the_bible_skills_and_log_screens_render(client):
     for path in ("/bible", "/skills", "/log"):
         assert client.get(path).status_code == 200
+
+
+def test_identity_fix_and_explicit_rule_promotion(client, project, state, png, monkeypatch):
+    _to_frame_stage(project, state)
+    scene, shot_id = "s01_pub", "sh01"
+    url = f"/shot/{scene}/{shot_id}"
+    shot_paths = project.paths.shot(scene, shot_id)
+    shot = project.shot(scene, shot_id)
+    shot.in_frame.append(FramedCharacter(char="durik", role="other"))
+    project.save_shot(scene, shot)
+    skill = find_skill("chatgpt-identity-pass")
+    shutil.copytree(skill.root, project.paths.skills / skill.name)
+    skill = find_skill(skill.name, project.paths.skills)
+    original_rules = skill.rules()
+    correction = "Match Dima's age to the reference."
+    failure = checks.Finding(
+        "identity", checks.FAIL, "Dima looks too old next to Durik.", correction, target="dima"
+    )
+    vision_finding = failure
+
+    class VisionEngine:
+        def run_skill(self, skill, inputs, *, cwd, files):
+            return EngineResult(text="", data={"parsed": {"findings": [asdict(vision_finding)]}})
+
+    monkeypatch.setattr(frame_qa, "get_engine", lambda _: VisionEngine())
+    frame = png()
+    upload = {"files": ("frame.png", frame.read_bytes(), "image/png")}
+    filed = client.post(f"{url}/upload", files=upload)
+    assert filed.status_code == 200 and "QA fail" in filed.text
+    report = client.post(f"{url}/qa", data={"vision": "true"})
+    assert f'hx-post="{url}/fix"' in report.text
+    assert failure.key in client.get(url).text
+
+    response = client.post(f"{url}/fix", data={"take": 1, "finding": failure.key})
+    assert response.status_code == 200
+    assert 'id="prompt-text"' in response.text and "Copy prompt" in response.text
+    assert '<img src="/media/03_blender/renders/s01_pub/sh01/mask_dima.png' in response.text
+    prompt = (shot_paths.prompts / "chatgpt-fix_v1.txt").read_text(encoding="utf-8")
+    assert "Selection edit" in prompt and "Freeze the composition" in prompt
+    assert "Match dima's face to seed.png" in prompt
+    assert "mask_durik.png" not in prompt
+    assert "first_v1.png" in prompt
+    assert client.post(f"{url}/fix", data={"take": 1, "finding": failure.key}).status_code == 200
+    assert (shot_paths.prompts / "chatgpt-fix_v2.txt").is_file()
+
+    vision_finding = checks.Finding("identity", checks.PASS, "Durik matches.", target="durik")
+    assert client.post(f"{url}/upload", files=upload).status_code == 200
+    approved = client.post(f"{url}/approve", data={"take": 2})
+    assert approved.status_code == 200
+    assert "Add to skill rules" not in approved.text
+
+    vision_finding = checks.Finding("identity", checks.PASS, "All visible faces match their crops.")
+    qa = client.post(f"{url}/qa", data={"take": 2, "vision": "true"})
+    assert qa.text.count("Add to skill rules") == 1
+    assert 'action="/skills/chatgpt-identity-pass/rules"' in qa.text
+    assert "Add to skill rules" in client.get(url).text
+    assert skill.rules() == original_rules
+    rule = f"Match dima's face to the approved face crop and preserve the composition. {correction}"
+    assert client.post(f"/skills/{skill.name}/rules", data={"rule": rule}).status_code == 200
+    assert rule in skill.rules()
+    assert "Add to skill rules" not in client.get(url).text
+
+
+@pytest.mark.parametrize(
+    ("check", "mode", "guide"),
+    [
+        ("prop continuity", "Selection edit", True),
+        ("window", "Selection edit", True),
+        ("AI look", "Full edit", False),
+        ("grade", "Full edit", False),
+    ],
+)
+def test_fix_uses_the_reported_take_and_edit_mode(
+    client, project, png, monkeypatch, check, mode, guide
+):
+    scene, shot_id = "s01_pub", "sh01"
+    url = f"/shot/{scene}/{shot_id}"
+    shot_paths = project.paths.shot(scene, shot_id)
+    frame = png()
+    add_take(shot_paths, TakeKind.frame, frame)
+    add_take(shot_paths, TakeKind.frame, frame)
+    failure = checks.Finding(
+        check, checks.FAIL, "The detail drifted.", "Match the shot spec.",
+        region="the upper-left corner",
+    )
+    monkeypatch.setattr(checks, "check_frame_file", lambda *_: [failure])
+    client.post(f"{url}/qa", data={"take": 1})
+    response = client.post(f"{url}/fix", data={"take": 1, "finding": failure.key})
+    assert response.status_code == 200
+    prompt = (shot_paths.prompts / "chatgpt-fix_v1.txt").read_text(encoding="utf-8")
+    assert mode in prompt
+    assert "first_v1.png" in prompt and "first_v2.png" not in prompt
+    assert ("the upper-left corner" in prompt) == guide
+    assert ("blockout.png" in prompt) == guide
+    assert client.post(f"{url}/fix", data={"take": 2, "finding": failure.key}).status_code == 400

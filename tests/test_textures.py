@@ -1,8 +1,10 @@
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
+from shotforge import design
 from shotforge.cli import app
 from shotforge.project import Project
+from shotforge.state import ProjectState
 from shotforge.web.app import create_app
 
 
@@ -15,12 +17,22 @@ def test_texture_prompt_requires_the_approved_sheet_and_describes_the_assignment
     assert runner.invoke(app, command).exit_code == 2
     sheet = project.paths.sheet("location", "pub")
     sheet.write_bytes(png(width=32, height=32).read_bytes())
+    ref = project.paths.ref("location", "pub")
+    ref.write_bytes(png("reference.png", width=32, height=32).read_bytes())
 
+    pending = runner.invoke(app, command)
+    assert pending.exit_code == 2
+    assert "approve the current design" in pending.output
+    revision = design.revision(project, "location", "pub", project.location("pub"))
+    assert revision is not None
+    design.approve(project, ProjectState(project.paths), "location", "pub", revision)
     result = runner.invoke(app, command)
     assert result.exit_code == 0, result.output
     assert f"Attach {project.paths.rel(sheet)}" in result.output
     assert "seamless square PNG tile" in result.output
     assert "location.pub.wall:\n  texture: plaster.png\n  uv_scale: 1.5" in result.output
+    sheet.write_bytes(png("replacement.png", width=48, height=48).read_bytes())
+    assert runner.invoke(app, command).exit_code == 2
 
 
 def test_texture_takes_route_through_cli_and_cockpit_and_show_on_source_card(project, png):
@@ -60,7 +72,9 @@ def test_texture_takes_route_through_cli_and_cockpit_and_show_on_source_card(pro
     assert (takes / "v2.png").read_bytes() == second
 
     bible = client.get("/bible").text
-    dima_card = next(card for card in bible.split("</article>") if "<strong>dima</strong>" in card)
+    dima_card = next(
+        card for card in bible.split("</article>") if '"/bible/character/dima"' in card
+    )
     assert "02_design/characters/dima/sheet.png" in dima_card
     assert "03_blender/textures/cloth.png" in dima_card
     assert "location.pub.table" in dima_card

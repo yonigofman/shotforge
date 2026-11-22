@@ -26,6 +26,10 @@ class Scene(SFModel):
     axis_180: str | BlockoutAxis | None = None
     lighting: str | None = None
     sound: dict[str, str] = {}
+    chapter: str | None = None
+    props: list[str] = []
+    from_book: list[str] = []
+    design_choices: list[str] = []
 
     @field_validator("id")
     @classmethod

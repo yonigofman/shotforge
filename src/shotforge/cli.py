@@ -11,7 +11,7 @@ from pathlib import Path
 import typer
 from jinja2 import TemplateError
 
-from shotforge import actions, blender, checks, continuity, texture, tools
+from shotforge import actions, blender, breakdown, checks, continuity, texture, tools
 from shotforge import inbox as inbox_mod
 from shotforge.console import setup_console
 from shotforge.models import Stage
@@ -66,7 +66,7 @@ def new(
     except ProjectError as exc:
         raise typer.BadParameter(str(exc)) from exc
     typer.echo(f"Created {project.name} in {project.paths.root}")
-    typer.echo("Next: fill 01_bible/style.yaml and add a character, then `shotforge validate`.")
+    typer.echo("Next: put your chapter in 00_source/ch01.md, then run `shotforge breakdown ch01`.")
 
 
 @app.command()
@@ -123,6 +123,64 @@ def continuity_cmd(
             typer.echo(f"      fix: {finding.fix}")
     if any(finding.failed for finding in findings):
         raise typer.Exit(1)
+
+
+@app.command("breakdown")
+def breakdown_cmd(chapter: str, project_dir: Path | None = ProjectOption) -> None:
+    """Propose scenes and bible entries from a chapter in 00_source."""
+    project, _ = _open(project_dir)
+    try:
+        source = breakdown.read_chapter(project, chapter)
+        book = breakdown.propose_book(project, source)
+        plan = breakdown.WritePlan.for_book(project, book)
+        if _review_proposal(project, plan):
+            _save_proposal(project, plan)
+    except (breakdown.BreakdownError, ProjectFileError, ProjectError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+
+@app.command("shots")
+def shots_cmd(
+    scene: str,
+    project_dir: Path | None = ProjectOption,
+    chapter: str | None = typer.Option(None, help="Chapter filename or stem for a legacy scene."),
+) -> None:
+    """Propose new shots with timed beats and dialogue for a scene."""
+    project, _ = _open(project_dir)
+    try:
+        spec = breakdown.load_scene(project, scene)
+        source = breakdown.read_chapter(project, chapter or spec.chapter)
+        shots = breakdown.propose_shots(project, spec, source)
+        plan = breakdown.WritePlan.for_shots(project, scene, shots)
+        if _review_proposal(project, plan):
+            if breakdown.load_scene(project, scene) != spec:
+                raise breakdown.BreakdownError(f"{scene}/scene.yaml changed. Generate shots again.")
+            _save_proposal(project, plan)
+    except (breakdown.BreakdownError, ProjectFileError, ProjectError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+
+def _review_proposal(project: Project, plan: breakdown.WritePlan) -> bool:
+    for entry in plan.files:
+        typer.echo(entry.diff(project), nl=False)
+    _show_collisions(project, plan.collisions)
+    if not plan.files:
+        typer.echo("No new files to write.")
+        return False
+    return typer.confirm("Write these files?", default=False)
+
+
+def _save_proposal(project: Project, plan: breakdown.WritePlan) -> None:
+    written, collisions = plan.save(project)
+    _show_collisions(project, collisions)
+    typer.echo(f"Wrote {len(written)} file(s).")
+
+
+def _show_collisions(project: Project, collisions: list[Path]) -> None:
+    for path in collisions:
+        typer.echo(f"Skipped (id collision): {project.paths.rel(path)}")
 
 
 @app.command()
@@ -465,7 +523,7 @@ def log(
     for entry in entries:
         note = f"  — {entry.note}" if entry.note else ""
         typer.echo(
-            f"{entry.ts}  {entry.scene}/{entry.shot}  {entry.action}: "
+            f"{entry.ts}  {entry.subject}  {entry.action}: "
             f"{entry.from_status} → {entry.to_status}{note}"
         )
 
