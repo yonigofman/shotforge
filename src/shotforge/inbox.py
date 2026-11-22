@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Lock
 
 from shotforge import actions
 from shotforge.project import Project
@@ -16,6 +17,7 @@ from shotforge.takes import Take, TakeKind, add_take
 
 IGNORED_NAMES = {".gitkeep", ".DS_Store", "Thumbs.db"}
 PARTIAL_SUFFIXES = (".part", ".crdownload", ".download", ".tmp")
+_FILING_LOCK = Lock()
 
 
 @dataclass
@@ -73,7 +75,7 @@ def file_to_shot(
     *,
     vision: bool | None = None,
 ) -> Take:
-    """Move one inbox file in as the next take and run QA on new frames."""
+    """File an inbox item as the next numbered take and run its QA."""
     inbox_file = Path(inbox_file)
     if not inbox_file.is_file():
         raise FileNotFoundError(inbox_file)
@@ -86,9 +88,10 @@ def file_to_shot(
     shot_paths = project.paths.shot(scene_id, shot_id)
     if not shot_paths.spec.is_file():
         raise FileNotFoundError(f"no shot {shot_id} in scene {scene_id}")
-    take = add_take(shot_paths, kind, inbox_file, move=True)
-    if kind is TakeKind.frame:
-        actions.run_qa(project, scene_id, shot_id, kind, take.number, vision=vision)
+    # Allocate and file the take before another request can pick the same number.
+    with _FILING_LOCK:
+        take = add_take(shot_paths, kind, inbox_file, move=True)
+    actions.run_qa(project, scene_id, shot_id, kind, take.number, vision=vision)
     return take
 
 

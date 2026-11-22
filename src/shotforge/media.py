@@ -17,22 +17,23 @@ def probe_duration(video: Path) -> float | None:
     """Length of a video in seconds, or None when ffprobe cannot read it."""
     try:
         ffprobe = require_tool("ffprobe")
-    except ToolError:
+        result = subprocess.run(
+            [
+                str(ffprobe),
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "json",
+                str(video),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (ToolError, OSError, subprocess.SubprocessError):
         return None
-    result = subprocess.run(
-        [
-            str(ffprobe),
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "json",
-            str(video),
-        ],
-        capture_output=True,
-        text=True,
-    )
     if result.returncode != 0:
         return None
     try:
