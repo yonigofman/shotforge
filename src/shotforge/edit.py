@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
 from filelock import FileLock, Timeout
+from PIL import Image, ImageDraw, ImageFont
 from pydantic import Field, FiniteFloat
 
 from shotforge import tools
@@ -25,6 +26,7 @@ EDL = "rough_cut.edl"
 EXPORT = "rough_cut.zip"
 MANIFEST = ".rough_cut.json"
 APPROVED = {ShotStatus.video_approved, ShotStatus.done}
+TITLE_FONT = Path(__file__).parent / "assets" / "DejaVuSans.ttf"
 
 
 class EditError(Exception):
@@ -250,17 +252,25 @@ def _end_card(
     size: tuple[int, int], fps: int,
 ) -> None:
     width, height = size
-    (folder / "title.txt").write_text(settings.end_title, encoding="utf-8")
-    font_size = max(1, min(height // 12, int(width * 1.35 / len(settings.end_title))))
+    image = Image.new("RGB", size, "#141419")
+    draw = ImageDraw.Draw(image)
+    font_size = max(1, height // 12)
+    font = ImageFont.truetype(str(TITLE_FONT), font_size)
+    left, top, right, bottom = draw.textbbox((0, 0), settings.end_title, font=font)
+    max_width = width * 0.85
+    if right - left > max_width:
+        fitted_size = max(1, int(font_size * max_width / (right - left)))
+        font = ImageFont.truetype(str(TITLE_FONT), fitted_size)
+        left, top, right, bottom = draw.textbbox((0, 0), settings.end_title, font=font)
+    center = ((width - right - left) / 2, (height - bottom - top) / 2)
+    draw.text(center, settings.end_title, font=font, fill="white")
+    image.save(folder / "end_card.png")
     duration = card.frames / fps
     _render_clip(
         ffmpeg, folder, card, fps, size,
-        ["-f", "lavfi", "-i", f"color=c=0x141419:s={width}x{height}:r={fps}",
+        ["-loop", "1", "-framerate", str(fps), "-i", "end_card.png",
          "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"],
-        [f"[0:v]trim=end_frame={card.frames},"
-         f"drawtext=textfile=title.txt:expansion=none:fontcolor=white:fontsize={font_size}:"
-         "x=(w-tw)/2:y=(h-th)/2[v]",
-         f"[1:a]atrim=duration={duration:.9f}[a]"],
+        [f"[0:v]trim=end_frame={card.frames}[v]", f"[1:a]atrim=duration={duration:.9f}[a]"],
     )
 
 

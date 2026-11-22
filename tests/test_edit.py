@@ -47,7 +47,7 @@ def test_cut_exports_frame_accurate_reels_and_an_audible_bridge(project, mp4, tm
         response = client.post("/scene/s01_pub/cut", data={
             "bridge-sh01": "0.25", "end_title": "100% Complete", "end_seconds": "0.5",
         })
-        assert response.status_code == 200
+        assert response.status_code == 200, response.context["error"]
         assert "Export EDL and reels" in response.text
         assert edit.read_settings(project, "s01_pub").bridges == {"sh01": 0.25}
         assert client.get("/scene/s01_pub/cut/rough_cut.mp4").status_code == 200
